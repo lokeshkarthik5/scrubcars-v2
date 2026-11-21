@@ -16,7 +16,7 @@
  */
 import { cityNameKey, cityOfPin } from './cities'
 import { driveMinutes } from './drive-time'
-import { t } from './i18n/translate'
+import { t, type Translate } from './i18n/translate'
 import { straightLineKm } from './map'
 import { SERVICE_CITY, type OutsideServiceCity } from './service-city'
 
@@ -366,6 +366,41 @@ export function driveNearCount(
   const last = garages[garages.length - 1]
   const pastTheLimit = options.nearestFirst && last !== undefined && !within(last)
   return { count, more: options.hasMore && !pastTheLimit }
+}
+
+/** What the map peek's count counts: a drive, or garages that reach the customer. */
+export type MapPeekKind = 'drive' | 'comes' | 'collects'
+
+/**
+ * The map peek's count once the customer has a place, by mode (owner, 22 Nov
+ * 2026). At garage: garages within ~30 min's drive (driveNearCount). Doorstep
+ * and Pickup & drop: the customer doesn't drive, so drive time is the wrong
+ * question; with a place, the API lists only garages that cover it
+ * (doorstepCovers / pickupCovers), so every one loaded counts, "+" while more
+ * may follow. Null when there is nothing to count: the caller falls back to
+ * its near-you words.
+ */
+export function mapPeekCount(
+  mode: 'dropin' | 'doorstep' | 'pickup',
+  garages: readonly NearGarage[],
+  options: { hasMore: boolean; nearestFirst: boolean }
+): { count: number; more: boolean; kind: MapPeekKind } | null {
+  if (mode === 'doorstep' || mode === 'pickup') {
+    if (garages.length === 0) return null
+    return { count: garages.length, more: options.hasMore, kind: mode === 'doorstep' ? 'comes' : 'collects' }
+  }
+  const drive = driveNearCount(garages, options)
+  return drive.count > 0 ? { ...drive, kind: 'drive' } : null
+}
+
+/** The words after mapPeekCount's number: "garages within ~30 min", "garages can come to you". */
+export function mapPeekWords(peek: { count: number; more: boolean; kind: MapPeekKind }, translate: Translate = t): string {
+  const one = peek.count === 1 && !peek.more
+  if (peek.kind === 'comes') return one ? translate('garage can come to you') : translate('garages can come to you')
+  if (peek.kind === 'collects') return one ? translate('garage can pick up from you') : translate('garages can pick up from you')
+  return one
+    ? translate('garage within ~{minutes} min', { minutes: NEAR_DRIVE_MINUTES })
+    : translate('garages within ~{minutes} min', { minutes: NEAR_DRIVE_MINUTES })
 }
 
 /**
