@@ -4971,7 +4971,9 @@ async function seedServiceCategoryRows() {
   await db.insert(vendors).values({
     id: C.garage.id, ownerId: C.owner.id, businessName: C.garage.name, phone: C.owner.phone,
     address: '80, Workshop Road, Kilpauk', city: 'Chennai', pincode: '600010',
-    lat: ORIGIN.lat + 0.05, lng: ORIGIN.lng, geoSource: 'map_pin', geoConfirmedAt: now,
+    // ~5.4 km east of ORIGIN, in no zone: north of it (Perambur, 4 km) it took
+    // coverage-demand's waiting requests and made Perambur's figures move.
+    lat: ORIGIN.lat, lng: ORIGIN.lng + 0.05, geoSource: 'map_pin', geoConfirmedAt: now,
     vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30, status: 'active',
     isVerified: true, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(30),
   })
