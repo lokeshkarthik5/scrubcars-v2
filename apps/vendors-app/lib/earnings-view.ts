@@ -89,7 +89,7 @@ export function balanceFootnote(statement: Pick<EarningsStatement, 'summary' | '
       : '';
   return (
     `${t('Detlio pays your share within {hours} hours of each job, by bank transfer or UPI.', { hours: cycleHours })} ` +
-    t('Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.') +
+    t('Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.') +
     free
   );
 }

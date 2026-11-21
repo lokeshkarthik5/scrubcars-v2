@@ -20,7 +20,7 @@ import { Figures, font, T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { type ComponentRef, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComponentRef, Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -41,6 +41,7 @@ import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
 import { useGarageTownLine } from '@/lib/customer-place';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
+import { categoryLabel, groupByCategory, showCategoryHeadings } from '@repo/core/categories';
 import { fill, msg, useT, useTn } from '@repo/core/i18n';
 import { track } from '@/lib/shims/analytics';
 import { useBookingCar } from '@/lib/booking-car';
@@ -119,6 +120,19 @@ export default function GarageScreen() {
     const q = query.trim().toLowerCase();
     return q ? services.filter((s) => matches(s, q)) : services;
   }, [services, query]);
+  // The list under small category headings (0080; the web's garage page, mockup
+  // 3-customer-4): in the order used everywhere, only when the garage sells two or more
+  // kinds of work, grouped from the search's result so a search hides empty headings.
+  const serviceSections = useMemo(() => {
+    const headed = showCategoryHeadings(groupByCategory(services, (s) => s.category));
+    let index = 0;
+    const numbered = (list: Service[]) => list.map((svc) => ({ svc, index: index++ }));
+    if (!headed) return [{ category: null, items: numbered(filtered) }];
+    return groupByCategory(filtered, (s) => s.category).map((group) => ({
+      category: group.category,
+      items: numbered(group.items),
+    }));
+  }, [services, filtered]);
   const filteredPackages = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? packages.filter((p) => matches(p, q) || p.items.some((i) => i.name.toLowerCase().includes(q))) : packages;
@@ -388,18 +402,32 @@ export default function GarageScreen() {
                         {services.length === 0 ? t('No services available yet.') : t('No services match that search.')}
                       </T>
                     ) : (
-                      filtered.map((svc, i) => (
-                        <Rise key={svc.id} index={i}>
-                          <ServiceCard
-                            service={svc}
-                            added={selected.includes(svc.id)}
-                            paused={paused}
-                            carType={carType}
-                            carModel={myCar?.model ?? null}
-                            onOpen={() => open(svc)}
-                            onToggle={() => toggle(svc.id)}
-                          />
-                        </Rise>
+                      serviceSections.map((section, at) => (
+                        <Fragment key={section.category ?? 'all'}>
+                          {section.category ? (
+                            <View accessibilityRole="header" style={[styles.categoryHead, at > 0 && styles.categoryHeadGap]}>
+                              <T variant="over" color={fx.quiet}>
+                                {categoryLabel(section.category)}
+                              </T>
+                              <T num variant="over" color={fx.quiet}>
+                                {section.items.length}
+                              </T>
+                            </View>
+                          ) : null}
+                          {section.items.map(({ svc, index: i }) => (
+                            <Rise key={svc.id} index={i}>
+                              <ServiceCard
+                                service={svc}
+                                added={selected.includes(svc.id)}
+                                paused={paused}
+                                carType={carType}
+                                carModel={myCar?.model ?? null}
+                                onOpen={() => open(svc)}
+                                onToggle={() => toggle(svc.id)}
+                              />
+                            </Rise>
+                          ))}
+                        </Fragment>
                       ))
                     )}
                   </View>
@@ -783,6 +811,9 @@ const useStyles = createStyles((c) => ({
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontFamily: font(500), fontSize: 15, color: c.textPrimary },
   group: { paddingTop: 16, gap: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
+  // A category's small overline heading over its cards (0080), as the web's.
+  categoryHead: { flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingHorizontal: 2 },
+  categoryHeadGap: { marginTop: 8 },
   none: { paddingVertical: 24 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   gridPhoto: { borderRadius: 16, backgroundColor: c.surface },

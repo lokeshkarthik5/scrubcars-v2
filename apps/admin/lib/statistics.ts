@@ -319,6 +319,9 @@ export const SERVICE_TYPE_LABELS: Record<ServiceCategory, string> = {
   detailing: 'Detailing',
   coating: 'Coating',
   scratch_removal: 'Scratch removal',
+  general_service: 'General service',
+  repairs: 'Repairs',
+  dent_paint: 'Dent & paint',
   package: 'Packages',
   others: 'Others',
 }

@@ -129,7 +129,7 @@ test.describe('statistics API @p0', () => {
       { category: 'car_wash', bookings: 7, collected: 3000 },
       { category: 'scratch_removal', bookings: 1, collected: 1500 },
     ])
-    expect(data.services).toHaveLength(6)
+    expect(data.services).toHaveLength(9)
 
     // 23–29, each slot at 10:00 the day after it was booked. The no-show,
     // the cancelled ones and the Test one are left out; the moved one's slot
@@ -153,7 +153,10 @@ test.describe('statistics API @p0', () => {
     expect(data.rules).toEqual({
       rates: [
         { rate: 0.08, categories: ['car_wash', 'package', 'others'] },
-        { rate: 0.05, categories: ['detailing', 'coating', 'scratch_removal'] },
+        {
+          rate: 0.05,
+          categories: ['detailing', 'coating', 'scratch_removal', 'general_service', 'repairs', 'dent_paint'],
+        },
       ],
       freeBookings: 25,
     })

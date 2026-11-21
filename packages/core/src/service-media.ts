@@ -66,7 +66,16 @@ export function cardThumbnail(media: readonly ServiceMedia[]): CardThumbnail | n
  * What kind of work a service is, for its icon (serviceIconFor) and the
  * admin's AI picture prompt.
  */
-export type SampleArt = 'wash' | 'bike' | 'detailing' | 'coating' | 'scratch' | 'others'
+export type SampleArt =
+  | 'wash'
+  | 'bike'
+  | 'detailing'
+  | 'coating'
+  | 'scratch'
+  | 'general_service'
+  | 'repairs'
+  | 'dent_paint'
+  | 'others'
 
 /**
  * A bike wash is filed under car wash or others (there is no bike category),
@@ -83,6 +92,12 @@ export function sampleArtFor(category: ServiceCategory, name: string): SampleArt
       return 'coating'
     case 'scratch_removal':
       return 'scratch'
+    // The mechanical and body work (0080): their own icon and tint, where
+    // they used to show the grey Others wrench.
+    case 'general_service':
+    case 'repairs':
+    case 'dent_paint':
+      return category
     default:
       return /\bwash\b/i.test(name) ? 'wash' : 'others'
   }

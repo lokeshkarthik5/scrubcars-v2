@@ -32,7 +32,7 @@ import {
 // Fixed order for every per-tier breakdown, so the UI can render rows without
 // sorting and the "smallest saving" scan is deterministic.
 const VEHICLE_TIERS: VehicleTier[] = ['hatchback', 'sedan', 'suv']
-import { categoryLabel } from '../../lib/categories.js'
+import { categoryLabel, categoryRank } from '../../lib/categories.js'
 import { computeVendorPayout } from '../../lib/discounts.js'
 import { earningKind, type EarningKind } from '../../lib/earnings.js'
 import { paidChargesTotal } from '../../lib/final-bill.js'
@@ -928,9 +928,11 @@ export async function vendorCardsFor(
   )
 
   return rows.map((vendor): VendorListItemResponse => {
+    // In the order categories are listed everywhere, so a card reads
+    // "General service, Repairs" whichever was added first.
     const categories = [
       ...new Set(vendor.services.map((service) => service.category)),
-    ]
+    ].sort((a, b) => categoryRank(a) - categoryRank(b))
     const rating = ratings.get(vendor.id)
     const distanceM = distanceByVendor.get(vendor.id) ?? null
 

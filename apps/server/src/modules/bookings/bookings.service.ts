@@ -1738,7 +1738,7 @@ export function requestRefusalError(
  * customer's reschedule and the pick of a garage's suggested time (0041), so
  * the two can never carry a booking differently.
  */
-function moveParams(
+export function moveParams(
   booking: Awaited<ReturnType<typeof bookingsRepository.findBookingById>> & object,
   move: {
     userId: string
@@ -1761,6 +1761,8 @@ function moveParams(
       amount: item.amount,
       durationMins: item.durationMins,
       isAddon: item.isAddon ?? false,
+      // The category it was booked at (0080), so a move never re-prices it.
+      category: item.category ?? null,
     })),
     vehicleId: booking.vehicleId,
     bookingType: booking.bookingType,

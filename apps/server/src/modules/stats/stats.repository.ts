@@ -168,9 +168,10 @@ export function statsReads(tx: Tx) {
 
     /**
      * The services sold on each chain booked in [start, end), from its latest
-     * row, with each service's category as the catalogue has it now (an item
-     * keeps its name and price, not its category), and likewise the
-     * service's own commission percent (0064), when it has one.
+     * row, with the category each was booked at (booking_items.category,
+     * 0080; a line written before 0080's code has none and reads the
+     * service's category now), and the service's own commission percent
+     * (0064), when it has one, as the catalogue has it now.
      */
     async chainItems(start: Date, end: Date, vendorId?: string): Promise<StatsItemRow[]> {
       const rows = await tx.execute<{
@@ -183,7 +184,7 @@ export function statsReads(tx: Tx) {
         is_addon: boolean
       }>(sql`
         with ${chainsCte(vendorId)}
-        select c.root_id, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order,
+        select c.root_id, coalesce(bi.category, s.category) as category, s.pricing_type, bi.amount::text as amount, bi.sort_order,
                s.commission_rate::text as commission_rate, bi.is_addon
           from chains c
           join booking_items bi on bi.booking_id = c.id

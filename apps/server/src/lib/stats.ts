@@ -509,6 +509,9 @@ export const SERVICE_TYPES: ServiceCategory[] = [
   'detailing',
   'coating',
   'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
   'package',
   'others',
 ]
