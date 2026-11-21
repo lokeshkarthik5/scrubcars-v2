@@ -19,7 +19,7 @@ import {
   zones,
 } from '../../db/schema.js'
 import type { RecommendationStatus } from '../../lib/recommendations.js'
-import { LISTED_TO_CUSTOMERS, vendorNotInBin } from '../vendors/vendors.predicates.js'
+import { vendorNotInBin } from '../vendors/vendors.predicates.js'
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 /** The pool, or a transaction the write runs in (one connection: never mix the two inside one). */
@@ -507,30 +507,48 @@ export const leadsRepository = {
     return Array.from(rows)
   },
 
-  /** A garage's numbers for the phone match: its phone, its WhatsApp and its owner's login phone. */
-  async garagePhones(vendorId: string, conn: Conn = db): Promise<{ phone: string; whatsapp: string | null; ownerPhone: string | null } | null> {
-    const rows = await conn.execute<{ phone: string; whatsapp: string | null; owner_phone: string | null }>(sql`
-      SELECT v.phone, v.whatsapp, u.phone AS owner_phone
+  /** A garage's numbers for the phone match: its phone, its WhatsApp and its owner's login phone, and who the owner is. */
+  async garagePhones(
+    vendorId: string,
+    conn: Conn = db
+  ): Promise<{ phone: string; whatsapp: string | null; ownerPhone: string | null; ownerId: string | null } | null> {
+    const rows = await conn.execute<{ phone: string; whatsapp: string | null; owner_phone: string | null; owner_id: string | null }>(sql`
+      SELECT v.phone, v.whatsapp, u.phone AS owner_phone, v.owner_id
         FROM vendors v LEFT JOIN users u ON u.id = v.owner_id
        WHERE v.id = ${vendorId}
     `)
     const row = Array.from(rows)[0]
-    return row ? { phone: row.phone, whatsapp: row.whatsapp, ownerPhone: row.owner_phone } : null
+    return row ? { phone: row.phone, whatsapp: row.whatsapp, ownerPhone: row.owner_phone, ownerId: row.owner_id } : null
+  },
+
+  /**
+   * Which of these numbers (ten digits) another garage has already: its
+   * phone, its WhatsApp or its owner's login, compared on their last ten
+   * digits. Such a number cannot say which garage a customer meant.
+   */
+  async phonesOnOtherGarages(vendorId: string, phones: readonly string[], conn: Conn = db): Promise<string[]> {
+    if (phones.length === 0) return []
+    const list = sql.join(
+      phones.map((phone) => sql`${phone}`),
+      sql`, `
+    )
+    const rows = await conn.execute<{ phone: string }>(sql`
+      SELECT DISTINCT n.phone FROM (
+        SELECT v.id, right(regexp_replace(v.phone, '[^0-9]', '', 'g'), 10) AS phone FROM vendors v
+        UNION ALL
+        SELECT v.id, right(regexp_replace(v.whatsapp, '[^0-9]', '', 'g'), 10) FROM vendors v WHERE v.whatsapp IS NOT NULL
+        UNION ALL
+        SELECT v.id, right(regexp_replace(u.phone, '[^0-9]', '', 'g'), 10) FROM vendors v JOIN users u ON u.id = v.owner_id
+      ) n
+       WHERE n.id <> ${vendorId} AND n.phone IN (${list})
+    `)
+    return Array.from(rows).map((row) => row.phone)
   },
 
   /** The lead a garage was made from or linked to, if any (one at most: unique). */
   async leadIdOfGarage(vendorId: string, conn: Conn = db): Promise<string | null> {
     const [row] = await conn.select({ id: leads.id }).from(leads).where(eq(leads.vendorId, vendorId)).limit(1)
     return row?.id ?? null
-  },
-
-  /** A garage's business name and whether customers can find it (the lists' own rule), for "joined thanks to you". */
-  async garageForJoinedNotice(vendorId: string, conn: Conn = db): Promise<{ businessName: string; listed: boolean } | null> {
-    const rows = await conn.execute<{ business_name: string; listed: boolean }>(sql`
-      SELECT v.business_name, ${LISTED_TO_CUSTOMERS} AS listed FROM vendors v WHERE v.id = ${vendorId}
-    `)
-    const row = Array.from(rows)[0]
-    return row ? { businessName: row.business_name, listed: row.listed === true } : null
   },
 
   /** Each change, only while its credit is undecided (the rule's own condition, kept here too). */

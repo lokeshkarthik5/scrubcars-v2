@@ -99,10 +99,27 @@ export function leadFromRecommendation(
 // ─── Bring your garage: a garage that signs up itself (21 Nov 2026) ─────────
 
 /**
+ * A number as ten digits when it is an Indian mobile, else null: +91, 0,
+ * 091 and 0091 in front are dropped however it was typed (the customer
+ * apps' own `normaliseIndianMobile`, packages/core/src/phone.ts). A
+ * landline (044…) is never one, so it can never match.
+ */
+export function tenDigitMobile(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  let digits = raw.replace(/\D+/g, '')
+  while (digits.length > 10) {
+    if (digits.startsWith('0')) digits = digits.slice(1)
+    else if (digits.startsWith('91') && digits.length >= 12) digits = digits.slice(2)
+    else break
+  }
+  return isIndianMobile(digits) ? digits : null
+}
+
+/**
  * The numbers a new garage can be matched on: its business phone, its
- * WhatsApp and its owner's login phone, each normalised to ten digits
- * (`normalisePhone`: +91 / 0 dropped) and kept only when it is an Indian
- * mobile, which is all a recommendation's phone can be (its CHECK).
+ * WhatsApp and its owner's login phone, each as ten digits and kept only
+ * when it is an Indian mobile, which is all a recommendation's phone can
+ * be (its CHECK).
  */
 export function garageMatchPhones(garage: {
   phone: string | null | undefined
@@ -111,8 +128,8 @@ export function garageMatchPhones(garage: {
 }): string[] {
   const phones = new Set<string>()
   for (const raw of [garage.phone, garage.whatsapp, garage.ownerPhone]) {
-    const phone = normalisePhone(raw)
-    if (phone && isIndianMobile(phone)) phones.add(phone)
+    const phone = tenDigitMobile(raw)
+    if (phone) phones.add(phone)
   }
   return [...phones]
 }
@@ -127,17 +144,25 @@ export interface RecommendationPhoneCandidate extends RecommendationLink {
  * Which recommendations a garage that has just been made is the garage
  * for, by phone: a recommendation still open (`new` or `contacted`, so
  * neither dismissed nor joined), linked to no garage yet and with no credit
- * decided, whose phone (normalised) is one of the garage's numbers. Every
- * customer who recommended that number is linked, each earning once per
- * garage when they book it (`referralCredit`; the partial unique index on
- * customer and garage). A recommendation already following a lead to a
- * garage is the team's link and is never moved here.
+ * decided, whose phone is one of the garage's numbers. Every customer who
+ * recommended that number is linked, each earning once per garage when
+ * they book it (`referralCredit`; the partial unique index on customer and
+ * garage). A recommendation already following a lead to a garage is the
+ * team's link and is never moved here.
+ *
+ * Never a false match: a number another garage already has (`sharedPhones`:
+ * its phone, WhatsApp or owner login — an owner's second company, a family
+ * number) says nothing about which garage the customer meant, so it is left
+ * for the team; and the garage's own owner recommending their own number
+ * (`ownerId`) brings nobody in.
  */
 export function recommendationsMatchingGarage(
   candidates: readonly RecommendationPhoneCandidate[],
-  garagePhones: readonly string[]
+  garagePhones: readonly string[],
+  guard: { ownerId?: string | null; sharedPhones?: readonly string[] } = {}
 ): string[] {
-  const phones = new Set(garagePhones)
+  const shared = new Set(guard.sharedPhones ?? [])
+  const phones = new Set(garagePhones.filter((phone) => !shared.has(phone)))
   if (phones.size === 0) return []
   return candidates
     .filter(
@@ -146,10 +171,54 @@ export function recommendationsMatchingGarage(
         rec.vendorId === null &&
         rec.creditStatus === null &&
         rec.phone !== null &&
-        phones.has(normalisePhone(rec.phone) ?? '')
+        (guard.ownerId == null || rec.userId !== guard.ownerId) &&
+        phones.has(tenDigitMobile(rec.phone) ?? '')
     )
     .map((rec) => rec.id)
 }
 
 /** Who a garage-sign-up link is recorded as (`handled_by`), when nobody on the team handled it before. */
 export const GARAGE_SIGN_UP_HANDLER = 'Garage sign-up'
+
+// ─── "<Garage> joined Detlio thanks to you": once it is shown to customers ──
+
+/**
+ * When the customer is told a garage they recommended joined (owner, 21 Nov
+ * 2026): only once the garage is first shown to customers (listed), never
+ * while it is still pending and invisible. Once per recommendation, claimed
+ * before it is sent (areaSignupsRepository.claimJoinedNotices). Only for a
+ * garage made on or after `since` (the feature's day, so recommendations
+ * that joined before it are not told weeks later) and at most
+ * `garageAgeDays` old (a bounded read; a garage that took longer to go live
+ * is not news any more). `batch` claimed a run.
+ */
+export const JOINED_NOTICE_RULES = {
+  since: new Date('2026-11-21T00:00:00+05:30'),
+  garageAgeDays: 90,
+  batch: 50,
+} as const
+
+/** The oldest a garage may have been made for its recommenders still to be told it joined. */
+export function joinedNoticeFrom(now: Date): Date {
+  const window = new Date(now.getTime() - JOINED_NOTICE_RULES.garageAgeDays * 24 * 60 * 60 * 1000)
+  return window > JOINED_NOTICE_RULES.since ? window : JOINED_NOTICE_RULES.since
+}
+
+/**
+ * The claimed recommendations as messages: one per customer and garage
+ * (a customer who recommended the same garage twice hears it once), the
+ * first recommendation's id as the message's tag.
+ */
+export function joinedNoticeSends(
+  claimed: ReadonlyArray<{ id: string; userId: string; vendorId: string; businessName: string }>
+): Array<{ recommendationId: string; userId: string; vendorId: string; businessName: string }> {
+  const seen = new Set<string>()
+  const sends: Array<{ recommendationId: string; userId: string; vendorId: string; businessName: string }> = []
+  for (const rec of claimed) {
+    const key = `${rec.userId}|${rec.vendorId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    sends.push({ recommendationId: rec.id, userId: rec.userId, vendorId: rec.vendorId, businessName: rec.businessName })
+  }
+  return sends
+}

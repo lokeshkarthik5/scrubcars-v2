@@ -56,7 +56,7 @@ export interface RecommendInput {
 }
 
 export function recommendGarage(input: RecommendInput) {
-  return apiClient<{ id: string; credit: { perGarage: number } }>('/users/me/area/recommendations', {
+  return apiClient<{ id: string; credit: { perGarage: number; /** No cap per customer any more: null (older servers sent a number). */ max: number | null } }>('/users/me/area/recommendations', {
     method: 'POST',
     body: JSON.stringify(input),
   })

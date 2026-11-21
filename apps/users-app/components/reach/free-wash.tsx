@@ -372,7 +372,8 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
   // WhatsApp opens at once; the recommendation is saved alongside, once per message.
   const openWhatsApp = async () => {
     const number = whatsAppNumber(phone);
-    if (!number || !waHref) return;
+    // A second tap while the first is saving opens nothing more.
+    if (!number || !waHref || recommend.isPending) return;
     openLink(waHref);
     const key = `${name.trim()}|${number}`;
     if (savedWhatsApp.current === key) {
@@ -484,7 +485,7 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
           {user ? (
             <ScButton
               variant="main"
-              disabled={!waHref}
+              disabled={!waHref || recommend.isPending}
               disabledReason={waHref ? undefined : t('Give the garage’s name and their 10-digit WhatsApp number.')}
               accessibilityLabel={t('Open WhatsApp')}
               onPress={() => void openWhatsApp()}

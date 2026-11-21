@@ -2,9 +2,11 @@
  * Bring your garage (21 Nov 2026): a garage that signs up itself (or is
  * added by the team) with the phone a customer recommended is linked to
  * that recommendation — every customer who gave the number, the first open
- * lead among them Onboarded to it, each customer told once (in the area
- * news' hours). The repository is stood in for by memory; the rules are the
- * real ones (lib/recommendations.ts).
+ * lead among them Onboarded to it — but never on a number another garage has
+ * or the owner's own recommendation. Nobody is told here: "joined thanks to
+ * you" waits until the garage is shown to customers (area-signups'
+ * tellJoinedGarages, asked for after the link). The repository is stood in
+ * for by memory; the rules are the real ones (lib/recommendations.ts).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test'
 
@@ -12,7 +14,7 @@ process.env.DATABASE_URL ??= 'postgres://test:test@localhost:5432/test'
 
 const { leadsRepository } = await import('./leads.repository.js')
 const { leadsService } = await import('./leads.service.js')
-const { pushService } = await import('../push/push.service.js')
+const { areaSignupsService } = await import('../area-signups/area-signups.service.js')
 
 type Status = 'new' | 'contacted' | 'joined' | 'declined'
 interface Rec {
@@ -28,14 +30,15 @@ interface Rec {
 }
 
 const GARAGE = 'garage-new'
-// 10:00 IST: inside the 09:00–20:59 hours; 22:00 IST outside them.
 const DAY = new Date('2026-11-21T10:00:00+05:30')
-const NIGHT = new Date('2026-11-21T22:00:00+05:30')
 
 let recs = new Map<string, Rec>()
 let leadGarage = new Map<string, string | null>()
-let garage: { phone: string; whatsapp: string | null; ownerPhone: string | null } | null = null
-let told: Array<{ userId: string; title: string; url: string }> = []
+let garage: { phone: string; whatsapp: string | null; ownerPhone: string | null; ownerId: string | null } | null = null
+/** Numbers another garage has (phonesOnOtherGarages). */
+let otherGarages: string[] = []
+/** How often the joined notice was asked for after a link. */
+let tellAsked = 0
 
 const rec = (patch: Partial<Rec> & { id: string }): Rec => ({
   userId: 'priya',
@@ -61,6 +64,7 @@ beforeAll(() => {
   const l = leadsRepository as unknown as Patchable
   patch(l, 'transaction', async (fn: (tx: unknown) => Promise<unknown>) => fn({}))
   patch(l, 'garagePhones', async () => garage)
+  patch(l, 'phonesOnOtherGarages', async (_vendorId: string, phones: string[]) => phones.filter((p) => otherGarages.includes(p)))
   patch(l, 'lockRecommendationsByPhones', async (phones: string[]) =>
     [...recs.values()].filter(
       (r) => r.phone && phones.includes(r.phone) && !r.vendorId && !r.creditStatus && (r.status === 'new' || r.status === 'contacted')
@@ -91,11 +95,8 @@ beforeAll(() => {
     for (const change of changes) recs.set(change.id, { ...recs.get(change.id)!, ...change })
     return changes.length
   })
-  patch(l, 'garageForJoinedNotice', async () => ({ businessName: 'Sri Krishna Car Spa', listed: false }))
-  patch(pushService, 'notifyLater', (loader: () => Promise<Array<{ recipient: { userId: string }; message: { title: string; url: string } }>>) => {
-    void loader().then((sends) => {
-      for (const { recipient, message } of sends) told.push({ userId: recipient.userId, title: message.title, url: message.url })
-    })
+  patch(areaSignupsService, 'tellJoinedSoon', () => {
+    tellAsked++
   })
 })
 
@@ -106,34 +107,49 @@ afterAll(() => {
 beforeEach(() => {
   recs = new Map()
   leadGarage = new Map()
-  garage = { phone: '9840123456', whatsapp: null, ownerPhone: '9840123456' }
-  told = []
+  garage = { phone: '9840123456', whatsapp: null, ownerPhone: '9840123456', ownerId: 'owner-1' }
+  otherGarages = []
+  tellAsked = 0
 })
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
-
 describe('a self-signed-up garage with a recommended phone', () => {
-  test('every customer who gave the number is linked, joined, signed by the sign-up, and told once', async () => {
+  test('every customer who gave the number is linked, joined, signed by the sign-up; nobody is told yet', async () => {
     recs.set('a', rec({ id: 'a', userId: 'priya' }))
     recs.set('b', rec({ id: 'b', userId: 'arun', phone: '9840123456' }))
     recs.set('c', rec({ id: 'c', userId: 'priya', phone: '9840123456' }))
     recs.set('other', rec({ id: 'other', userId: 'meena', phone: '9000000000' }))
 
     expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)).toBe(3)
-    await settle()
     for (const id of ['a', 'b', 'c']) {
       expect(recs.get(id)).toMatchObject({ vendorId: GARAGE, status: 'joined', handledBy: 'Garage sign-up', handledAt: DAY })
     }
     expect(recs.get('other')).toMatchObject({ vendorId: null, status: 'new' })
-    // Once per customer, whatever they recommended twice.
-    expect(told.map((t) => t.userId).sort()).toEqual(['arun', 'priya'])
-    expect(told[0]).toMatchObject({ title: 'Sri Krishna Car Spa joined Detlio thanks to you', url: '/garages' })
+    // The notice is asked for (it tells them only once the garage is shown to customers).
+    expect(tellAsked).toBe(1)
   })
 
   test('matched on the WhatsApp or the owner’s number too, normalised', async () => {
-    garage = { phone: '044 2490 1234', whatsapp: '+91 98401 23456', ownerPhone: null }
+    garage = { phone: '044 2490 1234', whatsapp: '0091 98401 23456', ownerPhone: null, ownerId: 'owner-1' }
     recs.set('a', rec({ id: 'a' }))
     expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)).toBe(1)
+  })
+
+  test('a number another garage has already (a second company, a family number) is left for the team', async () => {
+    garage = { phone: '9840123456', whatsapp: null, ownerPhone: '9840654321', ownerId: 'owner-1' }
+    otherGarages = ['9840654321']
+    recs.set('business', rec({ id: 'business', phone: '9840123456' }))
+    recs.set('owner', rec({ id: 'owner', userId: 'arun', phone: '9840654321' }))
+    expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)).toBe(1)
+    expect(recs.get('business')).toMatchObject({ vendorId: GARAGE, status: 'joined' })
+    expect(recs.get('owner')).toMatchObject({ vendorId: null, status: 'new' })
+  })
+
+  test('the owner recommending their own number brings nobody in', async () => {
+    recs.set('self', rec({ id: 'self', userId: 'owner-1' }))
+    recs.set('friend', rec({ id: 'friend', userId: 'arun' }))
+    expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)).toBe(1)
+    expect(recs.get('self')).toMatchObject({ vendorId: null, status: 'new' })
+    expect(recs.get('friend')).toMatchObject({ vendorId: GARAGE, status: 'joined' })
   })
 
   test('the team’s who and when are kept; its lead is Onboarded to the garage and the lead’s others follow', async () => {
@@ -144,11 +160,9 @@ describe('a self-signed-up garage with a recommended phone', () => {
     recs.set('maps', rec({ id: 'maps', userId: 'kavya', phone: null, status: 'contacted', leadId: 'lead-1', handledBy: 'Raga', handledAt }))
 
     await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)
-    await settle()
     expect(recs.get('a')).toMatchObject({ vendorId: GARAGE, status: 'joined', handledBy: 'Raga', handledAt })
     expect(leadGarage.get('lead-1')).toBe(GARAGE)
     expect(recs.get('maps')).toMatchObject({ vendorId: GARAGE, status: 'joined' })
-    expect(told.map((t) => t.userId).sort()).toEqual(['kavya', 'priya'])
   })
 
   test('a garage that already has a lead keeps it: no second lead is Onboarded', async () => {
@@ -166,22 +180,31 @@ describe('a self-signed-up garage with a recommended phone', () => {
     recs.set('credited', rec({ id: 'credited', status: 'joined', vendorId: 'garage-old', creditStatus: 'owed' }))
     expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)).toBe(0)
     expect(recs.get('elsewhere')!.vendorId).toBe('garage-old')
-    expect(told).toEqual([])
-  })
-
-  test('outside 09:00–20:59 IST the link is made, and nobody is woken', async () => {
-    recs.set('a', rec({ id: 'a' }))
-    expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', NIGHT)).toBe(1)
-    await settle()
-    expect(recs.get('a')!.status).toBe('joined')
-    expect(told).toEqual([])
+    // Nothing linked: nothing to tell.
+    expect(tellAsked).toBe(0)
   })
 
   test('a garage with no mobile number to match: nothing read or linked', async () => {
-    garage = { phone: '044 2490 1234', whatsapp: null, ownerPhone: null }
+    garage = { phone: '044 2490 1234', whatsapp: null, ownerPhone: null, ownerId: 'owner-1' }
     recs.set('a', rec({ id: 'a' }))
     expect(await leadsService.linkRecommendationsByPhone(GARAGE, 'Garage sign-up', DAY)).toBe(0)
     expect(recs.get('a')!.status).toBe('new')
+  })
+})
+
+describe('the team’s Onboard of a lead made from a recommendation', () => {
+  test('its recommendations join the garage; the notice is asked for, not sent at once', async () => {
+    leadGarage.set('lead-1', null)
+    recs.set('a', rec({ id: 'a', status: 'contacted', leadId: 'lead-1', handledBy: 'Raga', handledAt: DAY }))
+    expect(await leadsService.linkOnboardedGarage('lead-1', GARAGE, DAY)).toBe(true)
+    expect(recs.get('a')).toMatchObject({ vendorId: GARAGE, status: 'joined' })
+    expect(tellAsked).toBe(1)
+  })
+
+  test('a lead with no recommendation asks for nothing', async () => {
+    leadGarage.set('lead-2', null)
+    expect(await leadsService.linkOnboardedGarage('lead-2', GARAGE, DAY)).toBe(true)
+    expect(tellAsked).toBe(0)
   })
 })
 

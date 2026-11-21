@@ -616,7 +616,15 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
                 href={waHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => void saveWhatsApp()}
+                onClick={(event) => {
+                  // A second tap while the first is saving opens nothing more.
+                  if (recommend.isPending) {
+                    event.preventDefault()
+                    return
+                  }
+                  void saveWhatsApp()
+                }}
+                aria-disabled={recommend.isPending || undefined}
                 data-open-whatsapp=""
                 className={scButtonClass({ variant: 'main' })}
               >

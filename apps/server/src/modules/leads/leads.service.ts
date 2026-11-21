@@ -36,9 +36,8 @@ import {
   recommendationGarageChanges,
   recommendationsMatchingGarage,
 } from '../../lib/recommendations.js'
-import { garageJoinedPushWords, isReachPushHour, REFERRAL_CREDIT } from '../../lib/area-signups.js'
-import { customerRecommendedGarageJoined } from '../../lib/push-messages.js'
-import { pushService } from '../push/push.service.js'
+import { REFERRAL_CREDIT } from '../../lib/area-signups.js'
+import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { leadZoneId } from '../../lib/zone-edits.js'
 import { zoneFor } from '../../lib/zones.js'
 import { geoService } from '../geo/geo.service.js'
@@ -222,60 +221,14 @@ async function syncRecommendations(
   conn: Conn,
   leadId: string,
   vendorId: string | null,
-  now: Date,
-  /** Filled with the ones that joined the garage, to tell their customers. */
-  joined?: Array<{ id: string; userId: string | null }>
+  now: Date
 ): Promise<number> {
   const recommendations = await leadsRepository.lockRecommendationsOfLead(
     leadId,
     conn
   )
   const changes = recommendationGarageChanges(recommendations, vendorId)
-  const changed = await leadsRepository.setRecommendationGarages(changes, now, conn)
-  if (joined && vendorId) {
-    for (const change of changes) {
-      if (change.status !== 'joined') continue
-      const rec = recommendations.find((r) => r.id === change.id)
-      joined.push({ id: change.id, userId: rec?.userId ?? null })
-    }
-  }
-  return changed
-}
-
-/**
- * "<Garage> joined Detlio thanks to you. Book them once to get ₹500." to
- * each customer whose recommendation just joined a garage (Bring your
- * garage, 21 Nov 2026), once per customer, after the response. Only in the
- * area news' hours (09:00–20:59 IST, lib/area-signups.ts isReachPushHour);
- * outside them nothing is sent (there is nowhere to keep it for the
- * morning without a column). The garage's name and whether customers can
- * find it are read only while notifications are on.
- */
-function tellRecommendersJoined(
-  vendorId: string,
-  recommendations: ReadonlyArray<{ id: string; userId: string | null }>,
-  now: Date
-) {
-  const seen = new Set<string>()
-  const recipients = recommendations.filter((rec): rec is { id: string; userId: string } => {
-    if (!rec.userId || seen.has(rec.userId)) return false
-    seen.add(rec.userId)
-    return true
-  })
-  if (recipients.length === 0) return
-  if (!isReachPushHour(now)) {
-    log.info({ vendorId, customers: recipients.length }, 'recommendations:joined_not_told_quiet_hours')
-    return
-  }
-  pushService.notifyLater(async () => {
-    const garage = await leadsRepository.garageForJoinedNotice(vendorId)
-    if (!garage) return []
-    const words = garageJoinedPushWords(garage.businessName)
-    return recipients.map((rec) => ({
-      recipient: { audience: 'customer' as const, userId: rec.userId },
-      message: customerRecommendedGarageJoined({ id: rec.id, vendorId }, words, garage.listed),
-    }))
-  })
+  return leadsRepository.setRecommendationGarages(changes, now, conn)
 }
 
 /**
@@ -677,7 +630,6 @@ export const leadsService = {
     vendorId: string,
     now = new Date()
   ): Promise<boolean> {
-    const joined: Array<{ id: string; userId: string | null }> = []
     const { linked, synced } = await leadsRepository.transaction(async (tx) => {
       const linked = await leadsRepository.markOnboarded(
         leadId,
@@ -686,11 +638,14 @@ export const leadsService = {
         tx
       )
       const synced = linked
-        ? await syncRecommendations(tx, leadId, vendorId, now, joined)
+        ? await syncRecommendations(tx, leadId, vendorId, now)
         : 0
       return { linked, synced }
     })
-    tellRecommendersJoined(vendorId, joined, now)
+    // "<Garage> joined Detlio thanks to you" waits until customers can see
+    // the garage (areaSignupsService.tellJoinedGarages); an Add garage made
+    // already listed is told now.
+    if (synced > 0) areaSignupsService.tellJoinedSoon()
     log.info({ linked, recommendations: synced }, 'leads:onboarded')
     return linked
   },
@@ -724,16 +679,18 @@ export const leadsService = {
 
   /**
    * Bring your garage (21 Nov 2026): a garage that has just been made — by
-   * its owner in the garage app's onboarding, or by the team's Add garage —
-   * is the garage of every open recommendation with one of its numbers
-   * (its phone, its WhatsApp, its owner's login; lib/recommendations.ts
-   * recommendationsMatchingGarage). Each becomes `joined` with the garage,
-   * under the rows' lock; who and when are kept when the team handled it
-   * already, else `handledBy` and now. The first of their leads not yet a
-   * garage is Onboarded to it too (while the garage has no lead), so the
-   * team's call list shows the garage rather than a lead to chase, and that
-   * lead's other recommendations follow it. Each customer is told once.
-   * The number linked; the team's own linking is untouched.
+   * its owner in the garage app's onboarding, or by the team's Add garage;
+   * never a branch — is the garage of every open recommendation with one of
+   * its numbers (its phone, its WhatsApp, its owner's login;
+   * lib/recommendations.ts recommendationsMatchingGarage), except a number
+   * another garage has too and the owner's own recommendation. Each becomes
+   * `joined` with the garage, under the rows' lock; who and when are kept
+   * when the team handled it already, else `handledBy` and now. The first
+   * of their leads not yet a garage is Onboarded to it too (while the
+   * garage has no lead), so the team's call list shows the garage rather
+   * than a lead to chase, and that lead's other recommendations follow it.
+   * The customers are told once the garage is shown to customers
+   * (areaSignupsService.tellJoinedGarages), not now while it is pending.
    */
   async linkRecommendationsByPhone(
     vendorId: string,
@@ -743,14 +700,15 @@ export const leadsService = {
     const garage = await leadsRepository.garagePhones(vendorId)
     const phones = garage ? garageMatchPhones(garage) : []
     if (phones.length === 0) return 0
+    const sharedPhones = await leadsRepository.phonesOnOtherGarages(vendorId, phones)
     const linked = await leadsRepository.transaction(async (tx) => {
       const candidates = await leadsRepository.lockRecommendationsByPhones(phones, tx)
-      const ids = recommendationsMatchingGarage(candidates, phones)
+      const ids = recommendationsMatchingGarage(candidates, phones, { ownerId: garage?.ownerId ?? null, sharedPhones })
       return leadsRepository.linkRecommendationsToGarage(ids, vendorId, handledBy, now, tx)
     })
+    if (sharedPhones.length > 0) log.info({ vendorId, shared: sharedPhones.length }, 'recommendations:shared_number_not_matched')
     if (linked.length === 0) return 0
 
-    const joined: Array<{ id: string; userId: string | null }> = [...linked]
     let leadLinked = false
     const leadIds = [...new Set(linked.map((rec) => rec.leadId).filter((id): id is string => id !== null))]
     if (leadIds.length > 0 && !(await leadsRepository.leadIdOfGarage(vendorId))) {
@@ -758,7 +716,7 @@ export const leadsService = {
         try {
           leadLinked = await leadsRepository.transaction(async (tx) => {
             const onboarded = await leadsRepository.markOnboarded(leadId, vendorId, now, tx)
-            if (onboarded) await syncRecommendations(tx, leadId, vendorId, now, joined)
+            if (onboarded) await syncRecommendations(tx, leadId, vendorId, now)
             return onboarded
           })
         } catch (err) {
@@ -769,7 +727,8 @@ export const leadsService = {
         if (leadLinked) break
       }
     }
-    tellRecommendersJoined(vendorId, joined, now)
+    // An Add garage made already listed is told now; a pending sign-up once it is listed.
+    areaSignupsService.tellJoinedSoon()
     log.info({ vendorId, linked: linked.length, leadLinked }, 'recommendations:linked_by_phone')
     return linked.length
   },

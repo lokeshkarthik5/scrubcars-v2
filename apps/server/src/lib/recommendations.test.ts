@@ -5,8 +5,16 @@ import type { RecommendationLink, RecommendationPhoneCandidate } from './recomme
 // The Maps link reader sits beside the geo providers, which read the env;
 // nothing here connects to anything.
 process.env.DATABASE_URL ??= 'postgres://test:test@localhost:5432/test'
-const { garageMatchPhones, leadFromRecommendation, recommendationGarageChanges, recommendationsMatchingGarage } =
-  await import('./recommendations.js')
+const {
+  garageMatchPhones,
+  joinedNoticeFrom,
+  joinedNoticeSends,
+  JOINED_NOTICE_RULES,
+  leadFromRecommendation,
+  recommendationGarageChanges,
+  recommendationsMatchingGarage,
+  tenDigitMobile,
+} = await import('./recommendations.js')
 
 const GARAGE = 'garage-1'
 const OTHER = 'garage-2'
@@ -215,5 +223,63 @@ describe('bring your garage: a garage that signs up itself, matched by phone', (
     // Joined by the sign-up, then the team links its lead to another garage: it follows, as before.
     const joined = { id: 'rec-1', status: 'joined' as const, vendorId: GARAGE, creditStatus: null }
     expect(recommendationGarageChanges([joined], OTHER)).toEqual([{ id: 'rec-1', vendorId: OTHER, status: 'joined' }])
+  })
+})
+
+describe('bring your garage: no false matches', () => {
+  const candidate = (patch: Partial<RecommendationPhoneCandidate> = {}): RecommendationPhoneCandidate => ({
+    id: 'rec-1',
+    status: 'new',
+    vendorId: null,
+    creditStatus: null,
+    phone: '9840123456',
+    userId: 'priya',
+    ...patch,
+  })
+
+  test('ten digits however typed, as the customer apps read it; a landline never', () => {
+    for (const typed of ['9840123456', '+91 98401 23456', '09840123456', '0091 98401 23456', '919840123456', '98401-23456']) {
+      expect(tenDigitMobile(typed)).toBe('9840123456')
+    }
+    expect(tenDigitMobile('044 2490 1234')).toBeNull()
+    expect(tenDigitMobile('04424901234')).toBeNull()
+    expect(tenDigitMobile('12345')).toBeNull()
+    expect(tenDigitMobile(null)).toBeNull()
+    expect(garageMatchPhones({ phone: '0091 98401 23456' })).toEqual(['9840123456'])
+  })
+
+  test('a number another garage has already is not matched; the garage’s other numbers still are', () => {
+    const recs = [candidate({ id: 'shared', phone: '9840654321' }), candidate({ id: 'own', phone: '9840123456' })]
+    expect(recommendationsMatchingGarage(recs, ['9840123456', '9840654321'], { sharedPhones: ['9840654321'] })).toEqual(['own'])
+    expect(recommendationsMatchingGarage(recs, ['9840654321'], { sharedPhones: ['9840654321'] })).toEqual([])
+  })
+
+  test('the garage’s own owner recommending its number brings nobody in', () => {
+    const recs = [candidate({ id: 'self', userId: 'owner-1' }), candidate({ id: 'friend', userId: 'arun' })]
+    expect(recommendationsMatchingGarage(recs, ['9840123456'], { ownerId: 'owner-1' })).toEqual(['friend'])
+    // A deleted customer's row (no account) is still a customer's recommendation.
+    expect(recommendationsMatchingGarage([candidate({ userId: null })], ['9840123456'], { ownerId: 'owner-1' })).toEqual(['rec-1'])
+  })
+})
+
+describe('"joined thanks to you": once the garage is shown, once per customer and garage', () => {
+  test('only garages made since the feature’s day, and at most 90 days old', () => {
+    expect(joinedNoticeFrom(new Date('2026-11-25T10:00:00+05:30'))).toEqual(JOINED_NOTICE_RULES.since)
+    const later = new Date('2027-06-01T10:00:00+05:30')
+    expect(joinedNoticeFrom(later)).toEqual(new Date(later.getTime() - 90 * 24 * 60 * 60 * 1000))
+  })
+
+  test('a customer who recommended the same garage twice hears it once; another garage is its own message', () => {
+    const claimed = [
+      { id: 'a', userId: 'priya', vendorId: 'g1', businessName: 'Sri Krishna Car Spa' },
+      { id: 'b', userId: 'priya', vendorId: 'g1', businessName: 'Sri Krishna Car Spa' },
+      { id: 'c', userId: 'arun', vendorId: 'g1', businessName: 'Sri Krishna Car Spa' },
+      { id: 'd', userId: 'priya', vendorId: 'g2', businessName: 'Glossy' },
+    ]
+    expect(joinedNoticeSends(claimed)).toEqual([
+      { recommendationId: 'a', userId: 'priya', vendorId: 'g1', businessName: 'Sri Krishna Car Spa' },
+      { recommendationId: 'c', userId: 'arun', vendorId: 'g1', businessName: 'Sri Krishna Car Spa' },
+      { recommendationId: 'd', userId: 'priya', vendorId: 'g2', businessName: 'Glossy' },
+    ])
   })
 })
