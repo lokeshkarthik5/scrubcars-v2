@@ -1,5 +1,6 @@
 import type { ReachCity } from '@repo/core/cities'
 import type { Tier } from '@repo/core/tiers'
+import type { GoogleRating } from '@repo/core/ratings'
 import type { ConditionCheck, ConditionPhotos, JobPhotoAngle, PhotoStandard, ServiceMedia } from '@repo/core/types'
 import type { PickupNext } from '@repo/core/pickup'
 import type { PickupFeePlan } from '@repo/core/pickup-fee-maths'
@@ -136,6 +137,8 @@ export interface ApiVendorListItem {
   isNew?: boolean
   /** Its top good tag once 5+ customers picked it. Absent before 0065. */
   knownFor?: { tag: string; label: string } | null
+  /** Google's rating while it is the main one (21 Nov 2026); never on `map=true`. Absent from an older API. */
+  google?: GoogleRating | null
   serviceTags: string[]
   photos: string[]
   /** Null when the request carried no origin. Never 0 to mean "unknown". */
@@ -254,6 +257,8 @@ export interface ApiPublicVendor {
   /** Fewer than 3 counted reviews: "New on Detlio". Absent from an API before 0065. */
   isNew?: boolean
   knownFor?: { tag: string; label: string } | null
+  /** Google's rating whatever the count (21 Nov 2026): the header under 5, the Reviews tab's "Also" line from 5. Absent from an older API. */
+  google?: GoogleRating | null
   /** Set while the garage takes no new bookings. Optional for older servers. */
   bookingsPausedAt?: string | null
   bookingsPausedReason?: string | null

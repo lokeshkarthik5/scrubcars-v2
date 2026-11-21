@@ -17,6 +17,7 @@ import {
   useShowReview,
 } from '@repo/core/api/hooks/use-admin-reviews'
 import { NEW_GARAGE_LABEL, RATING_RULES } from '@repo/core/ratings'
+import { DetlioMark } from '@repo/ui/sc/rating-marks'
 import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
 import { OwnerDeleteButton } from '@/components/owner-delete'
 import { useOwnerDeleteReview } from '@repo/core/api/hooks/use-admin-owner-delete'
@@ -76,8 +77,11 @@ export function GarageReviewsSection({
           ) : (
             <>
               Customers see{' '}
-              <span className="font-numeric font-semibold">
-                {summary.rating?.toFixed(1)}
+              <span className="inline-flex items-baseline gap-1">
+                <DetlioMark size={14} rating={summary.rating} />
+                <span aria-hidden="true" className="font-numeric font-semibold">
+                  {summary.rating?.toFixed(1)}
+                </span>
               </span>{' '}
               from <span className="font-numeric">{summary.reviewCount}</span>{' '}
               counted reviews.

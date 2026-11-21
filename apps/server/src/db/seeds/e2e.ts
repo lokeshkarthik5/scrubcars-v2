@@ -145,6 +145,7 @@ import {
   OFF_APP_FLAGS,
   SHINE,
   PICKUP_FEE,
+  GOOGLE_RATINGS,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4792,6 +4793,8 @@ async function main() {
   await seedShineRows()
   console.log('[e2e-seed] pickup fee…')
   await seedPickupFeeRows()
+  console.log('[e2e-seed] google rating for new garages…')
+  await seedGoogleRatingRows()
   console.log('[e2e-seed] done')
   process.exit(0)
 }
@@ -4801,6 +4804,73 @@ async function main() {
  * "Flagged by Detlio" entries, as the daily check writes them (no reporter,
  * no chain, no reward, masked evidence, one key each).
  */
+/**
+ * Google rating for new garages and the d. mark (21 Nov 2026; ids
+ * 8100–8149): see GOOGLE_RATINGS in e2e-ids.ts. Four garages pinned together
+ * far from every other fixture, three of them with a lead holding a Google
+ * listing (one read 3 days ago, one 40 days ago, one beside 5 counted Detlio
+ * reviews) and one with none, for admin to link.
+ */
+async function seedGoogleRatingRows() {
+  const G = GOOGLE_RATINGS
+  await db.insert(users).values([
+    { id: G.owner.id, name: G.owner.name, phone: G.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+    { id: G.customer.id, name: G.customer.name, phone: G.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: G.customer.vehicleId, userId: G.customer.id, make: 'Hyundai', model: 'Creta', color: 'White',
+    licensePlate: 'TN09GR8102', vehicleType: 'hatchback' as const, isDefault: true,
+  })
+  const garages = [G.newLinked, G.stale, G.rated, G.unlinked]
+  await db.insert(vendors).values(
+    garages.map((g, n) => ({
+      id: g.id, ownerId: G.owner.id, businessName: g.name, phone: G.owner.phone, whatsapp: null,
+      city: 'Chennai', vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30,
+      status: 'active' as const, isVerified: true, dropinEnabled: true, doorstepEnabled: false,
+      address: `${n + 1}, Gratings Road`, pincode: '612001', createdAt: daysAgo(20),
+      // A few hundred metres apart, the first nearest the customer standing at `pin`.
+      lat: G.pin.lat + n * 0.003, lng: G.pin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+    }))
+  )
+  await db.insert(userMemberMapping).values(
+    garages.map((g) => ({ vendorId: g.id, userId: G.owner.id, role: 'vendor_admin' as const, status: 'active' as const }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((g) => hoursFor(g.id, '06:00:00', '22:00:00')))
+  await db.insert(services).values(
+    garages.map((g) => ({
+      id: g.serviceId, vendorId: g.id, name: `${g.name} Foam Wash`, description: 'An exterior foam wash and dry.',
+      category: 'car_wash' as const, pricingType: 'flat' as const, price: '449.00', durationMins: 60, isActive: true,
+    }))
+  )
+  // The leads holding each garage's Google listing (the team found them in
+  // Coverage and onboarded them).
+  const lead = (g: typeof G.newLinked | typeof G.stale | typeof G.rated, readDaysAgo: number) => ({
+    id: g.leadId, name: g.name, phone: null, lat: G.pin.lat, lng: G.pin.lng, pinSource: 'map' as const,
+    source: 'google' as const, status: 'onboarded' as const, vendorId: g.id, onboardedAt: daysAgo(19),
+    googlePlaceId: g.placeId, googleName: g.name, googleAddress: 'Gratings Road', googleRating: g.google.rating,
+    googleReviewCount: g.google.reviewCount, googleFetchedAt: daysAgo(readDaysAgo), createdByName: 'E2E seed',
+  })
+  await db.insert(leads).values([lead(G.newLinked, 3), lead(G.stale, 40), lead(G.rated, 3)])
+
+  // Five counted Detlio reviews at `rated`: Detlio's own rating takes over.
+  const wash = { id: G.rated.serviceId, name: `${G.rated.name} Foam Wash`, amount: '449.00', durationMins: 60 }
+  for (const [n, bookingId] of G.rated.bookings.entries()) {
+    await insertBooking({
+      id: bookingId, userId: G.customer.id, vehicleId: G.customer.vehicleId, vendorId: G.rated.id, items: [wash],
+      scheduledAt: daysAgo(10 + n), createdAt: daysAgo(11 + n), acceptedAt: daysAgo(11 + n), completedAt: daysAgo(10 + n),
+      status: 'completed' as const, payment: { status: 'paid', txnId: `pay_e2e_gratings_${n}`, gatewayMode: 'fake' },
+    })
+  }
+  await db.insert(reviews).values(
+    G.rated.reviews.map((reviewId, n) => ({
+      id: reviewId, bookingId: G.rated.bookings[n]!, userId: G.customer.id, vendorId: G.rated.id,
+      rating: n === 0 ? 4 : 5, comment: `Gratings seeded ${n + 1}.`, createdAt: daysAgo(10 + n),
+    }))
+  )
+}
+
 async function seedOffAppFlagRows() {
   const F = OFF_APP_FLAGS
   const day = 24 * 60 * 60 * 1000

@@ -65,6 +65,12 @@ export interface VendorListParams {
    * admin switched the tiers on). Filtered on the server, so paging holds.
    */
   silverAndAbove?: boolean
+  /**
+   * The map views (21 Nov 2026): the API leaves Google's rating off the
+   * map's garages (Google's terms: no Google ratings on a map that isn't
+   * Google's). The list and search leave it out.
+   */
+  forMap?: boolean
   limit?: number
   cursor?: string
 }
@@ -115,6 +121,8 @@ export async function getVendors(
       includeUnlocated: params?.includeUnlocated,
       // Sent only when on: left out, the list is every garage.
       tier: params?.silverAndAbove ? 'silver' : undefined,
+      // Sent only on the map: left out, a list.
+      map: params?.forMap ? 'true' : undefined,
       limit: params?.limit,
       cursor: params?.cursor,
     },

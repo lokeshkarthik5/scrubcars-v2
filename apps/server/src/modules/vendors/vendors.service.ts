@@ -50,6 +50,12 @@ import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
 import { ratingsFor } from '../reviews/reviews.service.js'
+import {
+  cardGoogleRating,
+  GOOGLE_RATING_RULES,
+  heldGoogleRating,
+  type GoogleRating,
+} from '../../lib/ratings.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
@@ -215,6 +221,14 @@ export type PublicVendorResponse = PublicVendorFields & {
   /** Its top good tag once 5+ customers picked it ("Known for On time"). */
   knownFor: { tag: string; label: string } | null
   /**
+   * Google's rating (21 Nov 2026, lib/ratings.ts): the garage's lead's,
+   * while it is under Google's 30 days. Always named as Google's on screen
+   * ("Google Maps"), never added to Detlio's. Sent whatever the count:
+   * the garage page shows it in its header under 5 counted reviews and as a
+   * small "Also" line in the Reviews tab from 5.
+   */
+  google: GoogleRating | null
+  /**
    * Set when the garage is pinned more than 50 km from the Chennai centre, or
    * is unpinned and its own city names another town (km null), so its page
    * and checkout can say where it is (lib/service-city.ts). Null when it is
@@ -261,6 +275,14 @@ export type VendorListItemResponse = {
   reviewCount: number
   isNew: boolean
   knownFor: { tag: string; label: string } | null
+  /**
+   * Google's rating (21 Nov 2026, lib/ratings.ts): the garage's lead's,
+   * while it is under Google's 30 days. Always named as Google's on screen
+   * ("Google Maps"), never added to Detlio's. On a card only while it is
+   * the main one (fewer than 5 counted reviews), and never on the map's
+   * payload (`map=true`): null otherwise.
+   */
+  google: GoogleRating | null
   serviceTags: string[]
   photos: string[]
   // null when the caller sent no origin. Never 0 as a stand-in for "unknown" —
@@ -889,6 +911,22 @@ function decodeCursor(cursor: string | undefined): {
 }
 
 /**
+ * Each garage's Google rating that may still be shown (lib/ratings.ts
+ * heldGoogleRating), from its lead, in one read. Never a call to Google:
+ * the nightly refresh keeps the leads' figures fresh.
+ */
+async function googleRatingsFor(vendorIds: string[], now: Date): Promise<Map<string, GoogleRating>> {
+  const heldSince = new Date(now.getTime() - GOOGLE_RATING_RULES.holdDays * 24 * 60 * 60 * 1000)
+  const rows = await vendorsRepository.listGoogleRatings(vendorIds, heldSince)
+  const byVendor = new Map<string, GoogleRating>()
+  for (const row of rows) {
+    const google = heldGoogleRating(row, now)
+    if (google) byVendor.set(row.vendorId, google)
+  }
+  return byVendor
+}
+
+/**
  * The list's garage cards for ids already chosen, in the order given, each
  * with its distance when one was measured. The garage list and the
  * customer's Saved garages (modules/favourites) both build their cards here,
@@ -897,7 +935,8 @@ function decodeCursor(cursor: string | undefined): {
  */
 export async function vendorCardsFor(
   page: Array<{ id: string; distanceM: number | null }>,
-  q?: string
+  q?: string,
+  options: { map?: boolean } = {}
 ): Promise<VendorListItemResponse[]> {
   const rows = await vendorsRepository.listPublicVendorsByIds(
     page.map((row) => row.id)
@@ -915,6 +954,10 @@ export async function vendorCardsFor(
     // "All over <city>" (0069) on the cards: one read of the cities.
     await citiesService.rules(),
   ]
+  // Google's rating for new garages (21 Nov 2026): one read of the leads,
+  // and none at all for the map, which never shows it.
+  const map = options.map === true
+  const googleRatings = map ? new Map<string, GoogleRating>() : await googleRatingsFor(rows.map((vendor) => vendor.id), new Date())
   // The pickup fee (0079): the settings, cached, for the cards that collect.
   const feeSettings = rows.some((vendor) => isPickupOffered(vendor)) ? await pickupFeesService.settings() : null
   const closuresByVendor = new Map<string, string[]>()
@@ -952,6 +995,7 @@ export async function vendorCardsFor(
       reviewCount: rating?.reviewCount ?? 0,
       isNew: rating?.isNew ?? true,
       knownFor: rating?.knownFor ?? null,
+      google: cardGoogleRating(googleRatings.get(vendor.id) ?? null, rating?.reviewCount ?? 0, { map }),
       serviceTags: categories.map(categoryLabel),
       photos: vendor.photos.map((photo) => photo.url),
       // One decimal is all a straight-line distance can honestly claim.
@@ -1174,7 +1218,7 @@ export const vendorsService = {
       segmentOffset = offset + page.length
     }
 
-    const items = await vendorCardsFor(page, query.q)
+    const items = await vendorCardsFor(page, query.q, { map: query.map === true })
 
     return {
       items,
@@ -1204,6 +1248,7 @@ export const vendorsService = {
       // The pickup fee (0079), only for a garage that collects.
       isPickupOffered(vendor) ? await pickupFeesService.settings() : null,
     ]
+    const googleRatings = await googleRatingsFor([vendor.id], new Date())
 
     const rating = ratings.get(vendor.id)
 
@@ -1219,6 +1264,7 @@ export const vendorsService = {
       reviewCount: rating?.reviewCount ?? 0,
       isNew: rating?.isNew ?? true,
       knownFor: rating?.knownFor ?? null,
+      google: googleRatings.get(vendor.id) ?? null,
       outsideServiceCity: outsideServiceCity(vendor),
       garageCity: cityNameOf(vendor.cityId, cityRules.cities),
     }

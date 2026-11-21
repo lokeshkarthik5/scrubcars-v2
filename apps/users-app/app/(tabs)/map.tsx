@@ -7,6 +7,7 @@ import { fill, useT } from '@repo/core/i18n';
 import { garageInCity, garageTown, isSmallCity, outsideCityTag } from '@repo/core/customer-city';
 import { straightLineKm } from '@repo/core/map';
 import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { DetlioMark } from '@repo/native-ui/rating-marks';
 import { SERVICE_CITY } from '@repo/core/service-city';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Glass, Pearl, usePearlInk } from '@repo/native-ui/finish';
@@ -19,7 +20,6 @@ import {
   IconList,
   IconMap,
   IconRefresh,
-  IconStarFilled,
 } from '@repo/native-ui/icons';
 import { Pop, PressScale, useReduceMotion } from '@repo/native-ui/motion';
 import { PressRow } from '@repo/native-ui/primitives';
@@ -144,9 +144,10 @@ const MapVendorCard = memo(function MapVendorCard({
                 {vendor.name}
               </T>
               {hasStarScore(vendor) ? (
+                // Detlio's own rating only: Google's never shows on a map.
                 <View style={styles.cardRating}>
-                  <IconStarFilled size={11} color={colors.warningFill} />
-                  <T num variant="t5" weight={600}>
+                  <DetlioMark size={12} rating={vendor.rating} />
+                  <T num variant="t5" weight={600} accessibilityElementsHidden importantForAccessibility="no">
                     {vendor.rating.toFixed(1)}
                   </T>
                   <T variant="t5" color={colors.textSecondary}>
@@ -305,9 +306,26 @@ function MapListRow({ vendor, selected, onChoose }: { vendor: Vendor; selected: 
         <T variant="t3" weight={600} numberOfLines={1}>
           {vendor.name}
         </T>
-        <T variant="t4" weight={400} numberOfLines={1} color={colors.textSecondary}>
-          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : t(NEW_GARAGE_LABEL)].filter(Boolean).join(' · ')}
-        </T>
+        {/* Detlio's own rating only: Google's never shows on a map. */}
+        <View style={styles.listMeta}>
+          {vendor.area ? (
+            <T variant="t4" weight={400} numberOfLines={1} color={colors.textSecondary} style={styles.listArea}>
+              {`${vendor.area} · `}
+            </T>
+          ) : null}
+          {hasStarScore(vendor) ? (
+            <>
+              <DetlioMark size={13} rating={vendor.rating} color={colors.textSecondary} />
+              <T variant="t4" weight={400} color={colors.textSecondary} accessibilityElementsHidden importantForAccessibility="no">
+                {` ${vendor.rating.toFixed(1)}`}
+              </T>
+            </>
+          ) : (
+            <T variant="t4" weight={400} numberOfLines={1} color={colors.textSecondary}>
+              {t(NEW_GARAGE_LABEL)}
+            </T>
+          )}
+        </View>
       </View>
       <View style={styles.listFacts}>
         {km !== null ? (
@@ -380,6 +398,8 @@ export default function MapScreen() {
     radiusKm: nearby ? CITY_RADIUS_KM : undefined,
     sort: origin ? 'distance' : 'relevance',
     includeUnlocated: false,
+    // Google's rating never rides on a map (Google's terms).
+    forMap: true,
     limit: PAGE_LIMIT,
   });
 
@@ -932,4 +952,6 @@ const useStyles = createStyles((c) => ({
   listRowOn: { borderColor: c.scheme === 'light' ? c.outlineStrong : 'rgba(255,255,255,0.3)', backgroundColor: c.scheme === 'light' ? c.surfaceElevated : 'rgba(255,255,255,0.09)' },
   listPhoto: { width: 64, height: 64, overflow: 'hidden', borderRadius: 13, backgroundColor: c.surface },
   listFacts: { alignItems: 'flex-end', gap: 2 },
+  listMeta: { flexDirection: 'row', alignItems: 'center', minWidth: 0 },
+  listArea: { flexShrink: 1 },
 }));

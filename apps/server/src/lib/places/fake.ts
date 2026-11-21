@@ -122,6 +122,23 @@ export const FAKE_PLACES: readonly FakePlace[] = [
     reviewCount: 88,
     kinds: ['tyres'],
   },
+  // Google rating for new garages (21 Nov 2026): the place
+  // specs/admin/google-ratings.spec.ts links GOOGLE_RATINGS.unlinked to. No
+  // kind, so the zone finder's kind searches never find it, and its words
+  // match none the finder spec types; not "fake-" (the finder spec clears
+  // those leads).
+  {
+    source: 'google',
+    placeId: 'e2e-google-ratings-royal',
+    name: 'Gratings Royal Car Wash',
+    address: '7/2 Paper Mills Road',
+    north: 120,
+    east: 0,
+    phone: null,
+    rating: 4.3,
+    reviewCount: 58,
+    kinds: [],
+  },
 ]
 
 /** The fake Google place whose details are gone (refresh clears it). */

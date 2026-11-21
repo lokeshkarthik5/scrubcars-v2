@@ -27,4 +27,16 @@ describe('ratings parity (0065)', () => {
       expect(core.tagsForRating(stars)).toEqual(server.tagsForRating(stars))
     expect(core.NEW_GARAGE_LABEL).toBe('New on Detlio')
   })
+
+  test('Google rating for new garages: the switch-over and the 30 days are the same', async () => {
+    const core = (await import(coreUrl)) as typeof server & {
+      GOOGLE_MAPS_ATTRIBUTION: string
+      mainGoogleRating: (v: { reviewCount: number; google?: server.GoogleRating | null }) => server.GoogleRating | null
+    }
+    expect(core.GOOGLE_RATING_RULES).toEqual(server.GOOGLE_RATING_RULES)
+    expect(core.GOOGLE_MAPS_ATTRIBUTION).toBe('Google Maps')
+    const google = { rating: 4.6, reviewCount: 312 }
+    for (const count of [0, 3, 4, 5, 6])
+      expect(core.mainGoogleRating({ reviewCount: count, google }) !== null).toBe(server.googleIsMain(google, count))
+  })
 })

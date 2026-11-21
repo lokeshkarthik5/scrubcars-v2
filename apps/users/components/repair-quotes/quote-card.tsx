@@ -1,13 +1,14 @@
 'use client'
 
-import { IconCheck, IconClock, IconEye, IconStarFilled } from '@tabler/icons-react'
+import { IconCheck, IconClock, IconEye } from '@tabler/icons-react'
+import { DetlioMark } from '@repo/ui/sc/rating-marks'
 import { StatusChip } from '@repo/ui/sc/status-chip'
 import type { CustomerRepairQuote } from '@repo/core/api/repair-quotes'
 import { useT, useTn } from '@repo/core/i18n'
 import { priceRangeLabel } from '@repo/core/repair-quotes'
 import { ScCard } from '@/components/ui/card'
 
-/** "★ 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km" under three counted reviews. */
+/** "d. 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km" under three counted reviews. */
 export function GarageLine({ quote }: { quote: CustomerRepairQuote }) {
   const t = useT()
   const km = `${quote.distanceKm.toFixed(1)} km`
@@ -15,8 +16,8 @@ export function GarageLine({ quote }: { quote: CustomerRepairQuote }) {
     <span className="mt-0.5 flex items-center gap-1.5 text-t4 text-text-secondary">
       {quote.garage.rating !== null ? (
         <>
-          <IconStarFilled size={13} aria-hidden className="text-[#F5A524]" />
-          <span className="font-numeric font-medium text-text-primary">{quote.garage.rating.toFixed(1)}</span>
+          <DetlioMark size={14} rating={quote.garage.rating} className="self-baseline text-text-primary" />
+          <span aria-hidden="true" className="font-numeric font-medium text-text-primary">{quote.garage.rating.toFixed(1)}</span>
           <span className="font-numeric">({quote.garage.reviewCount})</span>
           <span aria-hidden="true">·</span>
         </>

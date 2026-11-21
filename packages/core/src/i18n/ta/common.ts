@@ -593,6 +593,18 @@ export const common: Readonly<Record<string, string>> = {
   'New on Detlio': 'Detlio-ல் புதியது',
   '{count} review so far': 'இதுவரை {count} மதிப்பாய்வு',
   '{count} reviews so far': 'இதுவரை {count} மதிப்பாய்வுகள்',
+  // Google rating for new garages and the d. mark (21 Nov 2026). "Google
+  // Maps" is never translated (Google's attribution rule).
+  'Detlio rating': 'Detlio ரேட்டிங்',
+  'Detlio rating {rating}': 'Detlio ரேட்டிங் {rating}',
+  'Google rating': 'Google ரேட்டிங்',
+  'Google rating {rating}, {count} review': 'Google ரேட்டிங் {rating}, {count} மதிப்பாய்வு',
+  'Google rating {rating}, {count} reviews': 'Google ரேட்டிங் {rating}, {count} மதிப்பாய்வுகள்',
+  'Reviews here come only from customers who booked on Detlio.':
+    'இங்குள்ள மதிப்பாய்வுகள் Detlio-ல் புக் செய்த வாடிக்கையாளர்களிடமிருந்து மட்டுமே வருகின்றன.',
+  'from real Detlio bookings': 'உண்மையான Detlio புக்கிங்குகளிலிருந்து',
+  'No Detlio reviews yet': 'இன்னும் Detlio மதிப்பாய்வுகள் இல்லை',
+  Also: 'மேலும்',
   'Missed spots or dirt left':
     'சில இடங்கள் விடுபட்டன அல்லது அழுக்கு மீதம் உள்ளது',
   'Water marks or streaks': 'தண்ணீர்க் கறைகள் அல்லது கோடுகள்',

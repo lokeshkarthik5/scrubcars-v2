@@ -3,8 +3,8 @@
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { IconStarFilled } from '@tabler/icons-react'
-import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
+import { NEW_GARAGE_LABEL, hasStarScore, mainGoogleRating } from '@repo/core/ratings'
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/ui/sc/rating-marks'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
@@ -117,6 +117,8 @@ export function VendorCard({
   // The logo has its own badge now, so the cover is gallery-only — reusing the
   // logo as a full-bleed cover would show the same image twice on the card.
   const t = useT()
+  // Google's rating while it is the main one (21 Nov 2026, @repo/core/ratings).
+  const google = mainGoogleRating(vendor)
   const cover = vendor.photos[0] ?? null
   // Null distance means the request carried no origin, not that the garage is
   // at zero km — the same "unknown is not zero" rule applied to price and rating
@@ -234,10 +236,21 @@ export function VendorCard({
                 The figures — score, distance, price — are in the brand's numeric
                 face; the words between them stay Inter. */}
             <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">
-              {hasStarScore(vendor) ? (
+              {google ? (
+                // Google's rating for a new garage linked to its listing
+                // (21 Nov 2026): Google's G, and "Google Maps" on its own
+                // line below.
                 <>
-                  <IconStarFilled size={12} className="text-warning" />
+                  <GoogleMark size={12} />
                   <span className="font-numeric font-medium text-text-primary">
+                    {google.rating.toFixed(1)}
+                  </span>
+                  <span>({google.reviewCount})</span>
+                </>
+              ) : hasStarScore(vendor) ? (
+                <>
+                  <DetlioMark size={13} rating={vendor.rating} className="text-text-primary" />
+                  <span aria-hidden="true" className="font-numeric font-medium text-text-primary">
                     {vendor.rating.toFixed(1)}
                   </span>
                   <span>({vendor.reviewCount})</span>
@@ -260,6 +273,8 @@ export function VendorCard({
                 </>
               )}
             </div>
+
+            {google && <GoogleMapsText className="self-start" />}
 
             {/* A garage in another town than the customer's city says so on
                 its card, so nobody opens it, or books it, thinking it is

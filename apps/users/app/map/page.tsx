@@ -20,9 +20,9 @@ import {
   IconList,
   IconMap,
   IconRefresh,
-  IconStarFilled,
 } from '@tabler/icons-react'
 import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
+import { DetlioMark } from '@repo/ui/sc/rating-marks'
 import { prefetchGarage, useVendorSearch } from '@repo/core/api/hooks/use-vendors'
 import { useQueryClient } from '@tanstack/react-query'
 import { track } from '@repo/core/analytics'
@@ -257,6 +257,8 @@ function MapBrowseContent() {
       // A garage with no coordinates cannot be drawn on a map, so the tail of
       // still-unpinned garages is the one place it makes no sense to include.
       includeUnlocated: false,
+      // Google's rating never rides on a map (Google's terms).
+      forMap: true,
       // A viewport zoomed out to state level could match everything, so the
       // page is capped and the map says so rather than truncating silently.
       limit: PAGE_LIMIT,
@@ -827,10 +829,18 @@ function MapListRow({
       </span>
       <span className="min-w-0">
         <span className="block truncate text-t3 font-semibold text-text-primary">{vendor.name}</span>
-        <span className="mt-0.5 block truncate text-t4 text-text-secondary">
-          {[vendor.area, hasStarScore(vendor) ? `★ ${vendor.rating.toFixed(1)}` : t(NEW_GARAGE_LABEL)]
-            .filter(Boolean)
-            .join(' · ')}
+        {/* Detlio's own rating only: Google's never shows on a map. */}
+        <span className="mt-0.5 flex min-w-0 items-baseline gap-1 text-t4 text-text-secondary">
+          {vendor.area && <span className="truncate">{vendor.area}</span>}
+          {vendor.area && <span aria-hidden="true">·</span>}
+          {hasStarScore(vendor) ? (
+            <span className="inline-flex shrink-0 items-baseline gap-1">
+              <DetlioMark size={13} rating={vendor.rating} className="text-text-primary" />
+              <span aria-hidden="true">{vendor.rating.toFixed(1)}</span>
+            </span>
+          ) : (
+            <span className="shrink-0">{t(NEW_GARAGE_LABEL)}</span>
+          )}
         </span>
       </span>
       <span className="flex flex-col items-end gap-0.5">
@@ -967,9 +977,10 @@ function MapVendorCard({
             {vendor.name}
           </p>
           {hasStarScore(vendor) ? (
-            <span className="flex shrink-0 items-center gap-1 pt-1 text-t5">
-              <IconStarFilled size={11} className="text-warning" />
-              <span className="font-numeric font-semibold text-text-primary">
+            // Detlio's own rating only: Google's never shows on a map.
+            <span className="flex shrink-0 items-baseline gap-1 pt-1 text-t5">
+              <DetlioMark size={12} rating={vendor.rating} className="text-text-primary" />
+              <span aria-hidden="true" className="font-numeric font-semibold text-text-primary">
                 {vendor.rating.toFixed(1)}
               </span>
               <span className="text-text-secondary">

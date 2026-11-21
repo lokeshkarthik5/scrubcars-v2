@@ -214,3 +214,79 @@ export function reasonProblem(
   if (trimmed.length > max) return 'too_long'
   return null
 }
+
+// ─── Google's rating for a new garage (21 Nov 2026) ─────────────────────────
+
+/**
+ * A garage the team linked to its Google listing shows Google's rating,
+ * named as Google's ("Google Maps" beside it), until it has 5 counted Detlio
+ * reviews; from then on Detlio's own rating is the main one and Google's is
+ * only a small line on the garage page. The two are never added together,
+ * and sorting by rating reads Detlio's only. A garage with no Google listing
+ * keeps the rule above (stars from the 3rd counted review).
+ *
+ * Where the numbers come from: the garage's lead (`leads.vendor_id`, unique,
+ * so at most one), its `google_rating` / `google_review_count`, read from
+ * Google on `google_fetched_at` and read again every 29 days by the nightly
+ * refresh (lib/places/refresh.ts). Google's terms: never shown once they are
+ * 30 days old. Never on a map. Words twinned in packages/core/src/ratings.ts.
+ */
+export const GOOGLE_RATING_RULES = {
+  /** Counted Detlio reviews from which Detlio's rating takes over. */
+  detlioTakesOverAt: 5,
+  /** Google's figures are never shown once this old (Google's terms). */
+  holdDays: 30,
+} as const
+
+/** Google's rating as the apps show it: always named as Google's. */
+export interface GoogleRating {
+  /** 0 to 5, one decimal. */
+  rating: number
+  reviewCount: number
+}
+
+const GOOGLE_HOLD_MS = GOOGLE_RATING_RULES.holdDays * 24 * 60 * 60 * 1000
+
+/**
+ * The Google rating a garage's lead holds that may still be shown, or null:
+ * no listing read, read 30 days ago or more, or a place with no rating (or
+ * no reviews) on Google.
+ */
+export function heldGoogleRating(
+  lead:
+    | {
+        googleRating: string | number | null
+        googleReviewCount: number | null
+        googleFetchedAt: Date | null
+      }
+    | null
+    | undefined,
+  now: Date
+): GoogleRating | null {
+  if (!lead || !lead.googleFetchedAt) return null
+  if (now.getTime() - lead.googleFetchedAt.getTime() >= GOOGLE_HOLD_MS) return null
+  if (lead.googleRating === null || lead.googleReviewCount === null) return null
+  const rating = Number(lead.googleRating)
+  if (!Number.isFinite(rating) || rating < 0 || rating > 5) return null
+  if (lead.googleReviewCount <= 0) return null
+  return { rating: Math.round(rating * 10) / 10, reviewCount: lead.googleReviewCount }
+}
+
+/** Whether Google's rating is the main one: there is one, and fewer than 5 counted Detlio reviews. */
+export function googleIsMain(google: GoogleRating | null, countedReviews: number): boolean {
+  return google !== null && countedReviews < GOOGLE_RATING_RULES.detlioTakesOverAt
+}
+
+/**
+ * What a garage card carries (the list, search, Saved, the rescue's other
+ * garages): Google's rating only while it is the main one, and never on a
+ * map's payload.
+ */
+export function cardGoogleRating(
+  google: GoogleRating | null,
+  countedReviews: number,
+  options: { map: boolean }
+): GoogleRating | null {
+  if (options.map) return null
+  return googleIsMain(google, countedReviews) ? google : null
+}

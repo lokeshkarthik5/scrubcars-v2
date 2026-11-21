@@ -2,7 +2,8 @@ import type { CustomerRepairQuote, RepairBox } from '@repo/core/api/repair-quote
 import { useT, useTn } from '@repo/core/i18n';
 import { priceRangeLabel } from '@repo/core/repair-quotes';
 import { Edge, Raised } from '@repo/native-ui/finish';
-import { IconCheck, IconClock, IconEye, IconStarFilled } from '@repo/native-ui/icons';
+import { IconCheck, IconClock, IconEye } from '@repo/native-ui/icons';
+import { DetlioMark } from '@repo/native-ui/rating-marks';
 import { StatusChip } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors } from '@repo/native-ui/theme';
@@ -51,7 +52,7 @@ export function BoxedPhoto({
   );
 }
 
-/** "★ 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km". */
+/** "d. 4.8 (126) · 2.1 km", or "New on Detlio · 2.1 km". */
 export function GarageLine({ quote }: { quote: CustomerRepairQuote }) {
   const t = useT();
   const colors = useColors();
@@ -60,8 +61,8 @@ export function GarageLine({ quote }: { quote: CustomerRepairQuote }) {
     <View style={styles.garageLine}>
       {quote.garage.rating !== null ? (
         <>
-          <IconStarFilled size={13} color="#F5A524" />
-          <T num size={13} weight={500}>
+          <DetlioMark size={14} rating={quote.garage.rating} />
+          <T num size={13} weight={500} accessibilityElementsHidden importantForAccessibility="no">
             {quote.garage.rating.toFixed(1)}
           </T>
           <T num size={13} color={colors.textSecondary}>

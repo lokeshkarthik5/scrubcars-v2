@@ -383,6 +383,15 @@ export const listPublicVendorsQuerySchema = z
      */
     tier: z.enum(['silver']).optional(),
     /**
+     * The map view's list (21 Nov 2026): Google's rating is never sent on
+     * it (Google's terms: no Google ratings on a map that isn't Google's).
+     * The web and app maps send `map=true`; left out, a list.
+     */
+    map: z
+      .enum(['true', 'false'])
+      .transform((v) => v === 'true')
+      .optional(),
+    /**
      * "Certified only" (0048), the chip before "Silver & above": read as
      * `tier=silver` so a page left open across the release keeps working.
      */

@@ -11,7 +11,6 @@ import {
   IconClock,
   IconMapPin,
   IconSearch,
-  IconStarFilled,
 } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { ErrorState } from '@repo/ui/sc/empty-state'
@@ -88,7 +87,17 @@ import { ServiceCardLine } from '@/components/service-media/service-points'
 import { ServiceThumb } from '@/components/service-media/service-thumb'
 import { SaveGarageButton } from '@/components/favourites/save-garage-button'
 import { ReportReviewButton } from '@/components/reviews/report-review-button'
-import { NEW_GARAGE_LABEL, hasStarScore, newGarageReviewsLine } from '@repo/core/ratings'
+import {
+  DETLIO_REVIEWS_ONLY_LINE,
+  FROM_REAL_BOOKINGS,
+  NEW_GARAGE_LABEL,
+  NO_DETLIO_REVIEWS_YET,
+  alsoGoogleRating,
+  hasStarScore,
+  mainGoogleRating,
+  newGarageReviewsLine,
+} from '@repo/core/ratings'
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/ui/sc/rating-marks'
 import { SAVE_PARAM, withoutSaveFlag } from '@/lib/saved-garages'
 import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts'
 import {
@@ -568,8 +577,16 @@ export default function GaragePage({
   // "0.0 (0 reviews)" line reads as a bad score, not as a new listing.
   const reviewCount = vendor.reviewCount || reviews.length
   const hasReviews = reviewCount > 0
-  const showStars = hasStarScore({ reviewCount, isNew: vendor.isNew })
-  const visibleTabs = TABS.filter((t) => t.key !== 'reviews' || hasReviews)
+  // Google rating for new garages (21 Nov 2026): linked to its Google
+  // listing with fewer than 5 counted Detlio reviews, Google's rating is the
+  // main one, named as Google's; from 5, Detlio's own is, and Google's is a
+  // quiet "Also" line in the Reviews tab. Never added together.
+  const google = mainGoogleRating({ reviewCount, google: vendor.google })
+  const alsoGoogle = alsoGoogleRating({ reviewCount, google: vendor.google })
+  const showStars = !google && hasStarScore({ reviewCount, isNew: vendor.isNew })
+  // The Reviews tab shows with no Detlio review yet when there is a Google
+  // rating, to say where Detlio's reviews come from.
+  const visibleTabs = TABS.filter((t) => t.key !== 'reviews' || hasReviews || google !== null)
   const avgRating = vendor.rating
   const soFar = newGarageReviewsLine(reviewCount)
   // How far, from the customer's location (an area's centre reads "~"):
@@ -668,10 +685,21 @@ export default function GaragePage({
             {/* Score, distance and drive time are figures, in the brand's
                 numeric face; the words between them stay Inter. */}
             <div className="mt-3.5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-t4 font-medium text-[#8E8E98]">
-              {showStars ? (
+              {google ? (
                 <span className="inline-flex items-center gap-[5px]">
-                  <IconStarFilled size={13} aria-hidden className="text-warning" />
+                  <GoogleMark size={13} />
                   <span className="font-numeric font-semibold text-text-primary">
+                    {google.rating.toFixed(1)}
+                  </span>
+                  <span>
+                    ({tn(google.reviewCount, '{count} review', '{count} reviews')})
+                  </span>
+                  <GoogleMapsText className="ml-[3px]" />
+                </span>
+              ) : showStars ? (
+                <span className="inline-flex items-baseline gap-[5px]">
+                  <DetlioMark size={14} rating={avgRating} className="text-text-primary" />
+                  <span aria-hidden="true" className="font-numeric font-semibold text-text-primary">
                     {avgRating.toFixed(1)}
                   </span>
                   <span>
@@ -821,7 +849,7 @@ export default function GaragePage({
                 )}
               >
                 {t(item.label)}
-                {item.key === 'reviews' && (
+                {item.key === 'reviews' && hasReviews && (
                   <span className="font-numeric text-t5 font-semibold text-[#8E8E98]">
                     <span className="sr-only">, </span>
                     {reviewCount}
@@ -1088,22 +1116,67 @@ export default function GaragePage({
           {tab === 'reviews' && (
             <>
               {showStars ? (
-                <div className="flex items-center gap-3.5 pb-2 pt-1">
-                  <span className="font-numeric text-[40px] font-semibold leading-none tracking-[-0.02em] text-text-primary">
-                    {avgRating.toFixed(1)}
-                  </span>
-                  <div className="flex flex-col gap-1">
-                    <Stars rating={avgRating} size={16} />
-                    <p className="text-t5 font-medium text-[#8E8E98]">
-                      {tn(reviewCount, '{count} review', '{count} reviews')}
-                    </p>
+                <div className="pb-2 pt-1">
+                  <div className="flex items-center gap-3.5">
+                    <span className="flex items-baseline gap-[7px] text-text-primary">
+                      <DetlioMark size={30} rating={avgRating} />
+                      <span
+                        aria-hidden="true"
+                        className="font-numeric text-[40px] font-semibold leading-none tracking-[-0.02em]"
+                      >
+                        {avgRating.toFixed(1)}
+                      </span>
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      <Stars rating={avgRating} size={16} />
+                      <p className="text-t5 font-medium text-[#8E8E98]">
+                        {tn(reviewCount, '{count} review', '{count} reviews')}
+                        {` · ${t(FROM_REAL_BOOKINGS)}`}
+                      </p>
+                    </div>
                   </div>
+                  {/* From 5 Detlio reviews, Google's is only this quiet line. */}
+                  {alsoGoogle && (
+                    <p className="mt-2 flex flex-wrap items-center gap-[5px] text-t5 font-medium text-[#8E8E98]">
+                      <span>{t('Also')}</span>
+                      <GoogleMark size={12} />
+                      <span className="font-numeric font-semibold text-text-primary">
+                        {alsoGoogle.rating.toFixed(1)}
+                      </span>
+                      <span>({tn(alsoGoogle.reviewCount, '{count} review', '{count} reviews')})</span>
+                      <GoogleMapsText className="ml-[3px]" />
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="pb-2 pt-1">
                   <p className="text-t3 font-semibold text-text-primary">{t(NEW_GARAGE_LABEL)}</p>
-                  {soFar && (
+                  {soFar ? (
                     <p className="text-t5 text-text-secondary">{soFar}</p>
+                  ) : (
+                    google && <p className="text-t5 text-text-secondary">{t(NO_DETLIO_REVIEWS_YET)}</p>
+                  )}
+                  {/* Google's rating in its own box, then the honest line:
+                      Detlio's reviews come only from bookings. No link to
+                      Google, nothing that takes the customer away. */}
+                  {google && (
+                    <>
+                      <div className="mt-3 flex items-center gap-3.5 rounded-[16px] border border-white/[0.07] bg-[#141418] px-4 py-3.5">
+                        <span className="font-numeric text-[28px] font-semibold leading-none text-text-primary">
+                          {google.rating.toFixed(1)}
+                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="flex items-center gap-[6px]">
+                            <GoogleMark size={14} />
+                            <GoogleMapsText className="text-[13px]" />
+                          </span>
+                          <span className="text-t5 font-medium text-[#8E8E98]">
+                            {tn(google.reviewCount, '{count} review', '{count} reviews')}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-t5 text-text-secondary">{t(DETLIO_REVIEWS_ONLY_LINE)}</p>
+                    </>
                   )}
                 </div>
               )}
@@ -1112,7 +1185,8 @@ export default function GaragePage({
                   {t('Loading reviews…')}
                 </p>
               ) : (
-                reviews.length === 0 && (
+                reviews.length === 0 &&
+                !google && (
                   <p className="py-4 text-center text-t4 text-text-secondary">
                     {t('No reviews yet.')}
                   </p>

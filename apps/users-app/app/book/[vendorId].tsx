@@ -40,6 +40,7 @@ import { addressPickupFee } from '@repo/core/pickup-fee-customer';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
 import { checkoutAgreement } from '@repo/core/inspection-booking';
 import { hasStarScore } from '@repo/core/ratings';
+import { DetlioMark } from '@repo/native-ui/rating-marks';
 import { rewardRupees } from '@repo/core/rewards';
 import { knownDurationTotal } from '@repo/core/service-duration';
 import { isLastingRefusal, livePendingCheckout, pendingCodeFor } from '@repo/core/stores/pending-checkout-store';
@@ -60,7 +61,6 @@ import {
   IconPlus,
   IconRefresh,
   IconShieldCheck,
-  IconStarFilled,
   IconX,
 } from '@repo/native-ui/icons';
 import { ErrorState, HubCard, Notice, Spinner } from '@repo/native-ui/primitives';
@@ -1119,7 +1119,7 @@ export default function BookScreen() {
                 </T>
                 {hasStarScore(vendor) ? (
                   <View style={styles.stars} accessibilityLabel={t('{rating} stars from {count} reviews', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })}>
-                    <IconStarFilled size={13} color={colors.textPrimary} />
+                    <DetlioMark size={14} />
                     <T num size={13} lh={18}>
                       {vendor.rating.toFixed(1)}
                     </T>

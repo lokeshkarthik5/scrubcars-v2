@@ -1,3 +1,4 @@
+import type { AdminGoogleListing } from './admin-google'
 import type { Tier } from '@repo/core/tiers'
 import { apiClient } from './client'
 import { stripImageMetadata } from '@repo/core/image-upload'
@@ -104,6 +105,12 @@ export interface AdminVendor {
    * last 90 days. Null while the guarantee is off; absent from older servers.
    */
   redoClaims90d?: number | null
+  /**
+   * Google rating for new garages (21 Nov 2026): its Google listing, from
+   * its Coverage lead; null when it has none ("No Google listing"). Absent
+   * from older servers.
+   */
+  google?: AdminGoogleListing | null
   /**
    * Its garage documents in short (0043): whether it has the badge, how
    * many required are approved, how many wait for review. Null while garage

@@ -17,7 +17,6 @@ import {
   IconPlus,
   IconRefresh,
   IconShieldCheck,
-  IconStarFilled,
   IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
@@ -42,6 +41,7 @@ import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { OutsideCityLine, useGarageTownLine } from '@repo/ui/features/outside-city'
 import { hasStarScore } from '@repo/core/ratings'
+import { DetlioMark } from '@repo/ui/sc/rating-marks'
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BADGE, GUARANTEE_SUMMARY } from '@repo/core/guarantee'
 import { WhenPicker } from '@/components/checkout/when-picker'
@@ -1943,14 +1943,10 @@ function BookContent({ vendorId }: { vendorId: string }) {
               </h2>
               <p className="mt-[3px] flex flex-wrap items-center gap-x-1.5 gap-y-1 text-t4 font-medium text-[#8E8E98]">
                 {hasStarScore(vendor) ? (
-                  <span className="inline-flex items-center gap-1 text-text-primary">
-                    <IconStarFilled
-                      size={13}
-                      aria-hidden
-                      className="text-warning"
-                    />
-                    <span className="font-numeric">{vendor.rating.toFixed(1)}</span>
-                    <span className="text-dim">
+                  <span className="inline-flex items-baseline gap-1 text-text-primary">
+                    <DetlioMark size={14} rating={vendor.rating} />
+                    <span aria-hidden="true" className="font-numeric">{vendor.rating.toFixed(1)}</span>
+                    <span aria-hidden="true" className="text-dim">
                       (<span className="font-numeric">{vendor.reviewCount}</span>)
                     </span>
                     <span className="sr-only">

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { IconMapPin, IconQrcode, IconStarFilled } from '@tabler/icons-react'
+import { IconMapPin, IconQrcode } from '@tabler/icons-react'
+import { DetlioMark } from '@repo/ui/sc/rating-marks'
 import type { LinkBookResult, PublicLinkPage } from '@repo/core/api/garage-book'
 import { useBookOnLink } from '@repo/core/api/hooks/use-garage-book'
 import { addDays, dayLabel, initials, istDateKey, jobTime, rupees, spacedPhone } from '@repo/core/garage-book'
@@ -84,9 +85,8 @@ export function LinkBooking({ slug, page }: { slug: string; page: PublicLinkPage
             <>
               <span aria-hidden>·</span>
               <span className="inline-flex items-center gap-1">
-                <IconStarFilled size={12} aria-hidden />
-                <span className="sr-only">Rated</span>
-                {garage.rating.toFixed(1)}
+                <DetlioMark size={13} rating={garage.rating} />
+                <span aria-hidden="true">{garage.rating.toFixed(1)}</span>
               </span>
             </>
           )}

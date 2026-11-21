@@ -2474,3 +2474,51 @@ export const PICKUP_FEE = {
     wash: { id: id(7777), name: 'Murugan Foam Wash', price: '699.00', durationMins: 60 },
   },
 } as const
+
+/**
+ * Google rating for new garages and the d. mark (21 Nov 2026; ids
+ * 8100–8149). Three garages pinned together far south-west of every other
+ * fixture (`pin`), so a customer standing there sees them first: `newLinked`
+ * (no Detlio review, its lead read from Google 3 days ago: the card and the
+ * garage page show Google's 4.6 from 312 reviews), `stale` (its lead read 40
+ * days ago: past Google's 30 days, so "New on Detlio"), `rated` (5 counted
+ * Detlio reviews: the d. mark, and Google's 4.4 only as the Reviews tab's
+ * "Also" line) and `unlinked` (no lead: admin links it to `place`, one of
+ * PLACES_FAKE's places, and unlinks it again). Only
+ * specs/users/google-ratings.spec.ts and specs/admin/google-ratings.spec.ts
+ * read them.
+ */
+export const GOOGLE_RATINGS = {
+  pin: { lat: ORIGIN.lat - 2.2, lng: ORIGIN.lng - 0.9 },
+  owner: { id: id(8100), phone: '9000008100', name: 'Gratings Owner' },
+  customer: { id: id(8101), phone: '9000008101', name: 'Gratings Reviewer', vehicleId: id(8102) },
+  newLinked: {
+    id: id(8103),
+    name: 'Gratings Shine Hub',
+    serviceId: id(8104),
+    leadId: id(8105),
+    placeId: 'e2e-google-ratings-shine',
+    google: { rating: '4.6', reviewCount: 312 },
+  },
+  stale: {
+    id: id(8106),
+    name: 'Gratings Stale Spa',
+    serviceId: id(8107),
+    leadId: id(8108),
+    placeId: 'e2e-google-ratings-stale',
+    google: { rating: '4.9', reviewCount: 40 },
+  },
+  rated: {
+    id: id(8109),
+    name: 'Gratings Carbon Works',
+    serviceId: id(8110),
+    leadId: id(8111),
+    placeId: 'e2e-google-ratings-carbon',
+    google: { rating: '4.4', reviewCount: 186 },
+    bookings: [id(8112), id(8113), id(8114), id(8115), id(8116)],
+    reviews: [id(8117), id(8118), id(8119), id(8120), id(8121)],
+  },
+  unlinked: { id: id(8122), name: 'Gratings Royal Wash', serviceId: id(8123) },
+  /** PLACES_FAKE's place the admin spec links `unlinked` to (lib/places/fake.ts). */
+  place: { placeId: 'e2e-google-ratings-royal', name: 'Gratings Royal Car Wash', rating: 4.3, reviewCount: 58 },
+} as const

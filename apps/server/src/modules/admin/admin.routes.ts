@@ -56,6 +56,7 @@ import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
+import { adminGarageGoogleRoutes } from '../garage-google/garage-google.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
 import { adminCustomerRoutes } from '../admin-customers/admin-customers.routes.js'
 import * as adminController from './admin.controller.js'
@@ -215,6 +216,10 @@ adminRoutes.route('/', adminCollectionListRoutes)
 // The owner deletes anything (10 Nov 2026): /owner-delete/* hard deletes,
 // owner only. Its own module; mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminOwnerDeleteRoutes)
+// Google rating for new garages (21 Nov 2026): POST /vendors/:id/google/
+// search, /link and /unlink, the side panel's Google listing. Mounted at the
+// root for the cookie's sake, like the Bin.
+adminRoutes.route('/', adminGarageGoogleRoutes)
 // The Customers page (10 Nov 2026): search, a customer's page, and the
 // owner's Delete customer account.
 adminRoutes.route('/customers', adminCustomerRoutes)

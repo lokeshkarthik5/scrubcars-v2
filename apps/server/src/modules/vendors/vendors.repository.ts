@@ -1,11 +1,12 @@
 import { ADD_ON_CATEGORY } from '../../lib/add-ons.js'
-import { and, asc, eq, gte, inArray, isNull, lt, lte, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../db/index.js'
 import {
   bookingIntentItems,
   bookingIntents,
   bookingItems,
   bookings,
+  leads,
   reviews,
   serviceImages,
   servicePackageItems,
@@ -625,6 +626,32 @@ export const vendorsRepository = {
   },
 
   /** The same for a page of garages at once, for the listing cards. */
+  /**
+   * The Google rating each garage's lead holds (Google rating for new
+   * garages, 21 Nov 2026), in one read for a page of cards: only a lead
+   * linked to the garage (`vendor_id`, unique) with a Google listing, read
+   * from Google after `heldSince` (Google's 30 days). Which of them shows is
+   * lib/ratings.ts's.
+   */
+  listGoogleRatings(vendorIds: string[], heldSince: Date) {
+    if (vendorIds.length === 0) return Promise.resolve([])
+    return db
+      .select({
+        vendorId: sql<string>`${leads.vendorId}`,
+        googleRating: leads.googleRating,
+        googleReviewCount: leads.googleReviewCount,
+        googleFetchedAt: leads.googleFetchedAt,
+      })
+      .from(leads)
+      .where(
+        and(
+          inArray(leads.vendorId, vendorIds),
+          isNotNull(leads.googlePlaceId),
+          gt(leads.googleFetchedAt, heldSince)
+        )
+      )
+  },
+
   listClosuresForVendors(vendorIds: string[], from: string, to: string) {
     if (vendorIds.length === 0) return Promise.resolve([])
 
