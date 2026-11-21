@@ -108,7 +108,7 @@ test('balance tiles: due now, oldest, owed to Detlio', () => {
 test('the footnote says the free bookings only while some are left', () => {
   const base = 'Detlio pays your share within 24 hours of each job, by bank transfer or UPI. ';
   expect(balanceFootnote({ cycleHours: 24, summary: summary() })).toBe(
-    `${base}Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.`
+    `${base}Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.`
   );
   expect(balanceFootnote({ cycleHours: 24, summary: summary({ freeBookings: { used: 7, of: 25 } }) })).toEndWith(
     ' Your first 25 bookings are free: 7 used so far.'
@@ -120,6 +120,14 @@ test('a plain line: price, commission, share', () => {
   expect(rows.map((r) => r.key)).toEqual(['price', 'commission', 'share']);
   expect(rows[1]).toMatchObject({ label: 'Detlio commission', value: '−8% · ₹80', free: false });
   expect(rows[2]).toMatchObject({ value: '₹920', strong: true });
+});
+
+test('a pickup booking’s pickup fee names the road km (0079)', () => {
+  const rows = lineFigureRows(line({ bookingType: 'pickup', travelFee: 99, roadKm: 6.2 }));
+  expect(rows.find((r) => r.key === 'travel')).toMatchObject({
+    label: 'Pickup & drop · 6.2 km (yours, no commission)',
+    value: '₹99',
+  });
 });
 
 test('every breakdown row, in the web order, with its minus signs', () => {

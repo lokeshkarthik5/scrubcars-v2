@@ -4,7 +4,9 @@ import { useCreateRequest, useRequestWindows } from '@repo/core/api/hooks/use-bo
 import { garageQuery } from '@repo/core/api/hooks/use-vendors';
 import { createAddress, createVehicle } from '@repo/core/api/users';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
-import { dayChipLabel, istClock, REQUEST_PROMISES, type RequestMode, WINDOW_PART_LABELS, type WindowPart } from '@repo/core/booking-requests';
+import { dayChipLabel, istClock, requestActionLabel, requestPromises, type RequestMode, WINDOW_PART_LABELS, type WindowPart } from '@repo/core/booking-requests';
+import { usePickupFeeConfig } from '@repo/core/api/hooks/use-pickup-fee';
+import { aboutFee, askFeeNote, askSheetSubtitle, askSheetTitle, askSuggestion, atMostFee, PICKUP_FEE_SECTION } from '@repo/core/pickup-fee-customer';
 import { useT } from '@repo/core/i18n';
 import { isNoFeeInspection, resolveServiceAmount } from '@repo/core/pricing';
 import { servicePriceText } from '@/lib/price';
@@ -116,7 +118,13 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
   const addressReady = guest ? guestAddress !== null : addressChoice !== null;
   const ready = chosen.length > 0 && !unpriced && carReady && addressReady && window !== null;
   const toggleService = (id: string) => setServiceIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-  const label = mode === 'pickup' ? t('Request a pickup') : t('Request a visit');
+  const label = requestActionLabel(mode);
+  // Ask for pickup (0079): Detlio's suggested fee for the address picked, and the most the garage may ask.
+  const feeConfig = usePickupFeeConfig();
+  const place = guest || addressChoice === GUEST_ADDRESS ? guestAddress : (pinned.find((a) => a.id === addressChoice) ?? null);
+  const servicesTotal = priced.length > 0 && priced.every((p) => p.amount !== null) ? priced.reduce((sum, p) => sum + (p.amount ?? 0), 0) : null;
+  const suggestion = mode === 'pickup' && feeConfig.data && place ? askSuggestion(feeConfig.data, vendor, place, servicesTotal) : null;
+  const title = mode === 'pickup' ? askSheetTitle(vendor.name) : t('Request {name}', { name: vendor.name });
   const carTier = VEHICLE_TIERS.find((tier) => tier.value === vehicleType)?.label;
   const carLabel = carTier ? t(carTier).toUpperCase() : undefined;
 
@@ -168,7 +176,7 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
   );
 
   return (
-    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={t('Request {name}', { name: vendor.name })}>
+    <ScSheet horizontalPadding={16} open={open} onClose={close} accessibilityLabel={title}>
       {sent ? (
         <View style={styles.sent}>
           <IconCircleCheck size={44} color={colors.success} />
@@ -200,10 +208,12 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
         <View style={styles.form}>
           <View>
             <T size={20} weight={500} lh={28}>
-              {t('Request {name}', { name: vendor.name })}
+              {title}
             </T>
             <T size={13} lh={18} color={colors.textSecondary}>
-              {`${mode === 'pickup' ? t('They collect your car and bring it back') : t('To your home')} · ${garage.coverKm !== null ? t('covers {km} km, {outside} km outside', { km: garage.coverKm, outside: garage.outsideKm }) : t('{outside} km outside', { outside: garage.outsideKm })}`}
+              {mode === 'pickup'
+                ? askSheetSubtitle(suggestion?.roadKm ?? null)
+                : `${t('To your home')} · ${garage.coverKm !== null ? t('covers {km} km, {outside} km outside', { km: garage.coverKm, outside: garage.outsideKm }) : t('{outside} km outside', { outside: garage.outsideKm })}`}
             </T>
           </View>
 
@@ -399,8 +409,27 @@ export function RequestSheet({ open, onClose, garage, mode }: { open: boolean; o
             </Pressable>
           </View>
 
+          {suggestion && feeConfig.data ? (
+            <View style={styles.section}>
+              {heading(t(PICKUP_FEE_SECTION))}
+              <View style={[styles.address, styles.feeBox]}>
+                <T size={15} lh={20}>
+                  {aboutFee(suggestion.suggested)}
+                </T>
+                {suggestion.max > suggestion.suggested ? (
+                  <T size={12} lh={16} color={colors.textMuted}>
+                    {atMostFee(suggestion.max)}
+                  </T>
+                ) : null}
+              </View>
+              <T size={12} lh={16} color={colors.textMuted}>
+                {askFeeNote(suggestion.roadKm, feeConfig.data.askRaisePct)}
+              </T>
+            </View>
+          ) : null}
+
           <View style={styles.promises}>
-            {REQUEST_PROMISES.map((line) => (
+            {requestPromises(mode).map((line) => (
               <View key={line} style={styles.promise}>
                 <IconCheck size={15} color={colors.success} />
                 <T size={13} lh={18} color={colors.textSecondary} style={styles.grow}>
@@ -467,6 +496,7 @@ const useStyles = createStyles((c) => ({
   tickOn: { borderColor: c.chosenBg, backgroundColor: c.chosenBg },
   tickOff: { borderColor: c.stroke },
   grow: { flex: 1, minWidth: 0 },
+  feeBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderColor: c.border },
   address: { minHeight: 56, justifyContent: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   promises: { gap: 6 },
   promise: { flexDirection: 'row', gap: 8 },

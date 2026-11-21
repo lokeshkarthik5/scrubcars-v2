@@ -13,6 +13,7 @@ import {
 } from '../../db/schema.js'
 import {
   allocateReceiptNumber,
+  bookedCategory,
   checkGarageCanTake,
   countHeldRedemptions,
   findOverlappingVehicleBooking,
@@ -383,6 +384,8 @@ export const bookingIntentsRepository = {
           durationMins: intent.serviceDurationMins,
           subtotalAmount: intent.subtotalAmount,
           travelFee: intent.travelFee,
+          roadKm: intent.roadKm,
+          convenienceFee: intent.convenienceFee,
           // What the booking costs after any promo: the Razorpay part and the
           // credit part together (amount = subtotal − discount still holds).
           amount: rupees(cashPaise + creditPaise),
@@ -410,6 +413,7 @@ export const bookingIntentsRepository = {
           durationMins: item.durationMins,
           sortOrder: item.sortOrder,
           isAddon: item.isAddon,
+          category: bookedCategory(item.serviceId),
         }))
       )
 

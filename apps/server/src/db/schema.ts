@@ -177,6 +177,11 @@ export const serviceCategoryEnum = pgEnum('service_category', [
   'detailing',
   'coating',
   'scratch_removal',
+  // The mechanical and body work (0080). Listed in the apps in the order of
+  // packages/core/src/categories.ts, never this enum's.
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ])
@@ -642,6 +647,40 @@ export const vendors = pgTable(
     // Repair & bodywork quotes (0076): admin's "Takes repair & bodywork
     // quotes". Only garages with it on are asked (lib/repair-quotes.ts).
     repairQuotesEnabled: boolean('repair_quotes_enabled').default(false).notNull(),
+    // The pickup fee (0079, lib/pickup-fee-maths.ts). 'free' (the default, as
+    // before), 'fixed' (`pickupFeeFixed` for any pickup) or 'distance' (the
+    // four numbers; a null one is Detlio's suggestion). `pickupFeeWaitingSince`:
+    // a fee above Detlio's suggestion not checked yet — customers see Detlio's
+    // fee meanwhile. `pickupFeeLocked*`: admin's "Who sets this garage's
+    // fee: Detlio" (the stored fee applies as Detlio left it; the garage can't
+    // change it). `pickupFeeSource`: who set the stored fee ('detlio' may go
+    // past the garage limits, up to the hard caps). `pickupFeeChangedAt`: the
+    // garage's own last change (once in 7 days; Detlio's never touch it).
+    // `pickupFeeLimit*` / `pickupFeeNeedsApproval`: admin's overrides of the
+    // garage limits for this garage, null for Detlio's default.
+    // Every change is a pickup_fee_changes row.
+    pickupFeeMode: text('pickup_fee_mode').$type<'free' | 'fixed' | 'distance'>().default('free').notNull(),
+    pickupFeeFixed: decimal('pickup_fee_fixed', { precision: 10, scale: 2 }),
+    pickupFeeFreeKm: decimal('pickup_fee_free_km', { precision: 4, scale: 1 }),
+    pickupFeePerKm: decimal('pickup_fee_per_km', { precision: 10, scale: 2 }),
+    pickupFeeMin: decimal('pickup_fee_min', { precision: 10, scale: 2 }),
+    pickupFeeMax: decimal('pickup_fee_max', { precision: 10, scale: 2 }),
+    pickupFeeWaitingSince: timestamp('pickup_fee_waiting_since', { withTimezone: true }),
+    pickupFeeLockedAt: timestamp('pickup_fee_locked_at', { withTimezone: true }),
+    pickupFeeLockedBy: varchar('pickup_fee_locked_by', { length: 100 }),
+    pickupFeeChangedAt: timestamp('pickup_fee_changed_at', { withTimezone: true }),
+    pickupFeeSource: text('pickup_fee_source').$type<'garage' | 'detlio'>().default('garage').notNull(),
+    pickupFeeLimitFreeKmMin: decimal('pickup_fee_limit_free_km_min', { precision: 4, scale: 1 }),
+    pickupFeeLimitFreeKmMax: decimal('pickup_fee_limit_free_km_max', { precision: 4, scale: 1 }),
+    pickupFeeLimitPerKmMin: decimal('pickup_fee_limit_per_km_min', { precision: 10, scale: 2 }),
+    pickupFeeLimitPerKmMax: decimal('pickup_fee_limit_per_km_max', { precision: 10, scale: 2 }),
+    pickupFeeLimitMinChargeMin: decimal('pickup_fee_limit_min_charge_min', { precision: 10, scale: 2 }),
+    pickupFeeLimitMinChargeMax: decimal('pickup_fee_limit_min_charge_max', { precision: 10, scale: 2 }),
+    pickupFeeLimitMaxCharge: decimal('pickup_fee_limit_max_charge', { precision: 10, scale: 2 }),
+    pickupFeeLimitFixedMax: decimal('pickup_fee_limit_fixed_max', { precision: 10, scale: 2 }),
+    pickupFeeLimitAskRaisePct: smallint('pickup_fee_limit_ask_raise_pct'),
+    pickupFeeLimitChangeDays: smallint('pickup_fee_limit_change_days'),
+    pickupFeeNeedsApproval: boolean('pickup_fee_needs_approval'),
     // The garage's city (0069), NULL for Other towns. Written only by the
     // database: a trigger sets it on every write that touches lat, lng or
     // city, and any change to `cities` recomputes every garage, both by
@@ -654,6 +693,34 @@ export const vendors = pgTable(
   },
   (table) => [
     index('vendors_owner_id_idx').on(table.ownerId),
+    check(
+      'vendors_pickup_fee_check',
+      sql`${table.pickupFeeMode} in ('free', 'fixed', 'distance')
+        and (${table.pickupFeeMode} <> 'fixed' or (${table.pickupFeeFixed} is not null and ${table.pickupFeeFixed} >= 1))
+        and (${table.pickupFeeFixed} is null or (${table.pickupFeeFixed} >= 0 and ${table.pickupFeeFixed} <= 299))
+        and (${table.pickupFeeFreeKm} is null or (${table.pickupFeeFreeKm} >= 0 and ${table.pickupFeeFreeKm} <= 5))
+        and (${table.pickupFeePerKm} is null or (${table.pickupFeePerKm} >= 5 and ${table.pickupFeePerKm} <= 30))
+        and (${table.pickupFeeMin} is null or (${table.pickupFeeMin} >= 49 and ${table.pickupFeeMin} <= 149))
+        and (${table.pickupFeeMax} is null or (${table.pickupFeeMax} >= 1 and ${table.pickupFeeMax} <= 599))
+        and ((${table.pickupFeeLockedAt} is null) = (${table.pickupFeeLockedBy} is null))
+        and ${table.pickupFeeSource} in ('garage', 'detlio')`
+    ),
+    check(
+      'vendors_pickup_fee_limits_check',
+      sql`(${table.pickupFeeLimitFreeKmMin} is null) = (${table.pickupFeeLimitFreeKmMax} is null)
+        and (${table.pickupFeeLimitPerKmMin} is null) = (${table.pickupFeeLimitPerKmMax} is null)
+        and (${table.pickupFeeLimitMinChargeMin} is null) = (${table.pickupFeeLimitMinChargeMax} is null)
+        and (${table.pickupFeeLimitFreeKmMin} is null or (${table.pickupFeeLimitFreeKmMin} >= 0
+          and ${table.pickupFeeLimitFreeKmMin} <= ${table.pickupFeeLimitFreeKmMax} and ${table.pickupFeeLimitFreeKmMax} <= 5))
+        and (${table.pickupFeeLimitPerKmMin} is null or (${table.pickupFeeLimitPerKmMin} >= 5
+          and ${table.pickupFeeLimitPerKmMin} <= ${table.pickupFeeLimitPerKmMax} and ${table.pickupFeeLimitPerKmMax} <= 30))
+        and (${table.pickupFeeLimitMinChargeMin} is null or (${table.pickupFeeLimitMinChargeMin} >= 49
+          and ${table.pickupFeeLimitMinChargeMin} <= ${table.pickupFeeLimitMinChargeMax} and ${table.pickupFeeLimitMinChargeMax} <= 149))
+        and (${table.pickupFeeLimitMaxCharge} is null or (${table.pickupFeeLimitMaxCharge} >= 1 and ${table.pickupFeeLimitMaxCharge} <= 599))
+        and (${table.pickupFeeLimitFixedMax} is null or (${table.pickupFeeLimitFixedMax} >= 1 and ${table.pickupFeeLimitFixedMax} <= 299))
+        and (${table.pickupFeeLimitAskRaisePct} is null or (${table.pickupFeeLimitAskRaisePct} >= 0 and ${table.pickupFeeLimitAskRaisePct} <= 50))
+        and (${table.pickupFeeLimitChangeDays} is null or (${table.pickupFeeLimitChangeDays} >= 1 and ${table.pickupFeeLimitChangeDays} <= 30))`
+    ),
     check(
       'vendors_colour_tag_check',
       sql`${table.colourTag} is null or ${table.colourTag} in ('green', 'amber', 'red', 'blue')`
@@ -887,6 +954,10 @@ export const services = pgTable(
     // filters it out; its category is always 'others', never shown, and it is
     // never priced on inspection (services_addon_shape_check). See lib/add-ons.ts.
     isAddon: boolean('is_addon').default(false).notNull(),
+    // When admin turned down the "Looks like Repairs · Move" hint on this
+    // service in Others ("Not this", 0080): never suggested again. Null is
+    // never turned down. Read by admin only.
+    categoryHintDismissedAt: timestamp('category_hint_dismissed_at', { withTimezone: true }),
   },
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),
@@ -1152,6 +1223,13 @@ export const bookings = pgTable(
     // whole by the garage (no commission, no promo comes off it). 0 on every
     // other booking; a reschedule carries it.
     travelFee: decimal('travel_fee', { precision: 10, scale: 2 }).default('0').notNull(),
+    // The pickup fee (0079) rides in `travelFee` on a pickup booking: the
+    // garage's live fee for this address, locked here at booking time (or an
+    // accepted Ask for pickup's). `roadKm` is the road km it was worked out
+    // on. `convenienceFee` is Detlio's own fee (₹0 while off), inside the
+    // subtotal like the travel fee, never the garage's (lib/payouts.ts).
+    roadKm: decimal('road_km', { precision: 5, scale: 1 }),
+    convenienceFee: decimal('convenience_fee', { precision: 10, scale: 2 }).default('0').notNull(),
     // The garage cancelled this booking after accepting it, before the job
     // started (0066, lib/garage-cancel.ts). Within 24 hours of the slot it
     // counts as a missed booking in the tier metrics; earlier, like a
@@ -1162,7 +1240,8 @@ export const bookings = pgTable(
       .notNull(),
   },
   (table) => [
-    check('bookings_travel_fee_check', sql`${table.travelFee} in (0, 100, 200)`),
+    check('bookings_travel_fee_check', sql`${table.travelFee} >= 0 and ${table.travelFee} <= 599`),
+    check('bookings_convenience_fee_check', sql`${table.convenienceFee} >= 0 and ${table.convenienceFee} <= 99`),
     check(
       'bookings_garage_cancelled_check',
       sql`${table.garageCancelledAt} is null or (${table.status}::text = 'cancelled' and ${table.cancelledBy}::text = 'vendor' and ${table.acceptedAt} is not null)`
@@ -1537,6 +1616,12 @@ export const bookingItems = pgTable(
     // Snapshot of services.is_addon (0068): an add-on stays marked on this
     // booking and its receipt whatever later happens to the service.
     isAddon: boolean('is_addon').default(false).notNull(),
+    // Snapshot of services.category (0080): the category the service had
+    // when it was booked, which payouts, commission and Statistics charge.
+    // Moving a service to another category later never re-prices its past
+    // bookings. Null (a row written before 0080's code) reads as the
+    // service's category now. bookedCategory (bookings.repository) fills it.
+    category: serviceCategoryEnum('category'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -1908,6 +1993,9 @@ export const bookingIntents = pgTable(
     // An accepted request's travel fee and the request (0062); 0 and null
     // for every other checkout. Part of `subtotal_amount`, as on the booking.
     travelFee: decimal('travel_fee', { precision: 10, scale: 2 }).default('0').notNull(),
+    // The pickup fee's road km and Detlio's convenience fee (0079), as on the booking.
+    roadKm: decimal('road_km', { precision: 5, scale: 1 }),
+    convenienceFee: decimal('convenience_fee', { precision: 10, scale: 2 }).default('0').notNull(),
     requestId: uuid('request_id').references((): AnyPgColumn => bookingRequests.id, { onDelete: 'set null' }),
     subtotalAmount: decimal('subtotal_amount', {
       precision: 10,
@@ -1957,7 +2045,8 @@ export const bookingIntents = pgTable(
     index('booking_intents_status_idx').on(table.status),
     gatewayModeCheck('booking_intents_gateway_mode_check', table.gatewayMode),
     check('booking_intents_credit_amount_check', sql`${table.creditAmount} >= 0`),
-    check('booking_intents_travel_fee_check', sql`${table.travelFee} in (0, 100, 200)`),
+    check('booking_intents_travel_fee_check', sql`${table.travelFee} >= 0 and ${table.travelFee} <= 599`),
+    check('booking_intents_convenience_fee_check', sql`${table.convenienceFee} >= 0 and ${table.convenienceFee} <= 99`),
     index('booking_intents_request_id_idx').on(table.requestId).where(sql`${table.requestId} is not null`),
   ]
 )
@@ -2224,11 +2313,13 @@ export const vendorOnboardingMarks = pgTable(
 // onboarding target ('garage_target') and the colour tags' names
 // ('colour_names'). Shapes and defaults in lib/admin-settings.ts. Cities
 // (0069) added 'other_towns_visible', `{ visible }` for garages in no city
-// (lib/cities.ts parseOtherTownsVisible; absent is shown).
+// (lib/cities.ts parseOtherTownsVisible; absent is shown). The pickup fee
+// (0079) added 'pickup_fee': Detlio's formula, the garages' limits and the
+// convenience fee (lib/pickup-fee-maths.ts parsePickupFeeSettings).
 export const adminSettings = pgTable(
   'admin_settings',
   {
-    key: text('key').$type<'garage_target' | 'colour_names' | 'other_towns_visible'>().primaryKey(),
+    key: text('key').$type<'garage_target' | 'colour_names' | 'other_towns_visible' | 'pickup_fee'>().primaryKey(),
     value: jsonb('value').$type<Record<string, unknown>>().notNull(),
     updatedByName: varchar('updated_by_name', { length: 100 }).notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -2236,7 +2327,7 @@ export const adminSettings = pgTable(
   (table) => [
     check(
       'admin_settings_key_check',
-      sql`${table.key} in ('garage_target', 'colour_names', 'other_towns_visible')`
+      sql`${table.key} in ('garage_target', 'colour_names', 'other_towns_visible', 'pickup_fee')`
     ),
     check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
   ]
@@ -3727,7 +3818,7 @@ export const bypassReports = pgTable(
       .where(sql`${table.rewardStatus} = 'owed'`),
     check(
       'bypass_reports_kind_check',
-      sql`${table.kind} in ('book_directly', 'lower_price', 'pay_directly', 'gave_number', 'other')`
+      sql`${table.kind} in ('book_directly', 'lower_price', 'pay_directly', 'gave_number', 'pickup_money', 'other')`
     ),
     check('bypass_reports_status_check', sql`${table.status} in ('new', 'confirmed', 'dismissed')`),
     check('bypass_reports_note_check', sql`${table.note} is null or char_length(btrim(${table.note})) > 0`),
@@ -4200,7 +4291,7 @@ export const rewardChallenges = pgTable(
     check('reward_challenges_goal_check', sql`${table.goalCount} between 1 and 20`),
     check(
       'reward_challenges_category_check',
-      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'others', 'package')`
+      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'general_service', 'repairs', 'dent_paint', 'others', 'package')`
     ),
     check('reward_challenges_booking_type_check', sql`${table.bookingType} is null or ${table.bookingType} in ('dropin', 'doorstep', 'pickup')`),
     check(
@@ -5181,6 +5272,14 @@ export const bookingRequests = pgTable(
     repliedAt: timestamp('replied_at', { withTimezone: true }),
     repliedBy: uuid('replied_by').references(() => users.id, { onDelete: 'set null' }),
     travelFee: decimal('travel_fee', { precision: 10, scale: 2 }),
+    // Detlio's suggested fee for this trip and the most the garage may ask
+    // (0079), worked out when the request was made; `roadKm` the road km.
+    // Null on requests from before 0079 (their yes is ₹0, ₹100 or ₹200).
+    suggestedFee: decimal('suggested_fee', { precision: 10, scale: 2 }),
+    maxFee: decimal('max_fee', { precision: 10, scale: 2 }),
+    roadKm: decimal('road_km', { precision: 5, scale: 1 }),
+    // Ask for pickup (0079): the garage's responsibility tick with its yes.
+    pickupTermsAcceptedAt: timestamp('pickup_terms_accepted_at', { withTimezone: true }),
     acceptedStartAt: timestamp('accepted_start_at', { withTimezone: true }),
     confirmBy: timestamp('confirm_by', { withTimezone: true }),
     bookingId: uuid('booking_id').references(() => bookings.id, { onDelete: 'set null' }),
@@ -5232,7 +5331,11 @@ export const bookingRequests = pgTable(
       'booking_requests_accept_check',
       sql`(coalesce(${table.reply}, '') = 'accepted') = (${table.travelFee} is not null and ${table.acceptedStartAt} is not null and ${table.confirmBy} is not null)`
     ),
-    check('booking_requests_travel_fee_check', sql`${table.travelFee} is null or ${table.travelFee} in (0, 100, 200)`),
+    check('booking_requests_travel_fee_check', sql`${table.travelFee} is null or (${table.travelFee} >= 0 and ${table.travelFee} <= 599)`),
+    check(
+      'booking_requests_suggested_fee_check',
+      sql`(${table.suggestedFee} is null) = (${table.maxFee} is null) and (${table.suggestedFee} is null or (${table.suggestedFee} >= 0 and ${table.maxFee} >= ${table.suggestedFee} and ${table.maxFee} <= 599))`
+    ),
     check(
       'booking_requests_status_reply_check',
       sql`(${table.status} not in ('accepted', 'converted') or ${table.reply} = 'accepted') and (${table.status} <> 'declined' or ${table.reply} = 'declined') and (${table.status} <> 'pending' or ${table.reply} is null)`
@@ -5247,6 +5350,51 @@ export const bookingRequests = pgTable(
     ),
     check('booking_requests_amounts_check', sql`${table.subtotalAmount} > 0 and ${table.durationMins} > 0`),
     check('booking_requests_distance_check', sql`${table.distanceKm} >= 0 and ${table.outsideKm} >= 0`),
+  ]
+)
+
+// Every change of a garage's pickup fee (0079), with who, when and before →
+// after, plus admin's lock and unlock. A garage's fee above Detlio's
+// suggestion is 'waiting' (one per garage) until admin approves it or keeps
+// Detlio's fee (with a reason the garage sees), or a newer change replaces
+// it; everything else is 'live'.
+// `before` / `after`: { mode, fixed, freeKm, perKm, minCharge, maxCharge };
+// on a 'limits' row, admin's overrides for the garage instead.
+export const pickupFeeChanges = pgTable(
+  'pickup_fee_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'fee' | 'locked' | 'unlocked' | 'limits'>().default('fee').notNull(),
+    byKind: text('by_kind').$type<'garage' | 'detlio'>().notNull(),
+    byUserId: uuid('by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    byName: varchar('by_name', { length: 120 }).notNull(),
+    before: jsonb('before').$type<Record<string, unknown>>().notNull(),
+    after: jsonb('after').$type<Record<string, unknown>>().notNull(),
+    status: text('status').$type<'live' | 'waiting' | 'approved' | 'kept' | 'replaced'>().default('live').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decidedBy: varchar('decided_by', { length: 100 }),
+    decisionReason: varchar('decision_reason', { length: 300 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('pickup_fee_changes_vendor_idx').on(table.vendorId, table.createdAt),
+    index('pickup_fee_changes_status_idx')
+      .on(table.status, table.createdAt)
+      .where(sql`${table.status} in ('waiting', 'approved', 'kept')`),
+    uniqueIndex('pickup_fee_changes_one_waiting_key').on(table.vendorId).where(sql`${table.status} = 'waiting'`),
+    check('pickup_fee_changes_kind_check', sql`${table.kind} in ('fee', 'locked', 'unlocked', 'limits')`),
+    check('pickup_fee_changes_by_kind_check', sql`${table.byKind} in ('garage', 'detlio')`),
+    check('pickup_fee_changes_status_check', sql`${table.status} in ('live', 'waiting', 'approved', 'kept', 'replaced')`),
+    check(
+      'pickup_fee_changes_shape_check',
+      sql`jsonb_typeof(${table.before}) = 'object' and jsonb_typeof(${table.after}) = 'object'
+        and (${table.status} <> 'waiting' or (${table.byKind} = 'garage' and ${table.kind} = 'fee'))
+        and ((${table.status} in ('approved', 'kept')) = (${table.decidedAt} is not null and ${table.decidedBy} is not null))
+        and (${table.status} <> 'kept' or ${table.decisionReason} is not null)`
+    ),
   ]
 )
 

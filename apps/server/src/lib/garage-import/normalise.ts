@@ -533,14 +533,37 @@ export function parseKm(text: string | null | undefined): number | null {
 
 const CATEGORY_WORDS: Array<{ category: DraftCategory; label: string; pattern: RegExp }> = [
   { category: 'coating', label: 'Coating', pattern: /ceramic|coating|ppf|teflon|graphene|paint protection/i },
-  { category: 'scratch_removal', label: 'Scratch removal', pattern: /scratch|dent|buff|rubbing|swirl/i },
+  { category: 'scratch_removal', label: 'Scratch removal', pattern: /scratch|buff|rubbing|swirl/i },
+  // The mechanical and body work (0080), most specific first, as admin's
+  // "Looks like" hint orders them (packages/core/src/category-hints.ts).
+  {
+    category: 'dent_paint',
+    label: 'Dent & paint',
+    pattern: /\bdent|tinker|\brepaint|\bpaint(ing)?\b(?! protection)|\bpanel|\bbumper|body ?work|\brust\b/i,
+  },
+  {
+    category: 'repairs',
+    label: 'Repairs',
+    pattern:
+      /repair|\bbrake|\bclutch|gearbox|\bac\b|\ba\/c\b|air ?con|compressor|electrical|wiring|battery|alternator|\bstarter|suspension|shock absorber|steering|radiator|overhaul|mechanic|diagnos|scanning/i,
+  },
+  {
+    category: 'general_service',
+    label: 'General service',
+    pattern:
+      /\bservic(e|ing)\b|periodic|maintenance|oil change|engine oil|oil filter|air filter|check-?up|health check|coolant|spark plug|tune-?up|alignment|balancing|top-?up/i,
+  },
   {
     category: 'detailing',
     label: 'Detailing',
-    pattern: /detail|interior|polish|upholstery|vacuum|engine|seat|dashboard|leather|odou?r|sanitis|saniti[sz]/i,
+    pattern: /detail|interior|polish|upholstery|vacuum|engine bay|seat|dashboard|leather|odou?r|sanitis|saniti[sz]/i,
   },
   { category: 'car_wash', label: 'Car wash', pattern: /wash|foam|clean|rinse|shampoo|underbody|water/i },
 ]
+
+/** The three above are never guessed for a name with a wash or detailing word ("Car wash service"). */
+const MECHANICAL_AND_BODY: ReadonlySet<DraftCategory> = new Set(['dent_paint', 'repairs', 'general_service'])
+const WASH_OR_DETAILING_WORD = /wash|clean|foam|polish|detail|coating|ceramic|teflon|graphene|ppf|protection/i
 
 /**
  * A category from a service's name, for a typed list with no categories.
@@ -548,7 +571,10 @@ const CATEGORY_WORDS: Array<{ category: DraftCategory; label: string; pattern: R
  * check, naming what it could be.
  */
 export function guessCategory(name: string): { category: DraftCategory; reason?: string } {
-  const matches = CATEGORY_WORDS.filter((c) => c.pattern.test(name))
+  const washy = WASH_OR_DETAILING_WORD.test(name)
+  const matches = CATEGORY_WORDS.filter(
+    (c) => c.pattern.test(name) && !(washy && MECHANICAL_AND_BODY.has(c.category))
+  )
   if (matches.length === 1) return { category: matches[0].category }
   if (matches.length > 1) {
     return {

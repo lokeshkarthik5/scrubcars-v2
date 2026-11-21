@@ -91,13 +91,16 @@ export const repairQuotesRepository = {
     return readGarageCalendar(db, vendorId, from, until)
   },
 
-  /** The garage's cheapest no-fee inspection service: what a visit from a quote books. */
+  /**
+   * The garage's cheapest no-fee inspection service: what a visit from a
+   * quote books. Bodywork first: a Dent & paint (0080) or Scratch removal one.
+   */
   async inspectionServiceFor(vendorId: string): Promise<{ id: string } | null> {
     const rows = await db.execute<{ id: string }>(sql`
       SELECT s.id FROM services s
        WHERE s.vendor_id = ${vendorId} AND s.is_active = true AND s.is_addon = false
          AND s.pricing_type = 'on_inspection' AND s.price = 0
-       ORDER BY (s.category = 'scratch_removal') DESC, s.duration_mins ASC NULLS LAST, s.name ASC
+       ORDER BY (s.category IN ('dent_paint', 'scratch_removal')) DESC, s.duration_mins ASC NULLS LAST, s.name ASC
        LIMIT 1
     `)
     return Array.from(rows)[0] ?? null

@@ -31,6 +31,21 @@ import {
   travelFeeLabel,
   type TravelFee,
 } from '@repo/core/booking-requests'
+import { usePickupFeeConfig } from '@repo/core/api/hooks/use-pickup-fee'
+import { PICKUP_TERMS_GARAGE } from '@repo/core/pickup'
+import {
+  acceptedLine,
+  defaultFeeChoice,
+  earnTemplate,
+  feeChipLabel,
+  requestDistanceLine,
+  requestFeeChoices,
+  requestFeeGroupName,
+  requestFeeLabel,
+  requestFeeNote,
+  requestTag,
+} from '@repo/core/pickup-fee-garage'
+import { ScCheckbox } from '@repo/ui/sc/checkbox'
 import { formatINR } from '@repo/core/format'
 import { useNow } from '@repo/core/hooks/use-now'
 import { cn } from '@repo/core/utils'
@@ -170,7 +185,15 @@ function WaitingRequestCard({
 }) {
   const t = useT()
   const titleId = `request-${request.id}-title`
-  const [fee, setFee] = useState<TravelFee>(0)
+  // The fee chips (0079): Detlio's suggestion for the road km, then up to
+  // 25% more; ₹0/₹100/₹200 on a request from before it.
+  const choices = requestFeeChoices(request, REQUEST_RULES.travelFees)
+  const suggested = request.suggestedFee ?? null
+  const [fee, setFee] = useState<number>(() => defaultFeeChoice(request))
+  // Ask for pickup: the responsibility tick before Accept.
+  const [termsTicked, setTermsTicked] = useState(false)
+  const configRaisePct = usePickupFeeConfig().data?.askRaisePct ?? 25
+  const raisePct = request.raisePct ?? configRaisePct
   const [startAt, setStartAt] = useState<string | null>(null)
   const startTimes = useRequestStartTimes(request.id)
   const accept = useAcceptRequest()
@@ -179,6 +202,7 @@ function WaitingRequestCard({
   const leftMs = Date.parse(request.respondBy) - now
   const busy = accept.isPending || decline.isPending
   const chosen = startAt && starts.includes(startAt) ? startAt : null
+  const termsNeeded = request.pickupTermsRequired === true
 
   const onAccept = async () => {
     if (!chosen) return
@@ -187,6 +211,7 @@ function WaitingRequestCard({
         id: request.id,
         startAt: chosen,
         travelFee: fee,
+        ...(termsNeeded ? { pickupTermsAccepted: termsTicked } : {}),
       })
       toast.success(
         accepted.confirmBy
@@ -231,9 +256,7 @@ function WaitingRequestCard({
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-warning">
-          {request.passedOn
-            ? t('Passed on to you')
-            : t('New request · outside your area')}
+          {requestTag(request.bookingType, request.passedOn)}
         </p>
         <p
           className="shrink-0 font-numeric text-[13px] font-semibold text-warning"
@@ -253,11 +276,11 @@ function WaitingRequestCard({
           {whenWhereLine(request)}
         </p>
         <p className="text-[13px] text-text-secondary">
-          {request.beyond} · {t('{km} km from you', { km: request.distanceKm })}
+          {requestDistanceLine(request)}
         </p>
         {request.earn !== null && (
           <p className="mt-1 text-[13px] text-text-primary">
-            {fill(t('You earn {amount} + any travel fee'), {
+            {fill(earnTemplate(request.bookingType), {
               amount: (
                 <span className="font-numeric font-semibold">
                   {formatINR(request.earn)}
@@ -268,22 +291,25 @@ function WaitingRequestCard({
         )}
       </div>
 
-      <ReachSketch
-        coverKm={request.coverKm}
-        distanceKm={request.distanceKm}
-        outsideKm={request.outsideKm}
-      />
+      {/* No reach to draw for a garage that doesn't collect cars yet (0079). */}
+      {request.offersPickup !== false && (
+        <ReachSketch
+          coverKm={request.coverKm}
+          distanceKm={request.distanceKm}
+          outsideKm={request.outsideKm}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         <p id={`${titleId}-fee`} className="text-[12px] text-text-secondary">
-          {t('Travel fee (the customer sees it before paying)')}
+          {requestFeeLabel(request.bookingType)}
         </p>
         <div
           role="radiogroup"
-          aria-label={t('Travel fee')}
-          className="grid grid-cols-3 gap-2"
+          aria-label={requestFeeGroupName(request.bookingType)}
+          className={cn('grid gap-2', choices.length >= 4 ? 'grid-cols-4' : 'grid-cols-3')}
         >
-          {REQUEST_RULES.travelFees.map((value) => (
+          {choices.map((value) => (
             <button
               key={value}
               type="button"
@@ -298,10 +324,15 @@ function WaitingRequestCard({
                   : 'border-border bg-surface text-text-primary'
               )}
             >
-              {travelFeeLabel(value)}
+              {suggested === null ? travelFeeLabel(value as TravelFee) : feeChipLabel(value)}
             </button>
           ))}
         </div>
+        {suggested !== null && (
+          <p className="text-[12px] text-text-secondary">
+            {requestFeeNote(suggested, request.roadKm ?? null, raisePct)}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -344,6 +375,21 @@ function WaitingRequestCard({
         )}
       </div>
 
+      {termsNeeded && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[12px] text-text-secondary">
+            {t(
+              'While the car is with you it is your responsibility: from the moment you collect it until it is back with the customer. When you collect it, ask the customer for their 4-digit pickup code; when you bring it back, their delivery code.'
+            )}
+          </p>
+          <ScCheckbox
+            label={t(PICKUP_TERMS_GARAGE)}
+            checked={termsTicked}
+            onChange={setTermsTicked}
+          />
+        </div>
+      )}
+
       <div className="flex gap-2">
         <ScButton
           variant="outline"
@@ -356,7 +402,7 @@ function WaitingRequestCard({
         <ScButton
           variant="main"
           onClick={() => void onAccept()}
-          disabled={busy || !chosen}
+          disabled={busy || !chosen || (termsNeeded && !termsTicked)}
           className="flex-1"
         >
           {t('Accept')}
@@ -365,6 +411,11 @@ function WaitingRequestCard({
       {!chosen && starts.length > 0 && (
         <p className="text-[12px] text-text-secondary">
           {t('Pick a start time to accept.')}
+        </p>
+      )}
+      {chosen && termsNeeded && !termsTicked && (
+        <p className="text-[12px] text-text-secondary">
+          {t('Tick that you are responsible for the car to accept.')}
         </p>
       )}
     </ScCard>
@@ -396,10 +447,11 @@ function AcceptedRequestCard({ request }: { request: GarageRequest }) {
         </ScBadge>
       </div>
       <p className="text-[13px] text-text-primary">
-        {t('Accepted · starts {start} · travel fee {fee} · customer confirms by {time}', {
+        {acceptedLine({
+          mode: request.bookingType,
           start: request.acceptedStartAt ? istStartLabel(request.acceptedStartAt) : '—',
-          fee: formatINR(request.travelFee ?? 0),
-          time: request.confirmBy ? istClock(request.confirmBy) : '—',
+          fee: request.travelFee ?? 0,
+          confirmBy: request.confirmBy ? istClock(request.confirmBy) : '—',
         })}
       </p>
       <p className="text-[12px] text-text-secondary">

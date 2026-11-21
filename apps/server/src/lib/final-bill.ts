@@ -71,19 +71,31 @@ export function finalBillStatus(amountDue: string): 'due' | 'not_needed' {
  *
  * A job cannot be accepted unpaid, so in practice the payment has always
  * landed; the rule is here so a bill never counts money that did not arrive.
+ *
+ * The fees around the services (0079) credit nothing either: Detlio's
+ * convenience fee is Detlio's, and the pickup (or travel) fee is the
+ * garage's on top of the work. Counting them would make the garage pay the
+ * convenience fee out of its bill and lose its pickup fee. The trip fee is
+ * left out only on a booking priced under 0079 (`roadKm` set); an older
+ * request's ₹100/₹200 travel fee keeps the credit it always had.
  */
 export function creditAtBooking(booking: {
   amount: string
   subtotalAmount?: string | null
   payment?: { status: string } | null
   items?: ReadonlyArray<{ amount: string; isAddon?: boolean | null }> | null
+  travelFee?: string | null
+  roadKm?: string | null
+  convenienceFee?: string | null
 }): string {
   if (!booking.payment || !['paid', 'collected'].includes(booking.payment.status)) return '0.00'
   // An add-on (0068) is paid upfront with the inspection fee and stays out of
   // the final bill: its price credits nothing, and the bill's form does not
   // start from it either.
   const whole = toPaise(booking.subtotalAmount ?? booking.amount)
-  return fromPaise(Math.max(0, whole - addOnPaise(booking.items ?? [])))
+  const fees =
+    toPaise(booking.convenienceFee ?? 0) + (booking.roadKm != null ? toPaise(booking.travelFee ?? 0) : 0)
+  return fromPaise(Math.max(0, whole - fees - addOnPaise(booking.items ?? [])))
 }
 
 /** Why a final bill cannot be raised on a booking right now. */

@@ -202,8 +202,14 @@ export function computeVendorPayout(booking: {
   amount: string
   subtotalAmount: string
   discountFundedBy: DiscountFundedBy | null
+  /**
+   * Detlio's convenience fee (0079), inside both figures: Detlio's money,
+   * never the garage's, so it comes off. Optional: absent is none.
+   */
+  convenienceFee?: string | null
 }): string {
-  return booking.discountFundedBy === 'platform'
-    ? booking.subtotalAmount
-    : booking.amount
+  const payout = booking.discountFundedBy === 'platform' ? booking.subtotalAmount : booking.amount
+  const fee = Math.round(Number(booking.convenienceFee ?? 0) * 100)
+  if (!Number.isFinite(fee) || fee <= 0) return payout
+  return (Math.max(0, Math.round(Number(payout) * 100) - fee) / 100).toFixed(2)
 }

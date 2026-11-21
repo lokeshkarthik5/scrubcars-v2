@@ -60,6 +60,12 @@ export interface CreateBookingIntentPayload {
    * its travel fee as its own line.
    */
   requestId?: string
+  /**
+   * The pickup fee checkout showed for this address (0079). The server
+   * refuses with PICKUP_FEE_CHANGED, before any charge, when its own figure
+   * differs (the garage changed its fee since the page loaded).
+   */
+  pickupFee?: number
 }
 
 interface RazorpayResult {

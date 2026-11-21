@@ -11,6 +11,7 @@ import {
   type EarningsRangePreset,
 } from '@repo/core/payouts';
 import { msg, t } from '@repo/core/i18n/translate';
+import { earningsFeeLabel } from '@repo/core/pickup-fee-garage';
 
 /**
  * The words and rules of the Earnings screen, from apps/vendors/app/earnings/page.tsx.
@@ -88,7 +89,7 @@ export function balanceFootnote(statement: Pick<EarningsStatement, 'summary' | '
       : '';
   return (
     `${t('Detlio pays your share within {hours} hours of each job, by bank transfer or UPI.', { hours: cycleHours })} ` +
-    t('Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.') +
+    t('Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.') +
     free
   );
 }
@@ -128,9 +129,10 @@ export function lineFigureRows(line: GarageStatementLine): FigureRow[] {
   const rows: FigureRow[] = [{ key: 'price', label: t('Price'), value: rupeesLabel(line.price) }];
   if ((line.travelFee ?? 0) > 0) {
     // An accepted request's travel fee: part of the price, the garage's whole, no commission.
+    // On a pickup booking it is the pickup fee (0079): "Pickup & drop · 6.2 km".
     rows.push({
       key: 'travel',
-      label: t('Travel fee (yours, no commission)'),
+      label: earningsFeeLabel(line),
       value: rupeesLabel(line.travelFee ?? 0),
     });
   }

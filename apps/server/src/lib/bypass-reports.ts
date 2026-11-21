@@ -64,6 +64,8 @@ export const BYPASS_KINDS = [
   'lower_price',
   'pay_directly',
   'gave_number',
+  // 0079: the garage asked for more than the pickup fee paid in the app.
+  'pickup_money',
   'other',
 ] as const
 export type BypassKind = (typeof BYPASS_KINDS)[number]
@@ -73,6 +75,7 @@ export const BYPASS_KIND_LABELS: Record<BypassKind, string> = {
   lower_price: 'Offered a lower price outside Detlio',
   pay_directly: 'Asked me to pay cash or UPI directly',
   gave_number: 'Gave their number for future bookings',
+  pickup_money: 'Asked for extra pickup money',
   other: 'Something else',
 }
 

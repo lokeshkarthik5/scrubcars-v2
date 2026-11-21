@@ -1183,10 +1183,21 @@ export const adminService = {
       }
 
       const toInsert: Parameters<typeof adminRepository.insertServices>[0] =
-        plan.insert.map((index) => ({ vendorId: id, ...columnsFor(input.services![index]!) }))
+        plan.insert.map((index) => ({
+          vendorId: id,
+          ...columnsFor(input.services![index]!),
+          ...(input.services![index]!.categoryHintDismissed && { categoryHintDismissedAt: new Date() }),
+        }))
       if (toInsert.length > 0) {
         await adminRepository.insertServices(toInsert)
       }
+
+      // "Not this" on the category hint (0080), for the saved rows that sent
+      // it: kept from when it was first turned down, cleared on false.
+      const hintIds = (dismissed: boolean) =>
+        plan.update.filter((row) => input.services![row.index]!.categoryHintDismissed === dismissed).map((row) => row.id)
+      await adminRepository.setCategoryHintsDismissed(hintIds(true), true)
+      await adminRepository.setCategoryHintsDismissed(hintIds(false), false)
 
       if (plan.deactivate.length > 0) {
         await adminRepository.deactivateServices(plan.deactivate)
@@ -1519,6 +1530,7 @@ export const adminService = {
           // No duration given: none is stored (0064), never guessed.
           durationMins: s.durationMins ?? null,
           ...commissionColumn(s.commissionRate),
+          ...(s.categoryHintDismissed && { categoryHintDismissedAt: new Date() }),
         }))
       )
     }

@@ -136,6 +136,51 @@ describe('bookingEarning — a travel fee (0062)', () => {
   })
 })
 
+describe('bookingEarning — the pickup fee and Detlio’s convenience fee (0079)', () => {
+  // ₹699 wash + ₹99 pickup + ₹19 convenience fee = ₹817 paid.
+  const pickup = (overrides: Partial<EarningChain> = {}) =>
+    chain({
+      amount: '817.00',
+      subtotalAmount: '817.00',
+      travelFee: '99.00',
+      convenienceFee: '19.00',
+      items: [{ category: 'car_wash', amount: '699.00', pricingType: 'flat', sortOrder: 0 }],
+      ...overrides,
+    })
+
+  test('the garage keeps the whole pickup fee, never the convenience fee, and pays no commission on either', () => {
+    const e = bookingEarning(pickup(), PAYING)
+    expect(e.pricePaise).toBe(79_800)
+    expect(e.travelFeePaise).toBe(9_900)
+    expect(e.collectedPaise).toBe(81_700)
+    // 8% on the ₹699 wash only.
+    expect(e.commissionPaise).toBe(Math.round(69_900 * 0.08))
+    expect(e.sharePaise).toBe(79_800 - Math.round(69_900 * 0.08))
+  })
+
+  test('inside the free 25: the wash and the pickup fee, nothing of the convenience fee', () => {
+    const e = bookingEarning(pickup(), 3)
+    expect(e.commissionPaise).toBe(0)
+    expect(e.sharePaise).toBe(79_800)
+  })
+
+  test('a full refund (the garage cancelled or didn’t turn up) leaves the garage nothing', () => {
+    const e = bookingEarning(
+      pickup({ refunds: [{ amount: '817.00', gatewayStatus: 'processed' }] }),
+      PAYING
+    )
+    expect(e.refundsPaise).toBe(81_700)
+    expect(e.earnedPaise).toBe(0)
+    expect(e.sharePaise).toBe(0)
+  })
+
+  test('with no convenience fee (₹0, the launch setting) nothing changes', () => {
+    const e = bookingEarning(pickup({ amount: '798.00', subtotalAmount: '798.00', convenienceFee: '0.00' }), PAYING)
+    expect(e.pricePaise).toBe(79_800)
+    expect(e.sharePaise).toBe(79_800 - Math.round(69_900 * 0.08))
+  })
+})
+
 describe('bookingEarning — a free wash that covered it all (0062)', () => {
   test('the customer paid ₹0; the garage earns the full price, Detlio pays the promo', () => {
     const free = chain({

@@ -55,8 +55,12 @@ export interface EarningChainRow {
   paymentRefunded: string | null
   amount: string
   subtotalAmount: string
-  /** An accepted request's travel fee (0062), inside the subtotal. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079), inside the subtotal. */
   travelFee: string
+  /** The pickup fee's road km (0079); null when none. */
+  roadKm: string | null
+  /** Detlio's convenience fee (0079), inside the subtotal: never the garage's. */
+  convenienceFee: string
   discountFundedBy: 'platform' | 'vendor' | null
   billsPaid: string | null
   lastBillPaidAt: Date | null
@@ -122,6 +126,8 @@ export function payoutsReads(conn: Tx) {
         amount: string
         subtotal_amount: string
         travel_fee: string
+        road_km: string | null
+        convenience_fee: string
         discount_funded_by: 'platform' | 'vendor' | null
         bills_paid: string | null
         last_bill_paid_at: Date | string | null
@@ -145,6 +151,8 @@ export function payoutsReads(conn: Tx) {
                e.amount::text as amount,
                e.subtotal_amount::text as subtotal_amount,
                e.travel_fee::text as travel_fee,
+               e.road_km::text as road_km,
+               e.convenience_fee::text as convenience_fee,
                e.discount_funded_by,
                (select sum(ch.amount_due)::text
                   from booking_charges ch
@@ -179,6 +187,8 @@ export function payoutsReads(conn: Tx) {
         amount: row.amount,
         subtotalAmount: row.subtotal_amount,
         travelFee: row.travel_fee,
+        roadKm: row.road_km,
+        convenienceFee: row.convenience_fee,
         discountFundedBy: row.discount_funded_by,
         billsPaid: row.bills_paid,
         lastBillPaidAt: toDate(row.last_bill_paid_at),
@@ -195,7 +205,10 @@ export function payoutsReads(conn: Tx) {
 
     /**
      * The services sold on those chains, from each one's latest row, with
-     * the category the catalogue has now (as Statistics reads it).
+     * the category each was booked at (booking_items.category, 0080), so
+     * moving a service later never re-prices a past payout. A line written
+     * before 0080's code has none and reads the service's category now (as
+     * Statistics reads it).
      */
     async earningItems(vendorId?: string): Promise<EarningItemRow[]> {
       const rows = await conn.execute<{
@@ -208,7 +221,7 @@ export function payoutsReads(conn: Tx) {
         is_addon: boolean
       }>(sql`
         with ${earningCte(vendorId)}
-        select e.root_id, bi.name, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order, bi.is_addon
+        select e.root_id, bi.name, coalesce(bi.category, s.category) as category, s.pricing_type, bi.amount::text as amount, bi.sort_order, bi.is_addon
           from earning e
           join booking_items bi on bi.booking_id = e.id
           join services s on s.id = bi.service_id

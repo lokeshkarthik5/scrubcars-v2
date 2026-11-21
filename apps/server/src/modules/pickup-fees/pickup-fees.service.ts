@@ -1,0 +1,376 @@
+import { AppError } from '../../lib/errors.js'
+import { logger } from '../../lib/logger.js'
+import { isPickupOffered } from '../../lib/pickup.js'
+import {
+  NO_LIMIT_OVERRIDES,
+  adminFeeProblems,
+  detlioPlan,
+  garageFeeOf,
+  limitOverridesOf,
+  limitOverridesProblems,
+  livePlanOf,
+  needsApprovalOf,
+  nextGarageChangeAt,
+  normaliseFee,
+  parsePickupFeeSettings,
+  problemMessage,
+  pickupFeeSettingsProblems,
+  planGarageChange,
+  settingsForGarage,
+  type GaragePickupFee,
+  type PickupFeeLimitOverrides,
+  type PickupFeeMode,
+  type PickupFeePlan,
+  type PickupFeeSettings,
+  type Range,
+  type VendorFeeColumns,
+} from '../../lib/pickup-fee.js'
+import { pickupFeesRepository, type GarageFeeRow, type PickupFeeChangeRecord } from './pickup-fees.repository.js'
+
+const log = logger.child({ module: 'pickup-fees' })
+
+// ─── The settings, read once a minute at most ────────────────────────────────
+
+const SETTINGS_TTL_MS = 60_000
+let cached: { at: number; settings: PickupFeeSettings } | null = null
+
+/** Forget the cached settings (after a save, and in tests). */
+export function forgetPickupFeeSettings(): void {
+  cached = null
+}
+
+// ─── Shapes ──────────────────────────────────────────────────────────────────
+
+export interface FeeChangeView {
+  id: string
+  kind: 'fee' | 'locked' | 'unlocked' | 'limits'
+  byKind: 'garage' | 'detlio'
+  byName: string
+  /** The fee before and after (unchanged on a 'limits' row). */
+  before: GaragePickupFee
+  after: GaragePickupFee
+  /** A 'limits' row: admin's overrides before and after; null otherwise. */
+  limits: { before: PickupFeeLimitOverrides; after: PickupFeeLimitOverrides } | null
+  status: 'live' | 'waiting' | 'approved' | 'kept' | 'replaced'
+  createdAt: string
+  decidedAt: string | null
+  decidedBy: string | null
+  reason: string | null
+}
+
+function feeOfJson(value: unknown): GaragePickupFee {
+  const stored = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const mode = stored.mode === 'fixed' || stored.mode === 'distance' ? (stored.mode as PickupFeeMode) : 'free'
+  return {
+    mode,
+    fixed: n(stored.fixed),
+    freeKm: n(stored.freeKm),
+    perKm: n(stored.perKm),
+    minCharge: n(stored.minCharge),
+    maxCharge: n(stored.maxCharge),
+  }
+}
+
+function overridesOfJson(value: unknown): PickupFeeLimitOverrides {
+  const stored = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const range = (v: unknown): Range | null => {
+    const r = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>
+    const min = n(r.min)
+    const max = n(r.max)
+    return min === null || max === null ? null : { min, max }
+  }
+  return {
+    freeKm: range(stored.freeKm),
+    perKm: range(stored.perKm),
+    minCharge: range(stored.minCharge),
+    maxCharge: n(stored.maxCharge),
+    fixedMax: n(stored.fixedMax),
+    askRaisePct: n(stored.askRaisePct),
+    changeEveryDays: n(stored.changeEveryDays),
+    needsApproval: typeof stored.needsApproval === 'boolean' ? stored.needsApproval : null,
+  }
+}
+
+function toChangeView(row: PickupFeeChangeRecord): FeeChangeView {
+  const limits = row.kind === 'limits'
+  return {
+    id: row.id,
+    kind: row.kind,
+    byKind: row.byKind,
+    byName: row.byName,
+    before: limits ? feeOfJson(null) : feeOfJson(row.before),
+    after: limits ? feeOfJson(null) : feeOfJson(row.after),
+    limits: limits ? { before: overridesOfJson(row.before), after: overridesOfJson(row.after) } : null,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    decidedAt: row.decidedAt?.toISOString() ?? null,
+    decidedBy: row.decidedBy ?? null,
+    reason: row.decisionReason ?? null,
+  }
+}
+
+/** The garage row as the fee rules read it (it carries every fee and limit column). */
+function columnsOf(row: GarageFeeRow): VendorFeeColumns {
+  return row
+}
+
+/**
+ * What the garage's screen and admin's card both show. `limits` are the
+ * garage's own (its overrides over Detlio's defaults): what its boxes say
+ * and the server checks it against.
+ */
+function baseView(row: GarageFeeRow, settings: PickupFeeSettings, now: Date) {
+  const mine = settingsForGarage(row, settings)
+  const next = nextGarageChangeAt(row.pickupFeeChangedAt, mine.limits.changeEveryDays)
+  return {
+    pickupOffered: isPickupOffered(row),
+    fee: garageFeeOf(row),
+    /** The fee customers see now, clamped to the limits that apply. */
+    livePlan: livePlanOf(columnsOf(row), settings),
+    detlioPlan: detlioPlan(settings),
+    waiting: row.pickupFeeWaitingSince ? { sentAt: row.pickupFeeWaitingSince.toISOString() } : null,
+    /** "Who sets this garage's fee: Detlio": the garage's controls are greyed out. */
+    locked: row.pickupFeeLockedAt !== null,
+    /** Who set the stored fee. */
+    setBy: row.pickupFeeSource === 'detlio' ? ('detlio' as const) : ('garage' as const),
+    /** Whether the garage's fee above Detlio's suggestion waits for a check. */
+    needsApproval: needsApprovalOf(limitOverridesOf(row)),
+    /** When the garage may change its fee again; null when it may now. */
+    nextChangeAt: next && next.getTime() > now.getTime() ? next.toISOString() : null,
+    suggested: settings.suggested,
+    limits: mine.limits,
+  }
+}
+
+async function garageOr404(vendorId: string): Promise<GarageFeeRow> {
+  const row = await pickupFeesRepository.findGarage(vendorId)
+  if (!row || row.deletedAt) throw new AppError(404, 'Garage not found', 'VENDOR_NOT_FOUND')
+  return row
+}
+
+/** "Velan Car Care (owner)", or the seat's own name. */
+async function garageActorName(row: GarageFeeRow, userId: string): Promise<string> {
+  if (row.ownerId === userId) return `${row.businessName} (owner)`
+  const person = await pickupFeesRepository.findPerson(userId)
+  const who = person?.name?.trim() || person?.phone || 'Team member'
+  return `${who} (${row.businessName})`
+}
+
+// ─── The service ─────────────────────────────────────────────────────────────
+
+export const pickupFeesService = {
+  /** Admin's settings over the defaults, cached for a minute. */
+  async settings(now = Date.now()): Promise<PickupFeeSettings> {
+    if (cached && now - cached.at < SETTINGS_TTL_MS) return cached.settings
+    const settings = parsePickupFeeSettings(await pickupFeesRepository.readSettings())
+    cached = { at: now, settings }
+    return settings
+  },
+
+  /** Detlio's settings with this garage's own limits (Detlio's defaults when it has none). */
+  async settingsForVendor(vendorId: string): Promise<PickupFeeSettings> {
+    const settings = await this.settings()
+    const row = await pickupFeesRepository.findLimits(vendorId)
+    return row ? settingsForGarage(row, settings) : settings
+  },
+
+  /** The fee customers see for a garage (null when it doesn't offer pickup). */
+  livePlanFor(row: VendorFeeColumns & Parameters<typeof isPickupOffered>[0], settings: PickupFeeSettings): PickupFeePlan | null {
+    return isPickupOffered(row) ? livePlanOf(row, settings) : null
+  },
+
+  /** Public: Detlio's suggestion and convenience fee, for Ask for pickup and checkout. */
+  async publicConfig() {
+    const settings = await this.settings()
+    return {
+      suggested: detlioPlan(settings),
+      askRaisePct: settings.limits.askRaisePct,
+      maxCharge: settings.limits.maxCharge,
+      convenienceFee: settings.convenienceFee,
+    }
+  },
+
+  // ─── The garage ──────────────────────────────────────────────────────────
+
+  async getForGarage(vendorId: string, now = new Date()) {
+    const settings = await this.settings()
+    const row = await garageOr404(vendorId)
+    const decision = await pickupFeesRepository.latestDecision(vendorId)
+    // Only a decision on the garage's latest change matters to it.
+    const fresh =
+      decision && decision.decidedAt && (!row.pickupFeeChangedAt || decision.createdAt >= row.pickupFeeChangedAt)
+    return {
+      ...baseView(row, settings, now),
+      decision: fresh
+        ? { status: decision.status as 'approved' | 'kept', at: decision.decidedAt!.toISOString(), reason: decision.decisionReason ?? null }
+        : null,
+    }
+  },
+
+  /** The garage's own change (owner seat, never a Detlio support session). */
+  async changeByGarage(
+    vendorId: string,
+    actor: { userId: string; viaSupport: boolean },
+    requested: GaragePickupFee,
+    now = new Date()
+  ) {
+    if (actor.viaSupport) {
+      throw new AppError(403, "Change a garage's pickup fee from admin's garage editor.", 'PICKUP_FEE_GARAGE_ONLY')
+    }
+    const settings = await this.settings()
+    const row = await garageOr404(vendorId)
+    // Checked against the garage's own limits, days and approval rule.
+    const plan = planGarageChange(columnsOf(row), requested, settings, now)
+    if (!plan.ok) {
+      throw new AppError(plan.status, plan.message, plan.code)
+    }
+    const written = await pickupFeesRepository.writeGarageChange({
+      vendorId,
+      fee: plan.fee,
+      before: garageFeeOf(row),
+      status: plan.status,
+      expectedChangedAt: row.pickupFeeChangedAt,
+      actor: { kind: 'garage', userId: actor.userId, name: await garageActorName(row, actor.userId) },
+      now,
+    })
+    if (!written) throw new AppError(409, 'Your pickup fee just changed. Pull to refresh.', 'PICKUP_FEE_STATE_CHANGED')
+    log.info({ vendorId, mode: plan.fee.mode, status: plan.status }, 'pickup_fee:garage_changed')
+    return this.getForGarage(vendorId, now)
+  },
+
+  // ─── Admin ───────────────────────────────────────────────────────────────
+
+  /** Admin's page reads the stored settings fresh, never the minute's cache. */
+  async getSettings() {
+    forgetPickupFeeSettings()
+    return this.settings()
+  },
+
+  async saveSettings(input: PickupFeeSettings, actor: { sub: string; name: string }) {
+    const problems = pickupFeeSettingsProblems(input)
+    if (problems.length > 0) throw new AppError(400, problems[0]!, 'PICKUP_FEE_SETTINGS_INVALID')
+    await pickupFeesRepository.saveSettings({ ...input } as unknown as Record<string, unknown>, actor)
+    forgetPickupFeeSettings()
+    log.info({ actor: actor.name }, 'pickup_fee:settings_saved')
+    return this.settings()
+  },
+
+  /** The garage editor's pickup card: the fee, lock, waiting change and every change. */
+  async getForAdmin(vendorId: string, now = new Date()) {
+    const settings = await this.settings()
+    const row = await garageOr404(vendorId)
+    const changes = await pickupFeesRepository.listChanges(vendorId)
+    const waiting = changes.find((change) => change.status === 'waiting') ?? null
+    return {
+      ...baseView(row, settings, now),
+      lockedBy: row.pickupFeeLockedBy ?? null,
+      waitingChangeId: waiting?.id ?? null,
+      /** Detlio's defaults from Settings → Pickup fee, and this garage's overrides of them. */
+      defaultLimits: settings.limits,
+      overrides: limitOverridesOf(row),
+      changes: changes.map(toChangeView),
+    }
+  },
+
+  /**
+   * Admin sets the garage's fee directly: any mode, any numbers inside the
+   * hard caps (not the garage limits), live at once with no check, logged
+   * with admin's name. The garage's 7 days are neither used up nor reset.
+   */
+  async setByAdmin(vendorId: string, requested: GaragePickupFee, actorName: string, now = new Date()) {
+    const settings = await this.settings()
+    const row = await garageOr404(vendorId)
+    const problems = adminFeeProblems(requested, settings)
+    if (problems.length > 0) throw new AppError(400, problemMessage(problems[0]!), 'PICKUP_FEE_OUT_OF_LIMITS')
+    await pickupFeesRepository.writeAdminFee({
+      vendorId,
+      fee: normaliseFee(requested, settings),
+      before: garageFeeOf(row),
+      actor: { kind: 'detlio', userId: null, name: `Detlio · ${actorName}` },
+      now,
+    })
+    log.info({ vendorId, mode: requested.mode }, 'pickup_fee:admin_set')
+    return this.getForAdmin(vendorId, now)
+  },
+
+  /** "Who sets this garage's fee": Detlio (true) or the garage (false). */
+  async setLock(vendorId: string, locked: boolean, actorName: string, now = new Date()) {
+    await garageOr404(vendorId)
+    await pickupFeesRepository.setLock({
+      vendorId,
+      locked,
+      actor: { kind: 'detlio', userId: null, name: `Detlio · ${actorName}` },
+      now,
+    })
+    log.info({ vendorId, locked }, 'pickup_fee:lock')
+    return this.getForAdmin(vendorId, now)
+  },
+
+  /**
+   * Admin's own limits for this garage (null: Detlio's default), inside the
+   * hard caps. Its stored fee is untouched; prices are clamped to the new
+   * limits whenever they are worked out.
+   */
+  async setLimits(vendorId: string, overrides: PickupFeeLimitOverrides, actorName: string, now = new Date()) {
+    const settings = await this.settings()
+    const row = await garageOr404(vendorId)
+    const problems = limitOverridesProblems(overrides, settings.limits)
+    if (problems.length > 0) throw new AppError(400, problems[0]!, 'PICKUP_FEE_LIMITS_INVALID')
+    const before = limitOverridesOf(row)
+    if (JSON.stringify(before) === JSON.stringify({ ...NO_LIMIT_OVERRIDES, ...overrides })) {
+      return this.getForAdmin(vendorId, now)
+    }
+    await pickupFeesRepository.writeLimits({
+      vendorId,
+      overrides,
+      before,
+      actor: { kind: 'detlio', userId: null, name: `Detlio · ${actorName}` },
+      now,
+    })
+    log.info({ vendorId }, 'pickup_fee:limits_set')
+    return this.getForAdmin(vendorId, now)
+  },
+
+  /** Approve a waiting fee, or keep Detlio's with a reason the garage sees. */
+  async decide(changeId: string, decision: 'approved' | 'kept', reason: string | null, actorName: string, now = new Date()) {
+    if (decision === 'kept' && !reason?.trim()) {
+      throw new AppError(400, 'Write the reason the garage will see.', 'PICKUP_FEE_REASON_REQUIRED')
+    }
+    const decided = await pickupFeesRepository.decide({
+      changeId,
+      decision,
+      reason: decision === 'kept' ? reason!.trim().slice(0, 300) : null,
+      actorName: `Detlio · ${actorName}`,
+      now,
+    })
+    if (!decided) throw new AppError(409, 'This fee has already been checked. Reload to see where it is.', 'PICKUP_FEE_ANSWERED')
+    log.info({ changeId, vendorId: decided.vendorId, decision }, 'pickup_fee:decided')
+    return toChangeView(decided)
+  },
+
+  /** Issues → Pickup fees. */
+  async listForCheck(show: 'waiting' | 'approved' | 'kept', now = new Date()) {
+    const settings = await this.settings()
+    const rows = await pickupFeesRepository.listForCheck(show)
+    const counts = await pickupFeesRepository.countByStatus()
+    const pickups = await pickupFeesRepository.pickupsSince(
+      [...new Set(rows.map((row) => row.change.vendorId))],
+      new Date(now.getTime() - 30 * 86_400_000)
+    )
+    return {
+      counts,
+      suggested: settings.suggested,
+      items: rows.map((row) => ({
+        ...toChangeView(row.change),
+        garage: { id: row.change.vendorId, name: row.garageName },
+        askedBy: {
+          role: row.change.byUserId && row.change.byUserId === row.garageOwnerId ? ('owner' as const) : ('team' as const),
+          phone: row.askedByPhone ?? null,
+        },
+        pickupsLast30Days: pickups.get(row.change.vendorId) ?? 0,
+      })),
+    }
+  },
+}

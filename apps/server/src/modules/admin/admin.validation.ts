@@ -38,6 +38,9 @@ const serviceBaseSchema = z.object({
     'detailing',
     'coating',
     'scratch_removal',
+    'general_service',
+    'repairs',
+    'dent_paint',
     'others',
   ]),
   pricingType: z.enum(['flat', 'per_vehicle', 'on_inspection']).default('flat'),
@@ -66,6 +69,10 @@ const serviceBaseSchema = z.object({
     .refine((value) => Number(value.toFixed(2)) === value, 'At most two decimals')
     .nullable()
     .optional(),
+  // "Not this" on the editor's "Looks like Repairs · Move" hint (0080): true
+  // keeps the hint hidden for good, false shows it again. Left out leaves it
+  // as it is, so an older editor never touches it.
+  categoryHintDismissed: z.boolean().optional(),
 })
 
 type ServiceBase = z.infer<typeof serviceBaseSchema>

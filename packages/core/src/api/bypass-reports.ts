@@ -111,6 +111,8 @@ export interface AdminBypassReport {
     status: string | null
     scheduledAt: string | null
     markedTest: boolean
+    /** The pickup fee locked on the booking (0079); null when none. Absent from an older API. */
+    pickupFee?: number | null
   }
   /** Who reported it (admin only); null once the account was deleted. */
   customer: { id: string; name: string | null; phone: string | null } | null

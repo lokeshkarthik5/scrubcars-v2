@@ -33,7 +33,17 @@ import { LEVELS, type RewardLevel } from './rewards.js'
 export const CHALLENGE_REWARD_KINDS = ['stamps', 'voucher', 'multiplier', 'badge', 'garage_cards'] as const
 export type ChallengeRewardKind = (typeof CHALLENGE_REWARD_KINDS)[number]
 
-export const CHALLENGE_CATEGORIES = ['car_wash', 'detailing', 'coating', 'scratch_removal', 'others', 'package'] as const
+export const CHALLENGE_CATEGORIES = [
+  'car_wash',
+  'detailing',
+  'coating',
+  'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
+  'others',
+  'package',
+] as const
 export type ChallengeCategory = (typeof CHALLENGE_CATEGORIES)[number]
 export const CHALLENGE_BOOKING_TYPES = ['dropin', 'doorstep', 'pickup'] as const
 export type ChallengeBookingType = (typeof CHALLENGE_BOOKING_TYPES)[number]
@@ -181,6 +191,9 @@ const CATEGORY_NOUNS: Record<ChallengeCategory, [string, string]> = {
   detailing: ['detailing job', 'detailing jobs'],
   coating: ['coating job', 'coating jobs'],
   scratch_removal: ['scratch removal', 'scratch removals'],
+  general_service: ['general service', 'general services'],
+  repairs: ['repair job', 'repair jobs'],
+  dent_paint: ['dent & paint job', 'dent & paint jobs'],
   others: ['booking', 'bookings'],
   package: ['package', 'packages'],
 }

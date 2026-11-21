@@ -23,6 +23,7 @@ import {
   REPAIR_QUOTES,
   SHINE,
   BRING,
+  PICKUP_FEE,
   OWNER_DELETE,
   PRE_IOS,
   STAFF,
@@ -97,6 +98,8 @@ async function globalSetup() {
   await saveState('customer-shine', SHINE.customer.phone, 'customer')
   // Bring your garage (BRING, 8400–8449).
   await saveState('customer-bring', BRING.customer.phone, 'customer')
+  // The pickup fee (PICKUP_FEE, 7750–7799): the customer side.
+  await saveState('customer-pickup-fee', PICKUP_FEE.customer.phone, 'customer')
   await saveAdminState('admin')
   await saveAdminState('admin-shared', ADMIN)
   // A personal login that is not the owner (10 Nov 2026): the old rules.

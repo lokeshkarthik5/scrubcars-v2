@@ -43,6 +43,7 @@ import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
 import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
+import { cardPickupChip } from '@repo/core/pickup-fee-customer'
 import {
   detlioInLine,
   farEmptyLine,
@@ -62,6 +63,7 @@ import {
   AtHomeLine,
   CanCollectChip,
   JustOutsideSection,
+  PickupFeeChip,
   NextTabFooter,
   PickupExplainer,
   SkipTheDriveCard,
@@ -382,8 +384,14 @@ export function GarageList({
   }
 
   const card = (vendor: Vendor) => {
+    // The pickup fee for this card's distance (0079): "Pickup ₹99" / "Free pickup".
+    const pickupChip = serviceMode === 'pickup' ? cardPickupChip(vendor) : null
     const chips =
-      serviceMode === 'dropin' && canCollectFrom(vendor, origin) ? <CanCollectChip /> : undefined
+      serviceMode === 'dropin' && canCollectFrom(vendor, origin) ? (
+        <CanCollectChip />
+      ) : pickupChip ? (
+        <PickupFeeChip label={pickupChip} />
+      ) : undefined
     if (cardVariant === 'compact') {
       return (
         <VendorCard

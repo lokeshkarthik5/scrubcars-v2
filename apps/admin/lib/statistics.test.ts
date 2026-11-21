@@ -136,6 +136,10 @@ describe('words for figures', () => {
     expect(categoryList(['detailing', 'coating', 'scratch_removal'])).toBe(
       'Detailing, coating and scratch removal'
     )
+    // The 5% rule since the mechanical and body work (0080), from the server's table.
+    expect(
+      categoryList(['detailing', 'coating', 'scratch_removal', 'general_service', 'repairs', 'dent_paint'])
+    ).toBe('Detailing, coating, scratch removal, general service, repairs and dent & paint')
   })
 })
 

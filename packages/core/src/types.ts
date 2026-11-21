@@ -1,6 +1,7 @@
 import type { Tier } from '@repo/core/tiers'
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
+import type { PickupFeePlan } from '@repo/core/pickup-fee-maths'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 import type { ReachCity } from '@repo/core/cities'
 
@@ -24,6 +25,9 @@ export type ServiceCategory =
   | 'detailing'
   | 'coating'
   | 'scratch_removal'
+  | 'general_service'
+  | 'repairs'
+  | 'dent_paint'
   | 'others'
   | 'package'
 // New bookings always prepay online; 'cash' remains only for historical rows.
@@ -95,6 +99,12 @@ export interface Vendor {
    * checkout's early check; the server's check is the one that counts.
    */
   pickupRadiusKm?: number | null
+  /**
+   * The pickup fee customers see (0079): Free, a fixed fee or By distance,
+   * priced per address with tripFee (pickup-fee-maths.ts). Null when the
+   * garage doesn't collect cars; absent from an older API (read as Free).
+   */
+  pickupFee?: PickupFeePlan | null
   /**
    * "All over <city>" (0069): comes (doorstep) or collects (pickup) anywhere
    * in `reachCity`, so its radius is not what decides. False and null on an
@@ -479,8 +489,12 @@ export interface Booking {
   servicePrice: number
   /** The pre-discount price. Equal to servicePrice when no code was used. */
   subtotalPrice: number
-  /** An accepted request's travel fee (0062), inside subtotalPrice; 0 otherwise. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079), inside subtotalPrice; 0 otherwise. */
   travelFee?: number
+  /** The road km the pickup fee was worked out on (0079); null when none. */
+  roadKm?: number | null
+  /** Detlio's convenience fee (0079), inside subtotalPrice; 0 while off. Never on the garage's payload. */
+  convenienceFee?: number
   discountAmount: number
   discountCode?: string
   discountFundedBy?: 'platform' | 'vendor'
@@ -707,8 +721,12 @@ export interface BookingReceipt {
    * absent otherwise.
    */
   items: Array<{ name: string; amount: string; isAddon?: boolean; priceOnInspection?: boolean }>
-  /** An accepted request's travel fee (0062): its own line, inside the subtotal. Absent on older APIs. */
+  /** An accepted request's travel fee (0062), or the pickup fee (0079): its own line, inside the subtotal. Absent on older APIs. */
   travelFee?: string | null
+  /** The pickup fee's road km (0079), for "Pickup & drop · 6.2 km". */
+  roadKm?: number | null
+  /** Detlio's convenience fee (0079): its own line, inside the subtotal; null while none. */
+  convenienceFee?: string | null
   subtotal: string
   /** `label`: "Free wash" for a zone's free wash (0062); absent or null otherwise. */
   discount: { code: string | null; amount: string; label?: string | null } | null

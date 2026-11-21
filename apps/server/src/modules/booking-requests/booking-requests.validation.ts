@@ -36,11 +36,16 @@ export const garageRequestsQuerySchema = z.object({
   scope: z.enum(['open', 'closed']).default('open'),
 })
 
-/** The garage's yes: a start time from its list and a travel fee of ₹0, ₹100 or ₹200. */
+/**
+ * The garage's yes: a start time from its list and a fee — up to the
+ * request's most (0079: Detlio's suggestion + 25%), or ₹0, ₹100 or ₹200 on a
+ * request from before 0079 — and, for Ask for pickup, the responsibility tick.
+ */
 export const acceptRequestSchema = z
   .object({
     startAt: z.string().datetime(),
-    travelFee: z.union([z.literal(0), z.literal(100), z.literal(200)]),
+    travelFee: z.number().int().min(0).max(599),
+    pickupTermsAccepted: z.boolean().optional(),
   })
   .strict()
 
