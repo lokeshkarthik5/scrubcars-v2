@@ -34,6 +34,7 @@ import { cn } from '@repo/core/utils'
 import {
   filterCounts,
   filterRows,
+  garageRecommendations,
   recommendedLine,
   rowStatus,
   zoneSummaryLine,
@@ -276,7 +277,7 @@ function GarageRow({
 }: {
   garage: CoverageGarage
   lead: Lead | null
-  /** Customers' recommendations made into the lead it came from. */
+  /** Customers' recommendations of this garage: made into its lead, or linked when it signed up with their phone. */
   recommended: CoverageRecommendation[]
 }) {
   const status = garage.live ? 'onboarded' : 'to_target'
@@ -354,6 +355,7 @@ export function ZoneDrawer({
   recommendations,
   dismissed = [],
   recommendedByLead,
+  allRecommendations = [],
   assignees,
   covered,
   onClose,
@@ -371,6 +373,8 @@ export function ZoneDrawer({
   /** The zone's (or no zone's) dismissed ones (0065), for the Dismissed filter. */
   dismissed?: CoverageRecommendation[]
   recommendedByLead: Map<string, CoverageRecommendation[]>
+  /** Every recommendation (all but dismissed), for a garage's own (Bring your garage). */
+  allRecommendations?: CoverageRecommendation[]
   assignees: Assignee[]
   /** A dialog is open above the drawer: Escape and the backdrop are the dialog's. */
   covered: boolean
@@ -468,9 +472,11 @@ export function ZoneDrawer({
                   key={row.id}
                   garage={row.garage}
                   lead={row.lead}
-                  recommended={
-                    row.lead ? (recommendedByLead.get(row.lead.id) ?? []) : []
-                  }
+                  recommended={garageRecommendations(
+                    allRecommendations,
+                    row.garage.id,
+                    row.lead?.id ?? null
+                  )}
                 />
               ) : (
                 <LeadRow

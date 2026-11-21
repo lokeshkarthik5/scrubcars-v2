@@ -2405,6 +2405,26 @@ export const SHINE = {
 } as const
 
 /**
+ * Bring your garage (21 Nov 2026; ids 8400–8449, phones 90000084xx):
+ * `customer` recommends a garage on WhatsApp from the garage list's end card
+ * (bring-garage.spec.ts; the phone is put beside SHINE's garage, the only
+ * one within 150 km there, so the list ends after one card). `earlier` and
+ * `another` recommended the same number before (one new, one the team
+ * contacted), and `dismissed` too, dismissed by the team. A garage then
+ * signs up itself in the garage app with `garagePhone`: every open one is
+ * linked to it (joined), the dismissed one never.
+ */
+export const BRING = {
+  customer: { id: id(8400), phone: '9000008400', name: 'Bringing Bhuvana' },
+  earlier: { id: id(8401), phone: '9000008401', name: 'Earlier Ezhil' },
+  another: { id: id(8402), phone: '9000008402', name: 'Another Anbu' },
+  /** The number the garage owner signs up with (no account before the spec). */
+  garagePhone: '9000008410',
+  garageName: 'Bring Test Car Spa',
+  recommendations: { earlier: id(8420), another: id(8421), dismissed: id(8422) },
+} as const
+
+/**
  * The pickup fee (0079; ids 7750–7799, phones 9000007750–99). Garages near
  * Mysuru (`home`, 12.30° N, 76.64° E), far from every other fixture, so the
  * Pickup & drop list from `home` shows only these:

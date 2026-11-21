@@ -91,7 +91,10 @@ test.describe('the free wash, signing up @p0', () => {
     await form.getByLabel('Google Maps link').fill('https://maps.app.goo.gl/AbC123xyz')
     await form.getByLabel("Why they're good (optional)").fill('Quick and careful')
     await form.getByRole('button', { name: 'Send recommendation' }).click()
-    await expect(page.getByText('Thanks! We’ll get in touch with them.')).toBeVisible()
+    // Bring your garage (21 Nov 2026): the done screen with the ₹500 rule, in place of a toast.
+    await expect(form.getByRole('heading', { name: 'Thanks! We’ll call them' })).toBeVisible()
+    await expect(form.getByText('You get ₹500 Detlio credit once they join and you finish a paid booking with them.')).toBeVisible()
+    await form.getByRole('button', { name: 'Done' }).click()
     await expect(form).toBeHidden()
 
     const recs = await sql<{ name: string; maps_link: string | null; phone: string | null; status: string; zone: string | null }[]>`
@@ -111,6 +114,7 @@ test.describe('the free wash, signing up @p0', () => {
     await again.getByLabel('Garage name').fill('Tambaram Foam Works')
     await again.getByLabel('Or their phone').fill('9840011122')
     await again.getByRole('button', { name: 'Send recommendation' }).click()
+    await again.getByRole('button', { name: 'Done' }).click()
     await expect(again).toBeHidden()
     const [count] = await sql<{ n: number }[]>`select count(*)::int as n from garage_recommendations where user_id = ${CUSTOMERS.freeWashSign.id}`
     expect(count.n).toBe(2)

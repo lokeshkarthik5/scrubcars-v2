@@ -15,6 +15,8 @@ import {
   customerPickupStep,
   customerRefund,
   customerReportReward,
+  customerRecommendedGarageJoined,
+  customerReferralCredit,
   customerRepairQuoteAnswered,
   customerRewardNudge,
   customerRewardVoucher,
@@ -49,6 +51,7 @@ import {
 } from './push-messages.js'
 import type { PushMessage } from './push.js'
 import { DEFAULT_REWARDS_SETTINGS, expiringNudge, oneAwayNudge, washDueNudge } from './rewards.js'
+import { garageJoinedPushWords, referralCreditPushWords } from './area-signups.js'
 
 const IST = (iso: string) => new Date(`${iso}+05:30`)
 
@@ -160,6 +163,10 @@ const ALL: Array<[string, PushMessage]> = [
   })],
   ['customer slot opened', customerSlotOpened(slotAlert, 'Marina Auto Spa', IST('2026-10-17T10:30:00'), NOW)],
   ['customer report reward', customerReportReward({ id: 'r1' }, '100.00')],
+  // Bring your garage (21 Nov 2026): the garage's business name and the amount, nothing else.
+  ['customer recommended garage joined', customerRecommendedGarageJoined({ id: 'rec1', vendorId: 'v1' }, garageJoinedPushWords('Marina Auto Spa'), false)],
+  ['customer recommended garage joined, listed', customerRecommendedGarageJoined({ id: 'rec1', vendorId: 'v1' }, garageJoinedPushWords('Marina Auto Spa'), true)],
+  ['customer referral credit', customerReferralCredit({ id: 'rec1' }, referralCreditPushWords('Marina Auto Spa', 500))],
   // Free redo claims (0051): never what anyone typed about it.
   ['garage claim to answer', garageClaimToAnswer(booking, 'g0000000-0000-4000-8000-000000003101', IST('2026-10-17T12:00:00'))],
   ['garage claim approved (no photos)', garageClaimApproved(booking, 'g1', 'no_photos')],
@@ -304,6 +311,8 @@ describe('customer: the same words as Updates', () => {
       if (name.startsWith('customer reward ')) continue
       // An area's news (0062) is a reminder; requests are booking news.
       if (name.startsWith('customer area ')) continue
+      // A recommended garage joining is area news too; its credit landing is booking news, like a report's.
+      if (name.startsWith('customer recommended garage joined')) continue
       expect(message.category).toBe('booking_update')
     }
   })
@@ -417,5 +426,25 @@ describe('repair & bodywork quotes (0075)', () => {
     expect(customerRepairQuoteAnswered({ id: 'r1' }, { id: 'q2' }, 'Marina Auto Spa', { canDo: false }).title).toBe(
       "Marina Auto Spa can't do this repair"
     )
+  })
+})
+
+describe('customer: bring your garage', () => {
+  test('a recommended garage joined: its name, the ₹500 rule, the Reminders switch', () => {
+    const message = customerRecommendedGarageJoined({ id: 'rec1', vendorId: 'v1' }, garageJoinedPushWords('Marina Auto Spa'), true)
+    expect(message.title).toBe('Marina Auto Spa joined Detlio thanks to you')
+    expect(message.body).toBe('Book them once to get ₹500.')
+    expect(message.url).toBe('/garage/v1')
+    expect(message.category).toBe('reminder')
+    // Not listed yet (a garage that just signed up): the list, not a page customers can't open.
+    expect(customerRecommendedGarageJoined({ id: 'rec1', vendorId: 'v1' }, garageJoinedPushWords('X'), false).url).toBe('/garages')
+  })
+
+  test('the credit landed: the amount and the garage, to Detlio credit', () => {
+    const message = customerReferralCredit({ id: 'rec1' }, referralCreditPushWords('Marina Auto Spa', 500))
+    expect(message.title).toBe('₹500 credit added')
+    expect(message.body).toBe('Marina Auto Spa joined Detlio and you booked them. Thanks for bringing them in!')
+    expect(message.url).toBe('/profile/credit')
+    expect(message.tag).toBe('referral-credit:rec1')
   })
 })

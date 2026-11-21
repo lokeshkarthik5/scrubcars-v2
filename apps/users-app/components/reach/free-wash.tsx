@@ -1,15 +1,24 @@
 import { ApiError } from '@repo/core/api/client';
 import { useAreaStatus, useRecommendGarage, useSignUpForArea } from '@repo/core/api/hooks/use-area';
 import { useZones } from '@repo/core/api/hooks/use-zones';
-import { cardClosesKey, closeOnce, FREE_WASH_RULES, freeWashCardTitle, freeWashCardVisible, freeWashesGone, parseCardCloses, recommendAsk, REFERRAL_CREDIT, waitingLine } from '@repo/core/area-signups';
+import { cardClosesKey, closeOnce, FREE_WASH_RULES, freeWashCardTitle, freeWashCardVisible, freeWashesGone, parseCardCloses, recommendAsk, waitingLine } from '@repo/core/area-signups';
+import {
+  bringGarageMessage,
+  bringGarageWhatsAppHref,
+  recommendCreditLine,
+  recommendDoneRule,
+  referralAmountLabel,
+  whatsAppNumber,
+  whatsAppReady,
+  type RecommendChannel,
+} from '@repo/core/bring-garage';
 import { useNow } from '@repo/core/hooks/use-now';
-import { useT } from '@repo/core/i18n';
+import { fill, useT } from '@repo/core/i18n';
 import { zoneFor, type Zone } from '@repo/core/zones';
-import { ScButton } from '@repo/native-ui/button';
+import { Label, ScButton } from '@repo/native-ui/button';
 import { Chip, ScSwitch } from '@repo/native-ui/chip';
-import { recommendRowText, type CustomerCity } from '@repo/core/customer-city';
-import { Raised } from '@repo/native-ui/finish';
-import { IconCheck, IconChevronRight, IconCircleCheck, IconGift, IconX } from '@repo/native-ui/icons';
+import { IconBrandWhatsapp, IconCheck, IconCircleCheck, IconGift, IconX } from '@repo/native-ui/icons';
+import { ScSegmented } from '@repo/native-ui/primitives';
 import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
 import { ScSheet } from '@repo/native-ui/sheet';
 import { T } from '@repo/native-ui/text';
@@ -24,6 +33,7 @@ import { useCustomerPlace } from '@/lib/customer-place';
 import { devicePrefs } from '@/lib/device-prefs';
 import { isCitywide, useLocationStore } from '@/lib/location';
 import { usePushDevice } from '@/lib/push-device';
+import { openLink } from '@/lib/open-link';
 import { track } from '@/lib/shims/analytics';
 
 /** The customer's area: the chip they picked, or the zone a phone fix falls in. */
@@ -311,35 +321,11 @@ export function FreeWashSheet({ open, onClose, initialZone }: { open: boolean; o
 }
 
 /**
- * A small city's one quiet row under its garages (0070, mockup D), as on the web: "Know a great
- * garage in Madurai? Recommend it", opening the recommend form (admin's leads).
- */
-export function RecommendRow({ city }: { city: CustomerCity }) {
-  const colors = useColors();
-  const styles = useStyles();
-  const [open, setOpen] = useState(false);
-  const words = recommendRowText(city);
-  return (
-    <>
-      <Pressable accessibilityRole="button" onPress={() => setOpen(true)}>
-        <Raised radius={16} innerStyle={styles.recommendRow}>
-          <T size={14} lh={19} color={colors.textSecondary} style={styles.grow}>
-            {`${words.ask} `}
-            <T size={14} weight={600} lh={19}>
-              {words.action}
-            </T>
-          </T>
-          <IconChevronRight size={16} color={colors.textMuted} />
-        </Raised>
-      </Pressable>
-      <RecommendSheet open={open} onClose={() => setOpen(false)} zoneSlug={null} />
-    </>
-  );
-}
-
-/**
- * RecommendForm: a lead for the team. A guest signs in on the in-page card first (a small
- * city's row can be the first thing they tap): a recommendation is tied to an account.
+ * RecommendForm (apps/users/components/reach/free-wash.tsx), Bring your garage: "Send to
+ * Detlio" (name, a Maps link or their phone, why) or "Send on WhatsApp" (name, the owner's
+ * WhatsApp number, the ready message; opened in the customer's own WhatsApp). Both save the
+ * recommendation and end on "Thanks! We'll call them". A guest signs in on the in-page card
+ * first: a recommendation is tied to an account.
  */
 export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; onDone: () => void }) {
   const t = useT();
@@ -348,61 +334,217 @@ export function RecommendForm({ zoneSlug, onDone }: { zoneSlug: string | null; o
   const recommend = useRecommendGarage();
   const user = useAuth((s) => s.user);
   const signIn = useCheckoutSignIn();
+  const [channel, setChannel] = useState<RecommendChannel>('detlio');
   const [name, setName] = useState('');
   const [mapsLink, setMapsLink] = useState('');
   const [phone, setPhone] = useState('');
   const [why, setWhy] = useState('');
   const [error, setError] = useState('');
+  const [sent, setSent] = useState<string | null>(null);
+  const savedWhatsApp = useRef<string | null>(null);
   const ready = name.trim().length >= 2 && (mapsLink.trim().length > 0 || phone.trim().length > 0);
+  const message = bringGarageMessage(name, user?.name);
+  const waHref = whatsAppReady(name, phone) ? bringGarageWhatsAppHref(phone, message) : null;
+
+  const reset = () => {
+    setName('');
+    setMapsLink('');
+    setPhone('');
+    setWhy('');
+    setError('');
+    savedWhatsApp.current = null;
+  };
   const submit = async () => {
     setError('');
     try {
-      await recommend.mutateAsync({ zoneSlug: zoneSlug ?? undefined, name: name.trim(), mapsLink: mapsLink.trim() || undefined, phone: phone.trim() || undefined, why: why.trim() || undefined });
-      toast.success(t('Thanks! We’ll get in touch with them.'));
-      setName('');
-      setMapsLink('');
-      setPhone('');
-      setWhy('');
-      onDone();
+      await recommend.mutateAsync({
+        zoneSlug: zoneSlug ?? undefined,
+        name: name.trim(),
+        mapsLink: mapsLink.trim() || undefined,
+        phone: phone.trim() ? (whatsAppNumber(phone) ?? phone.trim()) : undefined,
+        why: why.trim() || undefined,
+      });
+      setSent(name.trim());
     } catch (err) {
       setError(err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't send it. Try again."));
     }
   };
+  // WhatsApp opens at once; the recommendation is saved alongside, once per message.
+  const openWhatsApp = async () => {
+    const number = whatsAppNumber(phone);
+    // A second tap while the first is saving opens nothing more.
+    if (!number || !waHref || recommend.isPending) return;
+    openLink(waHref);
+    const key = `${name.trim()}|${number}`;
+    if (savedWhatsApp.current === key) {
+      setSent(name.trim());
+      return;
+    }
+    savedWhatsApp.current = key;
+    setError('');
+    try {
+      await recommend.mutateAsync({ zoneSlug: zoneSlug ?? undefined, name: name.trim(), phone: number });
+      setSent(name.trim());
+    } catch (err) {
+      savedWhatsApp.current = null;
+      setError(err instanceof ApiError || err instanceof Error ? err.message : t("Couldn't send it. Try again."));
+    }
+  };
+
+  if (sent !== null) {
+    return (
+      <RecommendDone
+        garage={sent}
+        onAnother={() => {
+          reset();
+          setSent(null);
+        }}
+        onDone={() => {
+          reset();
+          setSent(null);
+          onDone();
+        }}
+      />
+    );
+  }
+
   return (
     <View style={styles.form}>
       <View>
         <T size={20} weight={500} lh={26}>
           {t('Recommend a garage')}
         </T>
-        <T size={13} lh={18} color={colors.textSecondary}>{t('₹{amount} Detlio credit if they join and you book them (up to ₹{max}).', { amount: REFERRAL_CREDIT.perGarageRupees, max: REFERRAL_CREDIT.maxPerCustomerRupees })}</T>
-      </View>
-      <ScInput label={t('Garage name')} maxLength={100} value={name} onChangeText={setName} />
-      <ScInput label={t('Google Maps link')} keyboardType="url" autoCapitalize="none" placeholder="https://maps.app.goo.gl/…" maxLength={500} value={mapsLink} onChangeText={setMapsLink} />
-      <ScInput label={t('Or their phone')} keyboardType="phone-pad" placeholder={t('10-digit mobile')} maxLength={14} value={phone} onChangeText={setPhone} />
-      <ScTextarea label={t("Why they're good (optional)")} maxLength={500} rows={3} value={why} onChangeText={setWhy} />
-      {error ? (
-        <T accessibilityRole="alert" size={13} lh={18} color={colors.error}>
-          {error}
+        <T size={13} lh={18} color={colors.textSecondary}>
+          {recommendCreditLine()}
         </T>
-      ) : null}
-      {user ? (
-        <ScButton variant="main" disabled={!ready || recommend.isPending} onPress={() => void submit()}>
-          {recommend.isPending ? t('Sending…') : t('Send recommendation')}
-        </ScButton>
+      </View>
+      <ScSegmented
+        accessibilityLabel={t('How to send')}
+        value={channel}
+        onChange={(next) => {
+          setChannel(next);
+          setError('');
+        }}
+        minHeight={44}
+        labelSize={13}
+        options={[
+          { value: 'detlio', label: t('Send to Detlio') },
+          { value: 'whatsapp', label: t('Send on WhatsApp'), icon: <IconBrandWhatsapp size={16} color={channel === 'whatsapp' ? colors.textPrimary : colors.textSecondary} /> },
+        ]}
+      />
+      {channel === 'detlio' ? (
+        <>
+          <ScInput label={t('Garage name')} maxLength={100} value={name} onChangeText={setName} />
+          <ScInput label={t('Google Maps link')} keyboardType="url" autoCapitalize="none" placeholder="https://maps.app.goo.gl/…" maxLength={500} value={mapsLink} onChangeText={setMapsLink} />
+          <ScInput label={t('Or their phone')} keyboardType="phone-pad" placeholder={t('10-digit mobile')} maxLength={14} value={phone} onChangeText={setPhone} />
+          <ScTextarea label={t("Why they're good (optional)")} maxLength={500} rows={3} value={why} onChangeText={setWhy} />
+          {error ? (
+            <T accessibilityRole="alert" size={13} lh={18} color={colors.error}>
+              {error}
+            </T>
+          ) : null}
+          {user ? (
+            <ScButton variant="main" disabled={!ready || recommend.isPending} onPress={() => void submit()}>
+              {recommend.isPending ? t('Sending…') : t('Send recommendation')}
+            </ScButton>
+          ) : (
+            <CheckoutSignInCard
+              signIn={signIn}
+              verifyLabel={t('Verify and send')}
+              onVerify={() => {
+                if (!ready) {
+                  setError(t('Give the garage’s name, and a Google Maps link or their phone.'));
+                  return;
+                }
+                void signIn.verify().then((ok) => (ok ? submit() : undefined));
+              }}
+              busy={recommend.isPending}
+            />
+          )}
+        </>
       ) : (
-        <CheckoutSignInCard
-          signIn={signIn}
-          verifyLabel={t('Verify and send')}
-          onVerify={() => {
-            if (!ready) {
-              setError(t('Give the garage’s name, and a Google Maps link or their phone.'));
-              return;
-            }
-            void signIn.verify().then((ok) => (ok ? submit() : undefined));
-          }}
-          busy={recommend.isPending}
-        />
+        <>
+          <T size={13} lh={18} color={colors.textSecondary}>
+            {t('We write the message. You send it to the garage owner from your own WhatsApp.')}
+          </T>
+          <ScInput label={t('Garage name')} maxLength={100} value={name} onChangeText={setName} />
+          <ScInput label={t('Their WhatsApp number')} keyboardType="phone-pad" placeholder={t('10-digit mobile')} maxLength={14} value={phone} onChangeText={setPhone} />
+          <View style={styles.message}>
+            <T size={11} weight={500} lh={15} uppercase tracking={0.12} color={colors.textSecondary}>
+              {t('Your message')}
+            </T>
+            <T size={13} lh={19}>
+              {message}
+            </T>
+          </View>
+          {error ? (
+            <T accessibilityRole="alert" size={13} lh={18} color={colors.error}>
+              {error}
+            </T>
+          ) : null}
+          {user ? (
+            <ScButton
+              variant="main"
+              disabled={!waHref || recommend.isPending}
+              disabledReason={waHref ? undefined : t('Give the garage’s name and their 10-digit WhatsApp number.')}
+              accessibilityLabel={t('Open WhatsApp')}
+              onPress={() => void openWhatsApp()}
+            >
+              <IconBrandWhatsapp size={18} color={waHref ? colors.white : colors.textSecondary} />
+              <Label color={waHref ? colors.white : colors.textSecondary}>{t('Open WhatsApp')}</Label>
+            </ScButton>
+          ) : (
+            <CheckoutSignInCard
+              signIn={signIn}
+              verifyLabel={t('Verify and continue')}
+              onVerify={() => {
+                if (!whatsAppReady(name, phone)) {
+                  setError(t('Give the garage’s name and their 10-digit WhatsApp number.'));
+                  return;
+                }
+                void signIn.verify();
+              }}
+              busy={recommend.isPending}
+            />
+          )}
+          <T size={12} lh={16} align="center" color={colors.textMuted}>
+            {t('Detlio sends nothing. You can change the words in WhatsApp before you send.')}
+          </T>
+        </>
       )}
+    </View>
+  );
+}
+
+/** RecommendDone (web): "Thanks! We'll call them", the ₹500 rule, another garage, Done. */
+function RecommendDone({ garage, onAnother, onDone }: { garage: string; onAnother: () => void; onDone: () => void }) {
+  const t = useT();
+  const colors = useColors();
+  const styles = useStyles();
+  const green = useGreen();
+  return (
+    <View style={styles.done}>
+      <IconCircleCheck size={44} color={colors.success} />
+      <T size={20} weight={500} lh={26} align="center">
+        {t('Thanks! We’ll call them')}
+      </T>
+      <T size={15} lh={22} align="center" color={colors.textSecondary}>
+        {t('We’ll get in touch with {name} and help them join.', { name: garage })}
+      </T>
+      <View style={[styles.ask, { borderColor: green.border, backgroundColor: green.background }]}>
+        <IconGift size={20} color={colors.success} />
+        <T size={14} lh={20} style={styles.grow}>
+          {fill(recommendDoneRule(), { amount: <T size={14} weight={600} lh={20}>{referralAmountLabel()}</T> })}
+        </T>
+      </View>
+      <View style={styles.stretch}>
+        <ScButton variant="outline" onPress={onAnother}>
+          {t('Recommend another garage')}
+        </ScButton>
+      </View>
+      <ScButton variant="text" onPress={onDone}>
+        {t('Done')}
+      </ScButton>
     </View>
   );
 }
@@ -438,5 +580,5 @@ const useStyles = createStyles((c) => ({
   switchRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   ruled: { borderTopWidth: 1, borderTopColor: c.line },
   form: { gap: 16 },
-  recommendRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16 },
+  message: { gap: 6, borderRadius: 14, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, paddingHorizontal: 16, paddingVertical: 14 },
 }));

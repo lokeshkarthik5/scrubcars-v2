@@ -277,7 +277,8 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
     await page.getByLabel('Pincode').fill('600100')
     await page.getByRole('button', { name: 'Create garage' }).click()
     await expect(page).toHaveURL(new RegExp(`/coverage\\?zone=${zoneId}$`))
-    // The lead is the garage's row now, still saying who recommended it.
+    // The lead is the garage's row now, still saying who recommended it,
+    // and that they joined (Bring your garage, 21 Nov 2026).
     const garageRow = row(
       page
         .getByRole('dialog', { name: LEADS.zoneName })
@@ -286,7 +287,7 @@ test.describe.serial('Coverage demand and recommendations @p0', () => {
     )
     await expect(garageRow).toContainText('Garage · not live yet · pending')
     await expect(garageRow).toContainText(
-      `Recommended by a customer · “${REC.onboard.why}”`
+      `Recommended by a customer · Joined · “${REC.onboard.why}”`
     )
 
     const [onboarded] = await sql<

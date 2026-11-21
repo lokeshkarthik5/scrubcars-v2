@@ -55,6 +55,8 @@ import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { branchGroupsService } from '../branch-groups/branch-groups.service.js'
 import { citiesService } from '../cities/cities.service.js'
+import { leadsService } from '../leads/leads.service.js'
+import { GARAGE_SIGN_UP_HANDLER } from '../../lib/recommendations.js'
 import { cityById, storedWholeCity, WHOLE_CITY_NEEDS_CITY, type CityPlace } from '../../lib/cities.js'
 import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 
@@ -1312,6 +1314,13 @@ export const vendorsService = {
     // than something to enforce with a count query.
     await membersRepository.createOwnerMembership(vendor.id, ownerId)
     log.info({ vendorId: vendor.id, ownerId, businessName: vendor.businessName }, 'vendor:created')
+
+    // Bring your garage (21 Nov 2026): a customer who recommended this
+    // garage's number (often by WhatsApp, with the sign-up link) brought it
+    // in. Never fails or undoes the sign-up.
+    await leadsService
+      .linkRecommendationsByPhone(vendor.id, GARAGE_SIGN_UP_HANDLER)
+      .catch((err: unknown) => log.error({ err, vendorId: vendor.id }, 'vendor:recommendation_link_failed'))
 
     return toVendorResponse(vendor)
   },

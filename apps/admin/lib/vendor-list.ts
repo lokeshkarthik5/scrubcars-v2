@@ -826,6 +826,27 @@ export function onboardedBy(
   return v.onboardedByName?.trim() || null
 }
 
+/**
+ * Bring your garage (21 Nov 2026): "Brought in by Priya Raman
+ * (recommendation) · ₹500 paid", one line per customer whose
+ * recommendation brought the garage in, for the side panel. Admin only.
+ */
+export function broughtInByLines(
+  v: Pick<AdminVendor, 'broughtInBy'>
+): string[] {
+  return (v.broughtInBy ?? []).map((entry) => {
+    const who = entry.customerName?.trim() || 'a customer (account deleted)'
+    const amount = `₹${entry.amountRupees.toLocaleString('en-IN')}`
+    const credit =
+      entry.credit === 'paid'
+        ? `${amount} paid`
+        : entry.credit === 'owed'
+          ? `${amount} owed (Detlio credit is off)`
+          : `${amount} waiting for their paid booking here`
+    return `Brought in by ${who} (recommendation) · ${credit}`
+  })
+}
+
 /** The Onboarded by filter: a name exactly, or Not set. */
 export function matchesOnboardedBy(
   v: Pick<AdminVendor, 'onboardedByName'>,

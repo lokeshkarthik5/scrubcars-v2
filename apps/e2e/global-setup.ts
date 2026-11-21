@@ -22,6 +22,7 @@ import {
   CONDITION_CHECK,
   REPAIR_QUOTES,
   SHINE,
+  BRING,
   PICKUP_FEE,
   OWNER_DELETE,
   PRE_IOS,
@@ -95,6 +96,8 @@ async function globalSetup() {
   await saveState('vendor-repair-second', REPAIR_QUOTES.secondOwner.phone, 'vendor')
   // Shine Score (SHINE, 7600–7699).
   await saveState('customer-shine', SHINE.customer.phone, 'customer')
+  // Bring your garage (BRING, 8400–8449).
+  await saveState('customer-bring', BRING.customer.phone, 'customer')
   // The pickup fee (PICKUP_FEE, 7750–7799): the customer side.
   await saveState('customer-pickup-fee', PICKUP_FEE.customer.phone, 'customer')
   await saveAdminState('admin')

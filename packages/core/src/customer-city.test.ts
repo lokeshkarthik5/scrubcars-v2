@@ -19,7 +19,6 @@ import {
   NEAR_DRIVE_MINUTES,
   outsideCityLine,
   outsideCityTag,
-  recommendRowText,
   zoneInCity,
   type CustomerCity,
   type CustomerPlace,
@@ -115,7 +114,6 @@ describe('a small city (fewer than 3 garages, mockup D)', () => {
   test('no counts, no promises: just where, and one way to recommend', () => {
     expect(detlioInLine(MADURAI)).toBe('Detlio in Madurai')
     expect(inCityHeading(MADURAI)).toBe('In Madurai')
-    expect(recommendRowText(MADURAI)).toEqual({ ask: 'Know a great garage in Madurai?', action: 'Recommend it' })
   })
 
   test('growing is the owner’s switch alone: Chennai on, a partner-garage city off', () => {

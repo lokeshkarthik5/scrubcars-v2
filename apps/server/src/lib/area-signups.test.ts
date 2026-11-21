@@ -180,11 +180,11 @@ describe('coming back', () => {
 })
 
 describe('the referral credit', () => {
-  const base = { vendorId: 'v', garageLive: true, completedPaidBooking: true, alreadyCreditedForGarage: false, creditedSoFarRupees: 0 }
+  const base = { vendorId: 'v', garageLive: true, completedPaidBooking: true, alreadyCreditedForGarage: false }
 
-  test('₹100 once the linked garage is live and they completed a paid booking there', () => {
-    expect(referralCredit(base)).toEqual({ amountRupees: 100 })
-    expect(REFERRAL_CREDIT).toEqual({ perGarageRupees: 100, maxPerCustomerRupees: 500 })
+  test('₹500 once the linked garage is live and they completed a paid booking there', () => {
+    expect(referralCredit(base)).toEqual({ amountRupees: 500 })
+    expect(REFERRAL_CREDIT).toEqual({ perGarageRupees: 500 })
   })
 
   test('not before: not linked, not live, no paid booking', () => {
@@ -197,10 +197,11 @@ describe('the referral credit', () => {
     expect(referralCredit({ ...base, alreadyCreditedForGarage: true })).toEqual({ refusal: 'ALREADY_FOR_GARAGE' })
   })
 
-  test('₹500 at most a customer: the last one cut to what is left', () => {
-    expect(referralCredit({ ...base, creditedSoFarRupees: 400 })).toEqual({ amountRupees: 100 })
-    expect(referralCredit({ ...base, creditedSoFarRupees: 450 })).toEqual({ amountRupees: 50 })
-    expect(referralCredit({ ...base, creditedSoFarRupees: 500 })).toEqual({ refusal: 'CAP_REACHED' })
+  test('no cap per customer (owner, 21 Nov 2026): every garage they bring in earns the full ₹500', () => {
+    expect('maxPerCustomerRupees' in REFERRAL_CREDIT).toBe(false)
+    // The rule has nothing to read a customer's total from: the tenth garage pays as the first did.
+    const tenth = referralCredit({ ...base, ...({ creditedSoFarRupees: 4500 } as object) })
+    expect(tenth).toEqual({ amountRupees: 500 })
   })
 })
 

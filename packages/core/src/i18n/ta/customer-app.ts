@@ -521,8 +521,6 @@ export const customerApp: Readonly<Record<string, string>> = {
     '{area}-க்கான {count} இலவச வாஷ்களும் தீர்ந்துவிட்டன. நாங்கள் தொடங்கும் நாளில் இன்னும் உங்களுக்குச் சொல்வோம்.',
   "Up to ₹{amount}, the day Detlio opens in {area}, for {days} days. Saved to your account; we'll tell you.":
     '₹{amount} வரை, {area}-இல் Detlio தொடங்கும் நாளிலிருந்து {days} நாட்களுக்கு. உங்கள் கணக்கில் சேமிக்கப்படும்; உங்களுக்குச் சொல்வோம்.',
-  '₹{amount} Detlio credit if they join and you book them (up to ₹{max}).':
-    'அவர்கள் சேர்ந்து, நீங்கள் அவர்களிடம் புக் செய்தால் ₹{amount} Detlio கிரெடிட் (₹{max} வரை).',
   // components/reach/reach-status.tsx
   'Up to ₹{amount} off a car wash in {area} · use by {day}':
     '{area}-இல் கார் வாஷுக்கு ₹{amount} வரை தள்ளுபடி · {day}-க்குள் பயன்படுத்துங்கள்',
