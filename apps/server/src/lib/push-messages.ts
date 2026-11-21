@@ -830,3 +830,23 @@ export function testMessage(audience: 'customer' | 'garage'): PushMessage {
 function ttlUntil(at: Date, now: Date): number {
   return Math.max(60, Math.min(DEFAULT_TTL_SECONDS * 6, Math.floor((at.getTime() - now.getTime()) / 1000)))
 }
+
+// ─── Luxury car specialists (0083) ───────────────────────────────────────────
+
+/** Where the garage applies and reads the team's answer, in both garage apps. */
+export const GARAGE_LUXURY_PATH = '/settings/luxury'
+
+/**
+ * The team answered the garage's Luxury specialist application, or removed
+ * its badge. Never the team's note (typed by a person): the screen it opens
+ * shows that.
+ */
+export function garageLuxuryDecision(decision: 'approve' | 'more' | 'decline' | 'remove'): PushMessage {
+  const words = {
+    approve: { title: "You're a Luxury car specialist", body: 'Customers now see the badge and your brands on your listing.' },
+    more: { title: 'Detlio asked for more', body: 'Open your Luxury car specialist application to see what to add.' },
+    decline: { title: 'Luxury car specialist: not this time', body: 'Open your application to see why, and when you can apply again.' },
+    remove: { title: 'Your Luxury specialist badge was removed', body: 'Open Luxury car specialist to see why.' },
+  }[decision]
+  return message({ ...words, url: GARAGE_LUXURY_PATH, tag: 'luxury-specialist' })
+}

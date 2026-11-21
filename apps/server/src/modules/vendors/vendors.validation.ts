@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { LUXURY_MAKES } from '../../lib/luxury.js'
 import { ADD_ON_LIMITS, MAX_BOOKING_LINES } from '../../lib/add-ons.js'
 import { isCalendarDate } from '../../lib/booking-ops.js'
 import { MAX_DOORSTEP_RADIUS_KM, MIN_DOORSTEP_RADIUS_KM } from '../../lib/doorstep.js'
@@ -393,6 +394,22 @@ export const listPublicVendorsQuerySchema = z
       .enum(['true', 'false'])
       .transform((v) => v === 'true')
       .optional(),
+    /**
+     * "Luxury specialists" (0083): only garages the Detlio team approved for
+     * luxury cars that hold Silver or Gold (LUXURY_SPECIALIST). Works with
+     * every other filter and all three modes. Left out, every listed garage.
+     */
+    luxury: z
+      .enum(['1', 'true', '0', 'false'])
+      .transform((v) => v === '1' || v === 'true')
+      .optional(),
+    /**
+     * "Specialists for your <Make>" (0083): only Luxury specialists whose
+     * approved brands include this make, one of LUXURY_MAKES exactly as
+     * written there ("Mercedes-Benz"); the apps normalise the customer's
+     * typed make first. Narrower than `luxury` (which it implies).
+     */
+    luxuryMake: z.enum(LUXURY_MAKES).optional(),
     limit: z.coerce.number().int().min(1).max(50).optional(),
     cursor: z.string().trim().min(1).max(200).optional(),
   })

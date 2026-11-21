@@ -18,6 +18,7 @@ import {
   IconEyeOff,
   IconPlus,
   IconSparkles,
+  IconTemplate,
   IconTrash,
 } from '@tabler/icons-react'
 import { ScSelect } from '@repo/ui/sc/select'
@@ -25,6 +26,7 @@ import { ApiError } from '@repo/core/api/client'
 import { describeAdminService, getAdminAiConfig } from '@repo/core/api/admin'
 import { SERVICE_CATEGORY_OPTIONS } from '@repo/core/categories'
 import { templatesNotIn, type ServiceTemplate } from '@repo/core/service-templates'
+import { useServiceTemplatesForEditor } from '@repo/core/api/hooks/use-admin-service-templates'
 import type { CategoryHint } from '@repo/core/category-hints'
 import type { ServiceMedia } from '@repo/core/types'
 import { cn } from '@repo/core/utils'
@@ -62,8 +64,10 @@ import {
   type ServiceRowField,
 } from '@/lib/service-rows'
 import type { ServiceRowNote } from '@/lib/garage-import'
+import { templateFormFromRow } from '@/lib/service-templates'
 import { ImportNote, MARKED_FIELD } from './import-note'
 import { CategoryIcon } from './category-icon'
+import { ServiceTemplateSheet, type TemplateSheetMode } from './service-template-sheet'
 
 const PILL_BUTTON =
   'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-border bg-white/[0.015] px-3.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface disabled:opacity-50'
@@ -107,6 +111,11 @@ interface ServicesEditorProps {
   setOpenRows: Dispatch<SetStateAction<ReadonlySet<string>>>
   /** The garage's business name, which "Write with AI" may use. */
   garageName: string
+  /**
+   * The garage's id once it is saved: "Save as template" names it as where
+   * the template came from (0082). Add garage has none yet.
+   */
+  vendorId?: string
   /** Services the garage has that are not in `rows` (its hidden ones). */
   otherNames?: readonly string[]
   emptyText: string
@@ -155,6 +164,7 @@ export function ServicesEditor({
   openRows,
   setOpenRows,
   garageName,
+  vendorId,
   otherNames = [],
   emptyText,
   saving = false,
@@ -238,8 +248,18 @@ export function ServicesEditor({
     }
   }, [onAiBusyChange])
 
+  // "Add from template" (0082): the team's switched-on templates, from the
+  // API. If they can't load, the editor says so and Add service still works.
+  const templatesQuery = useServiceTemplatesForEditor()
+  useEffect(() => {
+    if (isAuthError(templatesQuery.error)) onAuthError()
+  }, [templatesQuery.error, onAuthError])
+  // "Save as template" (0082): the sheet, and what it said once saved.
+  const [templateSheet, setTemplateSheet] = useState<TemplateSheetMode | null>(null)
+  const [templateNote, setTemplateNote] = useState('')
+
   const groups = groupRows(rows)
-  const templates = templatesNotIn([...rows.map((row) => row.name), ...otherNames])
+  const templates = templatesNotIn(templatesQuery.data ?? [], [...rows.map((row) => row.name), ...otherNames])
   const templateLines = templatesByCategory(templates)
   const busy = saving || fill !== null
 
@@ -516,7 +536,9 @@ export function ServicesEditor({
                 <div className="flex flex-wrap gap-2">
                   {line.templates.map((template) => (
                     <button
-                      key={template.key}
+                      // The id, not the key: only the built-ins have a key;
+                      // the team's own are null, and would share one.
+                      key={template.id}
                       type="button"
                       disabled={busy}
                       onClick={() => addTemplate(template)}
@@ -524,6 +546,12 @@ export function ServicesEditor({
                     >
                       <IconPlus size={15} className="text-text-secondary" aria-hidden="true" />
                       {template.name}
+                      {/* Added by the team in the last 14 days (0082). */}
+                      {template.isNew && (
+                        <span className="rounded-full bg-tone-attention-tint px-1.5 py-0.5 text-[11px] font-medium text-tone-attention-text">
+                          New
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -531,6 +559,23 @@ export function ServicesEditor({
             ))}
           </div>
         )}
+        {templatesQuery.isError && !isAuthError(templatesQuery.error) && (
+          <p role="alert" className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-text-secondary">
+            <IconAlertCircle size={15} className="shrink-0 text-error" aria-hidden="true" />
+            Templates couldn’t load, so “Add from template” is hidden. Add service still works.
+            <button
+              type="button"
+              onClick={() => void templatesQuery.refetch()}
+              className="inline-flex min-h-11 items-center rounded-[10px] px-1 font-medium text-text-primary underline decoration-border underline-offset-4"
+            >
+              Try again
+            </button>
+          </p>
+        )}
+        {/* Always mounted, so a Save as template is announced. */}
+        <p role="status" className={templateNote ? 'text-[12.5px] text-text-secondary' : 'sr-only'}>
+          {templateNote}
+        </p>
       </div>
 
       <section
@@ -617,6 +662,15 @@ export function ServicesEditor({
                   hide={hide}
                   saving={saving}
                   onRemove={() => removeRow(row.key)}
+                  onSaveAsTemplate={() =>
+                    setTemplateSheet({
+                      kind: 'from-service',
+                      form: templateFormFromRow(row),
+                      garageName,
+                      serviceName: row.name.trim(),
+                      vendorId,
+                    })
+                  }
                 />
               ))}
             </div>
@@ -625,6 +679,13 @@ export function ServicesEditor({
       </section>
 
       <p className="text-[12px] leading-relaxed text-text-muted">{footnote}</p>
+
+      <ServiceTemplateSheet
+        mode={templateSheet}
+        onClose={() => setTemplateSheet(null)}
+        onSaved={(note) => setTemplateNote(note)}
+        onAuthError={onAuthError}
+      />
     </div>
   )
 }
@@ -655,6 +716,7 @@ function ServiceRowItem({
   hide,
   saving,
   onRemove,
+  onSaveAsTemplate,
 }: {
   row: ServiceRow
   number: number
@@ -682,6 +744,8 @@ function ServiceRowItem({
   hide?: ServiceHideControls
   saving: boolean
   onRemove: () => void
+  /** "Save as template" (0082): the template sheet, filled in from this row. */
+  onSaveAsTemplate: () => void
 }) {
   const id = useId()
   const label = `Service ${number}`
@@ -761,6 +825,22 @@ function ServiceRowItem({
       />
     )
   }
+
+  // Beside Hide service and Delete (0082): every garage can then add this
+  // service in one tap. Never its prices; the row itself is left as it is.
+  const saveAsTemplate = (
+    <button
+      type="button"
+      disabled={!row.name.trim() || saving}
+      title={row.name.trim() ? undefined : 'Name the service first'}
+      onClick={onSaveAsTemplate}
+      aria-label={`Save ${name} as template`}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+    >
+      <IconTemplate size={16} stroke={1.5} aria-hidden="true" />
+      Save as template
+    </button>
+  )
 
   return (
     // A named group, so the row's own refusal can be found on it — and is
@@ -1123,13 +1203,13 @@ function ServiceRowItem({
               </div>
             ))}
 
-          <div className="flex min-h-6 items-center justify-between gap-3">
+          <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-3 gap-y-2">
             {/* Quiet: neither is the page's main action. A saved service is
                 hidden, straight away and reversibly, or deleted after a
                 confirm; a row never saved is only taken off the form. */}
             {row.id && hide ? (
               <>
-                <span className="-my-2.5 -ml-2 flex items-center">
+                <span className="-my-2.5 -ml-2 flex flex-wrap items-center">
                   <button
                     type="button"
                     data-service-hide
@@ -1151,20 +1231,24 @@ function ServiceRowItem({
                     <IconTrash size={16} stroke={1.5} aria-hidden="true" />
                     Delete
                   </button>
+                  {saveAsTemplate}
                 </span>
                 <span className="text-[12px] text-text-muted">Past bookings keep it</span>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={onRemove}
-                disabled={saving}
-                aria-label={`Remove service ${number}`}
-                className="-my-2.5 -ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
-              >
-                <IconTrash size={16} stroke={1.5} aria-hidden="true" />
-                Remove
-              </button>
+              <span className="-my-2.5 -ml-2 flex items-center">
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  disabled={saving}
+                  aria-label={`Remove service ${number}`}
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13.5px] font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+                >
+                  <IconTrash size={16} stroke={1.5} aria-hidden="true" />
+                  Remove
+                </button>
+                {saveAsTemplate}
+              </span>
             )}
           </div>
         </div>

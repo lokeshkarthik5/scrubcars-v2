@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { SERVICE_TEMPLATES, templatesNotIn } from '@repo/core/service-templates'
+import { templatesNotIn, type ServiceTemplateShape } from '@repo/core/service-templates'
 import {
   durationLabel,
   durationToMins,
@@ -19,6 +19,35 @@ import {
   type ServiceRow,
 } from './service-editor'
 import { serviceRowProblem } from './service-rows'
+
+/** The built-in templates as 0082 seeded them (names, categories, order). */
+const t = (name: string, category: ServiceTemplateShape['category'], durationMins = 45): ServiceTemplateShape => ({
+  name,
+  category,
+  durationMins,
+  pricingType: 'per_vehicle',
+  description: `${name}, done.`,
+})
+const TEMPLATES: ServiceTemplateShape[] = [
+  t('Foam wash', 'car_wash'),
+  t('Body wash', 'car_wash'),
+  t('Full wash', 'car_wash'),
+  t('Interior cleaning', 'car_wash'),
+  t('Ceramic coating', 'coating', 1440),
+  t('Polishing', 'detailing'),
+  t('Engine bay cleaning', 'detailing'),
+  t('Underbody wash', 'car_wash'),
+  t('Headlight restoration', 'detailing'),
+  t('Bike wash', 'others'),
+  t('General service', 'general_service'),
+  t('Oil change', 'general_service'),
+  t('Wheel alignment & balancing', 'general_service'),
+  t('Brake pads', 'repairs'),
+  t('AC service', 'repairs'),
+  t('Clutch repair', 'repairs'),
+  t('Dent repair', 'dent_paint'),
+  t('Panel painting', 'dent_paint'),
+]
 
 const stored = (patch: Partial<Parameters<typeof toServiceRow>[0]> = {}) => ({
   id: 'a1b2c3d4-0000-4000-8000-000000000001',
@@ -132,7 +161,7 @@ describe('Add service and the templates (0080)', () => {
   })
 
   test('template chips, one line per category, leaving out what the garage has', () => {
-    const lines = templatesByCategory(templatesNotIn(['Foam wash', 'Polishing', 'General service', 'Oil change']))
+    const lines = templatesByCategory(templatesNotIn(TEMPLATES, ['Foam wash', 'Polishing', 'General service', 'Oil change']))
     expect(lines.map((line) => [line.label, line.templates.map((t) => t.name)])).toEqual([
       ['Car wash', ['Body wash', 'Full wash', 'Interior cleaning', 'Underbody wash']],
       ['Detailing', ['Engine bay cleaning', 'Headlight restoration']],
@@ -194,9 +223,7 @@ describe('rows', () => {
   })
 
   test('a template fills everything but the prices', () => {
-    const template = SERVICE_TEMPLATES.find(
-      (t) => t.name === 'Ceramic coating'
-    )!
+    const template = TEMPLATES.find((each) => each.name === 'Ceramic coating')!
     const fromTemplate = serviceRowFromTemplate(template)
     expect(fromTemplate).toMatchObject({
       name: 'Ceramic coating',

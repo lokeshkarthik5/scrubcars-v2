@@ -11,7 +11,7 @@ import type {
   AdminVendorDetail,
   UpdateVendorServiceInput,
 } from '@repo/core/api/admin'
-import type { ServiceTemplate } from '@repo/core/service-templates'
+import type { ServiceTemplateShape } from '@repo/core/service-templates'
 import type { ServiceCategory, ServiceMedia } from '@repo/core/types'
 import { CATEGORY_LABELS, NEW_CATEGORIES, PLAIN_CATEGORY_ORDER } from '@repo/core/categories'
 import { categoryHintFor } from '@repo/core/category-hints'
@@ -163,7 +163,7 @@ export const serviceGroupLabel = (category: PlainCategory) => CATEGORY_LABELS[ca
  * ("Each one arrives under its own heading"). A category with none left is
  * left out.
  */
-export function templatesByCategory(templates: readonly ServiceTemplate[]) {
+export function templatesByCategory<T extends { category: PlainCategory }>(templates: readonly T[]) {
   return PLAIN_CATEGORY_ORDER.map((category) => ({
     category,
     label: CATEGORY_LABELS[category],
@@ -231,7 +231,7 @@ export function emptyServiceRow(category: PlainCategory = 'car_wash'): ServiceRo
  * A row filled from a ready-made service. The prices stay empty — each garage
  * charges its own — so the row asks for them before the garage can be saved.
  */
-export function serviceRowFromTemplate(template: ServiceTemplate): ServiceRow {
+export function serviceRowFromTemplate(template: ServiceTemplateShape): ServiceRow {
   return {
     ...emptyServiceRow(),
     name: template.name,

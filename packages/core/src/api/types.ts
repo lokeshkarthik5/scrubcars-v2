@@ -1,3 +1,4 @@
+import type { BranchGroupLine, GarageBranch } from '@repo/core/branches'
 import type { ReachCity } from '@repo/core/cities'
 import type { Tier } from '@repo/core/tiers'
 import type { ConditionCheck, ConditionPhotos, JobPhotoAngle, PhotoStandard, ServiceMedia } from '@repo/core/types'
@@ -169,6 +170,13 @@ export interface ApiVendorListItem {
   garageCity?: { id: string; name: string } | null
   /** The medal customers see (0063): Bronze, Silver, Gold or null. Absent on older servers. */
   tier?: Tier | null
+  /**
+   * "1 of 3 Shine Auto Spa branches" (0081): its group and how many of its
+   * branches customers can find; null unless two or more. Absent on older servers.
+   */
+  branchGroup?: BranchGroupLine | null
+  /** The Luxury specialist badge (0083): the approved brands, or null. Absent on older servers. */
+  luxury?: { brands: string[] } | null
 }
 
 export interface ApiVendorList {
@@ -263,6 +271,10 @@ export interface ApiPublicVendor {
   garageCity?: { id: string; name: string } | null
   /** As on a list item: the medal customers see (0063). Absent on older servers. */
   tier?: Tier | null
+  /** "Also at" (0081): its other live branches. Absent on older servers. */
+  branches?: GarageBranch[]
+  /** The Luxury specialist badge (0083): the approved brands, or null. Absent on older servers. */
+  luxury?: { brands: string[] } | null
 }
 
 export interface VendorProfileExtras {

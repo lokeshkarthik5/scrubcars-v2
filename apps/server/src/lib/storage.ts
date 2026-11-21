@@ -101,7 +101,9 @@ export type PresignedUpload = {
 export async function createPresignedUpload(
   vendorId: string,
   contentType: string,
-  folder?: string
+  folder?: string,
+  /** The exact size, signed into the PUT so R2 refuses any other (luxury photos, 0083). Left out, any size. */
+  sizeBytes?: number
 ): Promise<PresignedUpload> {
   const ext = CONTENT_TYPE_EXT[contentType]
   if (!ext) {
@@ -122,6 +124,7 @@ export async function createPresignedUpload(
       Bucket: env.r2Bucket,
       Key: key,
       ContentType: contentType,
+      ...(sizeBytes !== undefined ? { ContentLength: sizeBytes } : {}),
     }),
     { expiresIn: env.r2UploadUrlTtlSeconds }
   )

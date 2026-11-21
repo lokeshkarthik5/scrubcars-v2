@@ -1,3 +1,4 @@
+import type { LuxuryStatus } from '@repo/core/luxury'
 import type { Tier } from '@repo/core/tiers'
 import { apiClient } from './client'
 import { stripImageMetadata } from '@repo/core/image-upload'
@@ -26,9 +27,23 @@ export interface AdminBroughtInBy {
   recommendedAt: string
 }
 
+/** One garage's luxury line on the Garages list (0083). */
+export interface AdminVendorLuxury {
+  status: LuxuryStatus | null
+  sentAt: string | null
+  timesSent: number
+  /** Waiting (under review or asked for more) with Silver or Gold held: counted in "to review". */
+  onApplicationsList: boolean
+  approvedAt: string | null
+  /** Customers see the badge now (approved, Silver or Gold held). */
+  shown: boolean
+}
+
 export interface AdminVendor {
   id: string
   businessName: string
+  /** The branch group it is in (0081), null for none; absent from an older API. */
+  groupId?: string | null
   phone: string
   address: string
   city: string
@@ -149,6 +164,12 @@ export interface AdminVendor {
   tier?: Tier | null
   /** Admin hid this garage's medal from customers (0063). Absent from older servers. */
   tierHidden?: boolean
+  /**
+   * Luxury car specialists (0083): the garage's application and badge, for
+   * More filters' "Luxury applications" and "Luxury specialists". Null when
+   * it never applied and has no badge; absent from older servers.
+   */
+  luxury?: AdminVendorLuxury | null
   owner: {
     id: string
     name: string
