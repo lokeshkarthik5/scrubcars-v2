@@ -5,7 +5,7 @@
  * and edit (and Remove lead), Paste a list with its preview, and Onboard,
  * which opens Add garage filled in and links the lead to the garage made.
  *
- * Works in Perambur on LEADS' rows and its own, which it removes after;
+ * Works in Pallikaranai on LEADS' rows and its own, which it removes after;
  * the seeded rows it changes are put back. The rules are unit-tested in
  * apps/server/src/modules/coverage/coverage-leads.routes.test.ts.
  */
@@ -18,8 +18,8 @@ test.use({ storageState: asRole('admin') })
 
 const ADDED = 'Leads Added Car Spa'
 const ADDED_PHONE = LEADS.added.phone
-/** A full Maps link a few hundred metres from Perambur's centre: read without any request. */
-const LINK = 'https://www.google.com/maps/place/Car+Spa/@13.1222,80.2335,17z'
+/** A full Maps link a few hundred metres from Pallikaranai's centre: read without any request. */
+const LINK = 'https://www.google.com/maps/place/Car+Spa/@12.9361,80.2143,17z'
 
 const cleanUp = async () => {
   await sql`delete from leads where created_by_name <> 'E2E seed' and (name like 'Leads %' or phone in (${ADDED_PHONE}, ${LEADS.pasted.phone}))`
@@ -39,7 +39,7 @@ const cleanUp = async () => {
   }
 }
 
-async function openPerambur(page: Page) {
+async function openPallikaranai(page: Page) {
   const zone = await sql<
     { id: string }[]
   >`select id from zones where slug = ${LEADS.zoneSlug}`
@@ -63,11 +63,11 @@ test.describe.serial('Coverage leads @p0', () => {
   test('Add lead here: the pin and zone come from the Maps link; a lookalike warns before saving', async ({
     page,
   }) => {
-    const { drawer, list, zoneId } = await openPerambur(page)
+    const { drawer, list, zoneId } = await openPallikaranai(page)
     await drawer.getByRole('button', { name: '+ Add lead here' }).click()
     const dialog = page.getByRole('dialog', { name: 'Add lead' })
     await expect(dialog).toBeVisible()
-    // Added in Perambur: with no pin yet, its zone is the one it was added in.
+    // Added in Pallikaranai: with no pin yet, its zone is the one it was added in.
     await expect(dialog.getByLabel('Zone')).toHaveValue(zoneId)
 
     await dialog.getByLabel('Garage name').fill(ADDED)
@@ -78,7 +78,7 @@ test.describe.serial('Coverage leads @p0', () => {
     await expect(
       dialog.getByRole('button', { name: 'Save lead' })
     ).toBeDisabled()
-    // The same number as a lead Perambur already has.
+    // The same number as a lead Pallikaranai already has.
     await dialog.getByLabel('Phone').fill(`+91 ${LEADS.toTarget.phone}`)
     await dialog.getByLabel('Google Maps link').fill(LINK)
     await expect(dialog.getByText('Pin found')).toBeVisible()
@@ -137,7 +137,7 @@ test.describe.serial('Coverage leads @p0', () => {
   test('a row: Not interested with why and when, back to To target, assign, note', async ({
     page,
   }) => {
-    const { list } = await openPerambur(page)
+    const { list } = await openPallikaranai(page)
     const lead = row(list, LEADS.toTarget.name)
 
     await lead
@@ -228,7 +228,7 @@ test.describe.serial('Coverage leads @p0', () => {
   test('Edit lead: rename, remove the pin, then Remove lead', async ({
     page,
   }) => {
-    const { list } = await openPerambur(page)
+    const { list } = await openPallikaranai(page)
     await row(list, ADDED)
       .getByRole('button', { name: `Edit ${ADDED}` })
       .click()
@@ -281,7 +281,7 @@ test.describe.serial('Coverage leads @p0', () => {
   test('Paste a list: a preview line by line, a lookalike unticked, then saved To target in the zone', async ({
     page,
   }) => {
-    const { drawer, list, zoneId } = await openPerambur(page)
+    const { drawer, list, zoneId } = await openPallikaranai(page)
     await drawer.getByRole('button', { name: 'Paste a list' }).click()
     const paste = page.getByRole('dialog', { name: 'Paste a list' })
     await expect(paste.getByLabel('Zone')).toHaveValue(zoneId)
@@ -341,7 +341,7 @@ test.describe.serial('Coverage leads @p0', () => {
   test('Onboard: Add garage filled in from the lead; Create links the lead, Onboarded', async ({
     page,
   }) => {
-    const { list, zoneId } = await openPerambur(page)
+    const { list, zoneId } = await openPallikaranai(page)
     await row(list, LEADS.onboard.name)
       .getByRole('link', { name: `Onboard ${LEADS.onboard.name}` })
       .click()
@@ -369,12 +369,12 @@ test.describe.serial('Coverage leads @p0', () => {
     await page.getByRole('tab', { name: 'Location' }).click()
     await expect(page.getByLabel('City')).toHaveValue('Chennai')
     await expect(page.getByLabel('Google Maps link (optional)')).toHaveValue(
-      'https://www.google.com/maps/@13.1217,80.2305,17z'
+      'https://www.google.com/maps/@12.9356,80.2113,17z'
     )
     await page
       .getByLabel('Address', { exact: true })
-      .fill('4, Lead Street, Perambur')
-    await page.getByLabel('Pincode').fill('600011')
+      .fill('4, Lead Street, Pallikaranai')
+    await page.getByLabel('Pincode').fill('600100')
     await page.getByRole('button', { name: 'Create garage' }).click()
 
     // Back to the lead's zone, where it is a garage now.
@@ -393,7 +393,7 @@ test.describe.serial('Coverage leads @p0', () => {
       business_name: LEADS.onboard.name,
       status: 'pending',
     })
-    expect(garage.lat).toBeCloseTo(13.121 + 80 / 111_320, 4)
+    expect(garage.lat).toBeCloseTo(12.9349 + 80 / 111_320, 4)
 
     const drawer = page.getByRole('dialog', { name: LEADS.zoneName })
     const garageRow = row(
