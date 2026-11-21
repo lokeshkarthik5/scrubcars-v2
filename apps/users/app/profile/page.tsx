@@ -19,6 +19,7 @@ import {
 } from '@/components/profile/edit-sheets'
 import { DeleteAccountSheet } from '@/components/profile/delete-account-sheet'
 import { LanguageRow } from '@/components/profile/language-row'
+import { BringGarageRow } from '@/components/reach/bring-garage'
 import { MyComplaints } from '@/components/complaints/my-complaints'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
@@ -550,6 +551,9 @@ export default function ProfilePage() {
           </Link>
         </>
       )}
+
+      {/* Bring your garage (21 Nov 2026): always, under Gift a wash. */}
+      <BringGarageRow />
 
       {/* Browser notifications on this device, and what to send (0044). */}
       {pushOn && (

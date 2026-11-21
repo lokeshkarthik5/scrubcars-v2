@@ -1,5 +1,5 @@
 import { adminGarageBookRoutes } from '../garage-book/garage-book.routes.js'
-import { createAddOnSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
+import { createAddOnSchema, photoOrderSchema, updateAddOnSchema } from '../vendors/vendors.validation.js'
 import { adminGarageClosureRoutes } from '../garage-closure/garage-closure.routes.js'
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
@@ -59,6 +59,7 @@ import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js
 import { adminServiceCategoryRoutes } from '../service-categories/service-categories.routes.js'
 import { adminServiceTemplateRoutes } from '../service-templates/service-templates.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
+import { adminGarageGoogleRoutes } from '../garage-google/garage-google.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
 import { adminGarageBackupRoutes } from '../garage-backup/garage-backup.routes.js'
 import { adminBranchGroupRoutes } from '../branch-groups/branch-groups.routes.js'
@@ -220,6 +221,10 @@ adminRoutes.route('/', adminCollectionListRoutes)
 // The owner deletes anything (10 Nov 2026): /owner-delete/* hard deletes,
 // owner only. Its own module; mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminOwnerDeleteRoutes)
+// Google rating for new garages (21 Nov 2026): POST /vendors/:id/google/
+// search, /link and /unlink, the side panel's Google listing. Mounted at the
+// root for the cookie's sake, like the Bin.
+adminRoutes.route('/', adminGarageGoogleRoutes)
 // Back up all garages (18 Nov 2026): /backup/*, owner only. Its own module;
 // mounted at the root for the cookie's sake.
 adminRoutes.route('/', adminGarageBackupRoutes)
@@ -440,6 +445,20 @@ adminRoutes.post(
   zValidator('json', mediaUrlSchema),
   (c) =>
     adminController.addVendorPhoto(
+      c,
+      c.req.valid('param').id,
+      c.req.valid('json')
+    )
+)
+// "Make cover" and the arrows in the editor's Logo & photos: the whole gallery
+// in its new order (lib/photo-order.ts). Audited (garage_photos_reordered).
+adminRoutes.put(
+  '/vendors/:id/photos/order',
+  ...adminMiddleware,
+  zValidator('param', vendorIdParamSchema),
+  zValidator('json', photoOrderSchema),
+  (c) =>
+    adminController.setVendorPhotoOrder(
       c,
       c.req.valid('param').id,
       c.req.valid('json')

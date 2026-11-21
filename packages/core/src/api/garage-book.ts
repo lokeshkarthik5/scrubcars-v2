@@ -1,3 +1,4 @@
+import type { GoogleRating } from '../ratings'
 import { apiClient, apiDownload } from './client'
 import type { BookFilter, ExpenseCategory, ExpenseMethod, JobOrigin, JobPayment, JobStatus, PayApp, StockUnit } from '../garage-book'
 
@@ -456,7 +457,15 @@ export interface BookLink {
 }
 
 export interface PublicLinkPage {
-  garage: { name: string; area: string; openNow: boolean; rating: number | null; reviewCount: number }
+  garage: {
+    name: string
+    area: string
+    openNow: boolean
+    rating: number | null
+    reviewCount: number
+    /** Google's rating while it is the main one (21 Nov 2026), shown in place of Detlio's. Absent from an older API. */
+    google?: GoogleRating | null
+  }
   services: Array<{ id: string; name: string; durationMins: number | null; pricePaise: number }>
   /** The next open days, each with its start times (ISO instants). */
   days: Array<{ date: string; times: string[] }>

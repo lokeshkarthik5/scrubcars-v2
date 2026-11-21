@@ -28,6 +28,7 @@ const { signAccessToken } = await import('../../lib/jwt.js')
 const { payQrStorage } = await import('../../lib/garage-pay-qr-storage.js')
 const { membersRepository } = await import('../members/members.repository.js')
 const { reviewsRepository } = await import('../reviews/reviews.repository.js')
+const { vendorsRepository } = await import('../vendors/vendors.repository.js')
 const { garageBookRepository } = await import('./garage-book.repository.js')
 const { teamRepository } = await import('./garage-book-team.repository.js')
 const { expensesRepository } = await import('./garage-book-expenses.repository.js')
@@ -257,6 +258,7 @@ beforeAll(() => {
   patch(link, 'bookingsByPhone', async () => 0)
   patch(reviewsRepository, 'ratingAggregates', async () => [])
   patch(reviewsRepository, 'tagCounts', async () => [])
+  patch(vendorsRepository, 'listGoogleRatings', async () => [])
 
   // Stock.
   const stock = stockRepository as unknown as Patchable
@@ -572,6 +574,32 @@ describe('the booking link (decision 5)', () => {
     expect(res.status).toBe(201)
     expect(res.body.data).toMatchObject({ detlio: false, booked: { garage: 'Sample Car Care', service: 'Foam wash', at } })
     expect(linkJobs).toEqual([expect.objectContaining({ origin: 'link', status: 'booked', totalPaise: 49_900 })])
+  })
+
+  test('Google rating for new garages: the page carries Google’s while it is the main one, never past 30 days', async () => {
+    // No counted Detlio review (ratingAggregates stands in []): Google's leads.
+    const reads: Array<{ vendorIds: string[]; heldSince: Date }> = []
+    let fetchedAt = new Date(NOW.getTime() - 3 * 24 * 60 * 60 * 1000)
+    patch(vendorsRepository, 'listGoogleRatings', async (vendorIds: string[], heldSince: Date) => {
+      reads.push({ vendorIds, heldSince })
+      return [{ vendorId: GARAGE, googleRating: '4.6', googleReviewCount: 312, googleFetchedAt: fetchedAt }]
+    })
+    const before = Date.now()
+    const page = await call('GET', '/public/g/sample-car-care', null)
+    const after = Date.now()
+    expect(page.status).toBe(200)
+    expect(page.body.data!.garage).toMatchObject({ rating: null, reviewCount: 0, google: { rating: 4.6, reviewCount: 312 } })
+    // One read of the garage's lead, filtered to Google's 30 days.
+    expect(reads).toHaveLength(1)
+    expect(reads[0]!.vendorIds).toEqual([GARAGE])
+    const DAYS_30 = 30 * 24 * 60 * 60 * 1000
+    expect(reads[0]!.heldSince.getTime()).toBeGreaterThanOrEqual(before - DAYS_30)
+    expect(reads[0]!.heldSince.getTime()).toBeLessThanOrEqual(after - DAYS_30)
+
+    // A read 30 days old is never sent, even if the SQL let it through.
+    fetchedAt = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000)
+    expect((await call('GET', '/public/g/sample-car-care', null)).body.data!.garage.google).toBeNull()
+    patch(vendorsRepository, 'listGoogleRatings', async () => [])
   })
 
   test('a time the page didn’t offer, an unknown page, or a landline is refused', async () => {

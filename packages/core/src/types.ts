@@ -5,6 +5,7 @@ import type { PickupNext } from '@repo/core/pickup'
 import type { PickupFeePlan } from '@repo/core/pickup-fee-maths'
 import type { OutsideServiceCity } from '@repo/core/service-city'
 import type { ReachCity } from '@repo/core/cities'
+import type { GoogleRating } from '@repo/core/ratings'
 import type { BranchGroupLine, GarageBranch } from '@repo/core/branches'
 
 /**
@@ -71,6 +72,13 @@ export interface Vendor {
   isNew?: boolean
   /** "Known for On time": its top good tag once 5+ customers picked it. */
   knownFor?: { tag: string; label: string } | null
+  /**
+   * Google's rating (21 Nov 2026), always shown as Google's ("Google
+   * Maps"), never added to Detlio's. On a list card only while it is the
+   * main one (under 5 counted reviews); on the garage page whatever the
+   * count (the small "Also" line). Null or absent: none to show.
+   */
+  google?: GoogleRating | null
   /**
    * The weekly hours, when the response carried them; null when it did not.
    * This, not the account status, is what "Open" is decided from — see

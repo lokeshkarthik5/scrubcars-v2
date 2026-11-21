@@ -148,11 +148,14 @@ import {
   REPAIR_QUOTES,
   OFF_APP_FLAGS,
   SHINE,
+  BRING,
   PICKUP_FEE,
   SERVICE_CATEGORIES,
   GARAGE_BACKUP,
   SERVICE_TEMPLATE_FIXTURES,
   LUXURY_FIXTURES,
+  GOOGLE_RATINGS,
+  PHOTO_ORDER,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4801,6 +4804,8 @@ async function main() {
   await seedOffAppFlagRows()
   console.log('[e2e-seed] shine score…')
   await seedShineRows()
+  console.log('[e2e-seed] bring your garage…')
+  await seedBringGarageRows()
   console.log('[e2e-seed] pickup fee…')
   await seedPickupFeeRows()
   console.log('[e2e-seed] service categories…')
@@ -4813,8 +4818,102 @@ async function main() {
   await seedServiceTemplateRows()
   console.log('[e2e-seed] luxury specialists…')
   await seedLuxuryRows()
+  console.log('[e2e-seed] google rating for new garages…')
+  await seedGoogleRatingRows()
+  console.log('[e2e-seed] photo order…')
+  await seedPhotoOrderRows()
   console.log('[e2e-seed] done')
   process.exit(0)
+}
+
+/**
+ * Google rating for new garages and the d. mark (21 Nov 2026; ids
+ * 8100–8149): see GOOGLE_RATINGS in e2e-ids.ts. Four garages pinned together
+ * far from every other fixture, three of them with a lead holding a Google
+ * listing (one read 3 days ago, one 40 days ago, one beside 5 counted Detlio
+ * reviews) and one with none, for admin to link.
+ */
+async function seedGoogleRatingRows() {
+  const G = GOOGLE_RATINGS
+  await db.insert(users).values([
+    { id: G.owner.id, name: G.owner.name, phone: G.owner.phone, isCustomer: false, isVendorOwner: true,
+      phoneVerified: true, status: 'active' as const },
+    { id: G.customer.id, name: G.customer.name, phone: G.customer.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const },
+  ])
+  await db.insert(userVehicles).values({
+    id: G.customer.vehicleId, userId: G.customer.id, make: 'Hyundai', model: 'Creta', color: 'White',
+    licensePlate: 'TN09GR8102', vehicleType: 'hatchback' as const, isDefault: true,
+  })
+  const garages = [G.newLinked, G.stale, G.rated, G.unlinked]
+  await db.insert(vendors).values(
+    garages.map((g, n) => ({
+      id: g.id, ownerId: G.owner.id, businessName: g.name, phone: G.owner.phone, whatsapp: null,
+      city: 'Chennai', vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 4, slotIntervalMins: 30,
+      status: 'active' as const, isVerified: true, dropinEnabled: true, doorstepEnabled: false,
+      address: `${n + 1}, Gratings Road`, pincode: '612001', createdAt: daysAgo(20),
+      // A few hundred metres apart, the first nearest the customer standing at `pin`.
+      lat: G.pin.lat + n * 0.003, lng: G.pin.lng, geoSource: 'map_pin' as const, geoConfirmedAt: now,
+    }))
+  )
+  await db.insert(userMemberMapping).values(
+    garages.map((g) => ({ vendorId: g.id, userId: G.owner.id, role: 'vendor_admin' as const, status: 'active' as const }))
+  )
+  await db.insert(vendorWorkingHours).values(garages.flatMap((g) => hoursFor(g.id, '06:00:00', '22:00:00')))
+  await db.insert(services).values(
+    garages.map((g) => ({
+      id: g.serviceId, vendorId: g.id, name: `${g.name} Foam Wash`, description: 'An exterior foam wash and dry.',
+      category: 'car_wash' as const, pricingType: 'flat' as const, price: '449.00', durationMins: 60, isActive: true,
+    }))
+  )
+  // The leads holding each garage's Google listing (the team found them in
+  // Coverage and onboarded them).
+  const lead = (g: typeof G.newLinked | typeof G.stale | typeof G.rated, readDaysAgo: number) => ({
+    id: g.leadId, name: g.name, phone: null, lat: G.pin.lat, lng: G.pin.lng, pinSource: 'map' as const,
+    source: 'google' as const, status: 'onboarded' as const, vendorId: g.id, onboardedAt: daysAgo(19),
+    googlePlaceId: g.placeId, googleName: g.name, googleAddress: 'Gratings Road', googleRating: g.google.rating,
+    googleReviewCount: g.google.reviewCount, googleFetchedAt: daysAgo(readDaysAgo), createdByName: 'E2E seed',
+  })
+  await db.insert(leads).values([lead(G.newLinked, 3), lead(G.stale, 40), lead(G.rated, 3)])
+
+  // Five counted Detlio reviews at `rated`: Detlio's own rating takes over.
+  const wash = { id: G.rated.serviceId, name: `${G.rated.name} Foam Wash`, amount: '449.00', durationMins: 60 }
+  for (const [n, bookingId] of G.rated.bookings.entries()) {
+    await insertBooking({
+      id: bookingId, userId: G.customer.id, vehicleId: G.customer.vehicleId, vendorId: G.rated.id, items: [wash],
+      scheduledAt: daysAgo(10 + n), createdAt: daysAgo(11 + n), acceptedAt: daysAgo(11 + n), completedAt: daysAgo(10 + n),
+      status: 'completed' as const, payment: { status: 'paid', txnId: `pay_e2e_gratings_${n}`, gatewayMode: 'fake' },
+    })
+  }
+  await db.insert(reviews).values(
+    G.rated.reviews.map((reviewId, n) => ({
+      id: reviewId, bookingId: G.rated.bookings[n]!, userId: G.customer.id, vendorId: G.rated.id,
+      rating: n === 0 ? 4 : 5, comment: `Gratings seeded ${n + 1}.`, createdAt: daysAgo(10 + n),
+    }))
+  )
+}
+
+/**
+ * Bring your garage (BRING, ids 8400–8449): three customers, and three
+ * earlier recommendations of the number a garage signs up with in the spec
+ * (new, contacted by the team, dismissed). Nothing linked yet.
+ */
+async function seedBringGarageRows() {
+  const B = BRING
+  await db.insert(users).values(
+    [B.customer, B.earlier, B.another].map((c) => ({
+      id: c.id, name: c.name, phone: c.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    }))
+  )
+  await db.insert(garageRecommendations).values([
+    { id: B.recommendations.earlier, userId: B.earlier.id, name: B.garageName, phone: B.garagePhone,
+      why: 'Careful with the interior', status: 'new', createdAt: daysAgo(10), updatedAt: daysAgo(10) },
+    { id: B.recommendations.another, userId: B.another.id, name: 'Bring Car Spa', phone: B.garagePhone,
+      status: 'contacted', handledBy: 'E2E Admin', handledAt: daysAgo(5), createdAt: daysAgo(8), updatedAt: daysAgo(5) },
+    { id: B.recommendations.dismissed, userId: B.another.id, name: 'Bring Car Spa (old)', phone: B.garagePhone,
+      status: 'declined', handledBy: 'E2E Admin', handledAt: daysAgo(6), createdAt: daysAgo(9), updatedAt: daysAgo(6) },
+  ])
 }
 
 /**
@@ -5193,4 +5292,29 @@ async function seedLuxuryRows() {
     coveredBay: true, products: 'Gtechniq Crystal Serum, XPEL Ultimate Plus PPF', staff: '2 detailers',
     decidedBy: 'E2E seed', decidedAt: daysAgo(9), sentAt: daysAgo(12), timesSent: 1, sentBy: L.owners.approved.id,
   })
+}
+
+/**
+ * Garage photo order (PHOTO_ORDER, ids 8000–8049, phones 90000080xx): a
+ * garage with three photos at sort_order 0, 1, 2 and its owner's seat.
+ */
+async function seedPhotoOrderRows() {
+  const P = PHOTO_ORDER
+  await db.insert(users).values({
+    id: P.owner.id, name: P.owner.name, phone: P.owner.phone, isCustomer: false, isVendorOwner: true,
+    phoneVerified: true, status: 'active' as const,
+  })
+  await db.insert(vendors).values({
+    id: P.garage.id, ownerId: P.owner.id, businessName: P.garage.name, phone: P.owner.phone,
+    address: '80, Gallery Road, Chennai', city: 'Chennai', pincode: '600080',
+    lat: 13.08, lng: 80.08, geoSource: 'map_pin', geoConfirmedAt: now,
+    vehicleTypes: ['hatchback', 'sedan', 'suv'], bays: 2, slotIntervalMins: 30,
+    status: 'active', isVerified: false, dropinEnabled: true, doorstepEnabled: false, createdAt: daysAgo(5),
+  })
+  await db.insert(userMemberMapping).values({
+    vendorId: P.garage.id, userId: P.owner.id, role: 'vendor_admin', status: 'active',
+  })
+  await db.insert(vendorPhotos).values(
+    P.photos.map((photo, sortOrder) => ({ id: photo.id, vendorId: P.garage.id, url: photo.url, sortOrder }))
+  )
 }

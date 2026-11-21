@@ -16,7 +16,8 @@ import {
   useHideReview,
   useShowReview,
 } from '@repo/core/api/hooks/use-admin-reviews'
-import { NEW_GARAGE_LABEL, RATING_RULES } from '@repo/core/ratings'
+import { GOOGLE_RATING_RULES, NEW_GARAGE_LABEL, RATING_RULES } from '@repo/core/ratings'
+import { DetlioMark } from '@repo/ui/sc/rating-marks'
 import { DeleteTestBookingDialog } from '@/components/delete-test-booking-dialog'
 import { OwnerDeleteButton } from '@/components/owner-delete'
 import { useOwnerDeleteReview } from '@repo/core/api/hooks/use-admin-owner-delete'
@@ -76,11 +77,24 @@ export function GarageReviewsSection({
           ) : (
             <>
               Customers see{' '}
-              <span className="font-numeric font-semibold">
-                {summary.rating?.toFixed(1)}
+              <span className="inline-flex items-baseline gap-1">
+                <DetlioMark size={14} rating={summary.rating} />
+                <span aria-hidden="true" className="font-numeric font-semibold">
+                  {summary.rating?.toFixed(1)}
+                </span>
               </span>{' '}
               from <span className="font-numeric">{summary.reviewCount}</span>{' '}
               counted reviews.
+              {/* Google rating for new garages: under 5, a garage linked to
+                  its Google listing shows Google's as the main one. */}
+              {summary.reviewCount < GOOGLE_RATING_RULES.detlioTakesOverAt && (
+                <>
+                  {' '}
+                  If it is linked to its Google listing, customers see
+                  Google&apos;s rating instead until it has{' '}
+                  <span className="font-numeric">{GOOGLE_RATING_RULES.detlioTakesOverAt}</span>.
+                </>
+              )}
             </>
           )}
           {summary.knownFor && <> Known for {summary.knownFor.label}.</>}

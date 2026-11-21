@@ -73,6 +73,8 @@ import {
   CERTIFIED_LABEL,
   ELIGIBLE_FILTER,
   ELIGIBLE_LABEL,
+  NO_GOOGLE_FILTER,
+  NO_GOOGLE_LABEL,
   LUXURY_APPLICATIONS_FILTER,
   LUXURY_APPLICATIONS_LABEL,
   LUXURY_SPECIALISTS_FILTER,
@@ -83,6 +85,7 @@ import {
   SHOW_LABELS,
   certificationCounts,
   documentsToReviewCount,
+  noGoogleListingCount,
   garageListHref,
   isInBin,
   isMissing,
@@ -220,6 +223,9 @@ function VendorsList() {
   const counts = showCounts(vendors)
   const toReview = documentsToReviewCount(vendors)
   const certification = certificationCounts(vendors)
+  // Google rating for new garages: only from an API that sends `google`.
+  const hasGoogle = vendors.some((v) => v.google !== undefined)
+  const noGoogle = noGoogleListingCount(vendors)
   // Luxury car specialists (0083): applications waiting for the team (also
   // counted in "to review") and the garages holding the badge.
   const luxury = luxuryCounts(vendors)
@@ -635,6 +641,16 @@ function VendorsList() {
                   onClick={() => chooseShow(ELIGIBLE_FILTER)}
                   className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
                 />
+                {/* Garages still to link to their Google listing (21 Nov 2026). */}
+                {(hasGoogle || show === NO_GOOGLE_FILTER) && (
+                  <FilterChip
+                    label={NO_GOOGLE_LABEL}
+                    count={noGoogle}
+                    active={show === NO_GOOGLE_FILTER}
+                    onClick={() => chooseShow(NO_GOOGLE_FILTER)}
+                    className="min-h-11 shrink-0 rounded-[8px] text-[13px]"
+                  />
+                )}
                 {/* Luxury car specialists (0083): applications waiting for
                     the team, oldest first, and who holds the badge. */}
                 <FilterChip
@@ -950,6 +966,7 @@ function emptyText(show: ListFilter, q: string, anyFilter: boolean): string {
   if (show === REVIEW_FILTER) return 'No documents to review.'
   if (show === CERTIFIED_FILTER) return 'No Gold garages yet.'
   if (show === ELIGIBLE_FILTER) return 'No garage is waiting for Gold.'
+  if (show === NO_GOOGLE_FILTER) return 'Every garage is linked to its Google listing.'
   if (show === LUXURY_APPLICATIONS_FILTER) return 'No luxury applications waiting.'
   if (show === LUXURY_SPECIALISTS_FILTER) return 'No Luxury specialists yet.'
   return `No garages are ${SHOW_LABELS[show].toLowerCase()}.`

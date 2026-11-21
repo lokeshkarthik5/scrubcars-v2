@@ -13,5 +13,7 @@ describe('area sign-ups: the apps say the server’s numbers', () => {
       expect(core.FREE_WASH_RULES[key]).toBe(FREE_WASH_RULES[key])
     }
     expect(core.REFERRAL_CREDIT).toEqual({ ...REFERRAL_CREDIT })
+    // No cap per customer (owner, 21 Nov 2026) on either side.
+    expect('maxPerCustomerRupees' in core.REFERRAL_CREDIT).toBe(false)
   })
 })

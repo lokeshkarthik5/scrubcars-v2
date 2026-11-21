@@ -5,7 +5,7 @@
  * at-garage garage, "Growing here" off) in the sheet switches the chip, and
  * its list shows that garage with no town sign and no count anywhere: "In
  * E2E Smalltown", "Detlio in E2E Smalltown" on the map strip, one quiet
- * "Recommend it" row under the garages, and no free-wash card.
+ * Bring your garage card under the garages (it replaced the "Recommend it" row), and no free-wash card.
  *
  * Read-only: the city is picked in this browser's own storage. Ids 7000–7009.
  */
@@ -113,10 +113,13 @@ test.describe('a small city, on screen @p0', () => {
     await expect(page.locator('[data-free-wash-card]')).toHaveCount(0)
     await expect(page.getByText(/more garages|just started/i)).toHaveCount(0)
 
-    // One quiet row under the garages, to the recommend form (admin's leads).
-    const recommend = page.getByRole('button', { name: `Know a great garage in ${C.smallTown.name}? Recommend it` })
-    await expect(recommend).toBeVisible()
-    await recommend.click()
+    // Under the garages, Bring your garage's card (21 Nov 2026), which replaced the quiet
+    // "Know a great garage in <City>?" row: never both.
+    await expect(page.locator('[data-recommend-row]')).toHaveCount(0)
+    const bring = page.getByRole('region', { name: 'Know a good garage? Bring it to Detlio' })
+    await expect(bring).toHaveCount(1)
+    await bring.scrollIntoViewIfNeeded()
+    await bring.getByRole('button', { name: 'Recommend a garage' }).click()
     const form = page.getByRole('dialog', { name: 'Recommend a garage' })
     await expect(form).toBeVisible()
     await expect(form.getByRole('textbox', { name: 'Garage name' })).toBeVisible()

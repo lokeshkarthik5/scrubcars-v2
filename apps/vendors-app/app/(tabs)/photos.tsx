@@ -1,14 +1,14 @@
 import { ApiError } from '@repo/core/api/client';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { ScCard, Skeleton } from '@repo/native-ui/primitives';
 import { TopBar } from '@/components/rows';
-import { IconTrash } from '@repo/native-ui/icons';
+import { IconChevronLeft, IconChevronRight, IconStar, IconTrash } from '@repo/native-ui/icons';
 import { IconBuildingStore, IconPhoto, IconUpload } from '@/components/owner-icons';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
@@ -34,10 +34,19 @@ import {
   deleteVendorLogo,
   deleteVendorPhoto,
   getMyPhotos,
+  setVendorPhotoOrder,
   uploadVendorLogo,
   uploadVendorPhoto,
 } from '@/lib/vendor-api';
 import { useT } from '@repo/core/i18n';
+import {
+  movedPhotos,
+  PHOTO_ORDER_STALE,
+  PHOTO_ORDER_WORDS,
+  photoMoves,
+  withOrderOf,
+  type PhotoMove,
+} from '@repo/core/photo-order';
 
 const GAP = 8;
 // The web's back arrow goes to /settings; in the tab bar `back` would land on Home instead.
@@ -59,6 +68,10 @@ function PhotosScreen() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [ordering, setOrdering] = useState(false);
+  // Make cover and the arrows wait for an upload or delete to finish, so the order sent is the
+  // list the server has (anything else is refused), as on the web.
+  const orderLocked = ordering || uploading || deletingId !== null;
   const [gridWidth, setGridWidth] = useState(0);
   const tile = tileSize(gridWidth, GAP);
 
@@ -180,6 +193,40 @@ function PhotosScreen() {
     }
   };
 
+  // Make cover and the ← → arrows (@repo/core/photo-order), as the web's Photos page: the new
+  // order shows at once and saves at once. A failed save puts the order back; a stale one (photos
+  // changed on another device) shows them as they are now.
+  const handleMove = async (id: string, move: PhotoMove) => {
+    if (orderLocked) return;
+    const next = movedPhotos(photos, id, move);
+    if (!next) return;
+    const previousIds = photos.map((p) => p.id);
+    setPhotos(next);
+    setOrdering(true);
+    try {
+      const saved = await setVendorPhotoOrder(next.map((p) => p.id));
+      setPhotos((prev) => withOrderOf(prev, saved.map((p) => p.id)));
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        router.replace('/login');
+        return;
+      }
+      if (err instanceof ApiError && err.code === PHOTO_ORDER_STALE) {
+        try {
+          setPhotos(await getMyPhotos());
+        } catch {
+          setPhotos((prev) => withOrderOf(prev, previousIds));
+        }
+        toast.error(t(PHOTO_ORDER_WORDS.stale));
+        return;
+      }
+      setPhotos((prev) => withOrderOf(prev, previousIds));
+      toast.error(t(PHOTO_ORDER_WORDS.failed));
+    } finally {
+      setOrdering(false);
+    }
+  };
+
   return (
     <AppShell>
       <TopBar title={t('Garage photos')} onBack={goBack} />
@@ -228,7 +275,11 @@ function PhotosScreen() {
             <T accessibilityRole="header" size={15} weight={600}>
               {t('Photos')}
             </T>
-            {photos.length > 0 ? (
+            {ordering ? (
+              <T accessibilityRole="text" accessibilityLiveRegion="polite" size={12} color={colors.textMuted}>
+                {t('Saving…')}
+              </T>
+            ) : photos.length > 0 ? (
               <T num size={12} color={colors.textMuted}>
                 {photos.length}
               </T>
@@ -237,10 +288,15 @@ function PhotosScreen() {
           <T size={12} color={colors.textSecondary}>
             {t(PHOTOS_SUBTITLE)}
           </T>
+          {photos.length > 1 ? (
+            <T size={12} color={colors.textSecondary}>
+              {t(PHOTO_ORDER_WORDS.hint)}
+            </T>
+          ) : null}
         </View>
 
         {/* The screen's one main action. */}
-        <ScButton variant="main" size="lg" disabled={uploading} onPress={() => void handleFiles()}>
+        <ScButton variant="main" size="lg" disabled={uploading || ordering} onPress={() => void handleFiles()}>
           <IconUpload size={18} color={colors.white} />
           <Label color={colors.white}>{uploading ? t('Uploading…') : t('Add photos')}</Label>
         </ScButton>
@@ -265,32 +321,97 @@ function PhotosScreen() {
               </T>
             </View>
           ) : (
-            photos.map((photo, i) => (
-              <View key={photo.id} style={[styles.tile, { width: tile, height: tile }]}>
-                <Image
-                  accessibilityLabel={t('Garage photo {n}', { n: i + 1 })}
-                  source={{ uri: photo.url }}
-                  resizeMode="cover"
-                  style={styles.fill}
-                />
-                {/* A full 44px target in the corner; the dark disc keeps it legible on any photo. */}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t('Delete photo')}
-                  disabled={deletingId === photo.id}
-                  onPress={() => void handleDelete(photo.id)}
-                  style={[styles.trash, deletingId === photo.id && { opacity: 0.5 }]}
-                >
-                  <View style={styles.disc}>
-                    <IconTrash size={15} color={colors.white} />
+            photos.map((photo, i) => {
+              const moves = photoMoves(i, photos.length);
+              return (
+                <View key={photo.id} style={[styles.tile, { width: tile, height: tile }]}>
+                  <Image
+                    accessibilityLabel={t('Garage photo {n}', { n: i + 1 })}
+                    source={{ uri: photo.url }}
+                    resizeMode="cover"
+                    style={styles.fill}
+                  />
+                  {moves.isCover ? (
+                    <View style={styles.coverTag}>
+                      <T size={12} weight={600} color={colors.white}>
+                        {t(PHOTO_ORDER_WORDS.cover)}
+                      </T>
+                    </View>
+                  ) : null}
+                  {/* A full 44px target in the corner; the dark disc keeps it legible on any photo. */}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Delete photo')}
+                    disabled={deletingId === photo.id || ordering}
+                    onPress={() => void handleDelete(photo.id)}
+                    style={[styles.trash, (deletingId === photo.id || ordering) && { opacity: 0.5 }]}
+                  >
+                    <View style={styles.disc}>
+                      <IconTrash size={15} color={colors.white} />
+                    </View>
+                  </Pressable>
+                  {/* ← Make cover → along the bottom, 44px targets each. */}
+                  <View style={styles.moves}>
+                    <MoveButton
+                      label={t(PHOTO_ORDER_WORDS.left)}
+                      disabled={orderLocked || !moves.left}
+                      onPress={() => void handleMove(photo.id, 'left')}
+                    >
+                      <IconChevronLeft size={16} color={colors.white} />
+                    </MoveButton>
+                    {moves.cover ? (
+                      <MoveButton
+                        label={t(PHOTO_ORDER_WORDS.makeCover)}
+                        disabled={orderLocked}
+                        onPress={() => void handleMove(photo.id, 'cover')}
+                      >
+                        <IconStar size={15} color={colors.white} />
+                      </MoveButton>
+                    ) : (
+                      <View style={styles.moveSpacer} />
+                    )}
+                    <MoveButton
+                      label={t(PHOTO_ORDER_WORDS.right)}
+                      disabled={orderLocked || !moves.right}
+                      onPress={() => void handleMove(photo.id, 'right')}
+                    >
+                      <IconChevronRight size={16} color={colors.white} />
+                    </MoveButton>
                   </View>
-                </Pressable>
-              </View>
-            ))
+                </View>
+              );
+            })
           )}
         </View>
       </View>
     </AppShell>
+  );
+}
+
+/** A 44px target with the dark disc drawn inside, as the delete button. */
+function MoveButton({
+  label,
+  disabled,
+  onPress,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.move, disabled && { opacity: 0.4 }]}
+    >
+      <View style={styles.disc}>{children}</View>
+    </Pressable>
   );
 }
 
@@ -318,6 +439,26 @@ const useStyles = createStyles((colors) => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   tile: { overflow: 'hidden', borderRadius: 12, backgroundColor: colors.surface },
   trash: { position: 'absolute', right: 0, top: 0, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  coverTag: {
+    position: 'absolute',
+    left: 8,
+    top: 8,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  moves: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  move: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  moveSpacer: { width: 44, height: 44 },
   disc: {
     width: 32,
     height: 32,

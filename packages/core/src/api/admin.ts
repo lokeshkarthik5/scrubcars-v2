@@ -1,3 +1,4 @@
+import type { AdminGoogleListing } from './admin-google'
 import type { LuxuryStatus } from '@repo/core/luxury'
 import type { Tier } from '@repo/core/tiers'
 import { apiClient } from './client'
@@ -16,6 +17,16 @@ import type { MissingKey } from '@repo/core/onboarding-marks'
 import type { ColourTag } from '@repo/core/garage-target'
 import { setAdminSigner, signedBody } from './admin-signer'
 import type { OnboardingMarkBrief } from './admin-marks'
+
+/** One customer who brought a garage in (AdminVendor.broughtInBy). */
+export interface AdminBroughtInBy {
+  recommendationId: string
+  /** Null once the customer's account is gone. */
+  customerName: string | null
+  credit: 'paid' | 'owed' | 'waiting'
+  amountRupees: number
+  recommendedAt: string
+}
 
 /** One garage's luxury line on the Garages list (0083). */
 export interface AdminVendorLuxury {
@@ -119,6 +130,20 @@ export interface AdminVendor {
    * last 90 days. Null while the guarantee is off; absent from older servers.
    */
   redoClaims90d?: number | null
+  /**
+   * Google rating for new garages (21 Nov 2026): its Google listing, from
+   * its Coverage lead; null when it has none ("No Google listing"). Absent
+   * from older servers.
+   */
+  google?: AdminGoogleListing | null
+  /**
+   * Bring your garage (21 Nov 2026): the customers whose recommendation
+   * brought this garage in (it signed up with the phone they gave, or the
+   * team onboarded the lead made of it), and whether each one's ₹500 is
+   * paid, owed (credit is off) or waiting for their paid booking there.
+   * Admin only. Absent from older servers.
+   */
+  broughtInBy?: AdminBroughtInBy[]
   /**
    * Its garage documents in short (0043): whether it has the badge, how
    * many required are approved, how many wait for review. Null while garage
@@ -1877,6 +1902,21 @@ export async function deleteAdminVendorPhoto(
     `/admin/vendors/${vendorId}/photos/${photoId}`,
     { method: 'DELETE' }
   )
+}
+
+/**
+ * PUT /admin/vendors/:id/photos/order — the whole gallery in its new order,
+ * first = cover (Make cover and the arrows). 409 PHOTO_ORDER_STALE when the
+ * list isn't the garage's photos now.
+ */
+export async function setAdminVendorPhotoOrder(
+  vendorId: string,
+  photoIds: string[]
+) {
+  return apiClient<AdminPhoto[]>(`/admin/vendors/${vendorId}/photos/order`, {
+    method: 'PUT',
+    body: JSON.stringify({ photoIds }),
+  })
 }
 
 // Service photos and video: adminMediaApi in @repo/core/api/service-media,

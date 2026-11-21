@@ -81,7 +81,8 @@ import {
   PickupExplainer,
   SkipTheDriveCard,
 } from './reach-parts'
-import { FreeWashPiece, RecommendRow } from '@/components/reach/free-wash'
+import { FreeWashPiece } from '@/components/reach/free-wash'
+import { BringGarageCard } from '@/components/reach/bring-garage'
 import { FilterSheet, SERVICE_FILTERS, ServiceFilterIcon, serviceFilterLabel, type ServiceFilter } from './filter-sheet'
 import { MapPeek } from './map-peek'
 import { QuickLook } from './quick-look'
@@ -450,6 +451,10 @@ export function GarageList({
       {justOutside.length > 0 && serviceMode !== 'dropin' && (
         <JustOutsideSection items={justOutside} mode={serviceMode} />
       )}
+      {/* Bring your garage (21 Nov 2026): after the last garage, in every
+          area; in a small city it is the one way to tell us about another
+          (it replaced the quiet "Know a great garage in <City>?" row). */}
+      <BringGarageCard />
       <NextTabFooter mode={serviceMode} offer={nextOffer} onSwitch={switchTo} />
     </>
   )
@@ -877,10 +882,6 @@ export function GarageList({
             </>
           )}
           {ending}
-          {/* A small city (0070, mockup D): under its garages, one quiet way
-              to tell us about another, to admin's leads. No "more coming":
-              nobody has promised that. */}
-          {small && !isLoading && !isError && !isRefreshing && <RecommendRow city={city} />}
         </div>
         </PullToRefresh>
       </section>

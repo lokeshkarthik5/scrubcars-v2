@@ -15,6 +15,7 @@ import {
   verifyAdminVendor,
   type AdminVendor,
 } from '@repo/core/api/admin'
+import { linkGarageGoogle, searchGarageGoogle, unlinkGarageGoogle } from '@repo/core/api/admin-google'
 import { adminBookingKeys } from '@repo/core/api/hooks/use-admin-bookings'
 import { adminRefundKeys } from '@repo/core/api/hooks/use-admin-refunds'
 
@@ -202,6 +203,38 @@ export function useDeleteAdminVendorForever() {
         queryClient.removeQueries({ queryKey: adminVendorKeys.detail(id) })
       }
       invalidate()
+    },
+  })
+}
+
+/**
+ * Google rating for new garages (21 Nov 2026): the side panel's Google
+ * listing. The search is a mutation, run only when the team asks: each one
+ * is a paid Google call, rate limited per admin. Link and Unlink refresh the
+ * garage list, whose `google` the panel reads.
+ */
+export function useSearchGarageGoogle(vendorId: string) {
+  return useMutation({
+    mutationFn: (text?: string) => searchGarageGoogle(vendorId, text),
+  })
+}
+
+export function useLinkGarageGoogle(vendorId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (placeId: string) => linkGarageGoogle(vendorId, placeId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: adminVendorKeys.lists() })
+    },
+  })
+}
+
+export function useUnlinkGarageGoogle(vendorId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => unlinkGarageGoogle(vendorId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: adminVendorKeys.lists() })
     },
   })
 }

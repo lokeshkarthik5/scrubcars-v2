@@ -7,11 +7,13 @@ import {
   FREE_WASH_RULES,
   freeWashEndsAt,
   freeWashReady,
+  garageJoinedPushWords,
   isReachPushHour,
   launchPushWords,
   launchPushWordsNoWash,
   REFERRAL_CREDIT,
   referralCredit,
+  referralCreditPushWords,
   reminderPushWords,
   showLaunchBanner,
   signupOffer,
@@ -22,7 +24,9 @@ import {
   zoneIsLive,
   zonesToLaunch,
 } from '../../lib/area-signups.js'
-import { customerAreaNews } from '../../lib/push-messages.js'
+import { customerAreaNews, customerRecommendedGarageJoined, customerReferralCredit } from '../../lib/push-messages.js'
+import { AUTOMATIC_ACTOR } from '../../lib/certification.js'
+import { joinedNoticeFrom, joinedNoticeSends, JOINED_NOTICE_RULES } from '../../lib/recommendations.js'
 import { zoneFor, zonesWithGarages } from '../../lib/zones.js'
 import { bookingRequestsService, type CustomerRequestView } from '../booking-requests/booking-requests.service.js'
 import { pushService } from '../push/push.service.js'
@@ -138,11 +142,16 @@ export const areaSignupsService = {
     return { left: true }
   },
 
-  /** "Know a good garage here?": a lead for the team. */
+  /**
+   * "Know a good garage here?" / Bring your garage: a lead for the team. The
+   * same number sent again while the last one is still in the zone's list
+   * is that one (`insertRecommendationOnce`), so a double tap on Open
+   * WhatsApp is one recommendation.
+   */
   async recommend(userId: string, input: RecommendInput) {
     const zone = input.zoneSlug ? await areaSignupsRepository.findZoneBySlug(input.zoneSlug) : null
     if (input.zoneSlug && !zone) throw new AppError(404, 'Area not found', 'AREA_NOT_FOUND')
-    const [row] = await areaSignupsRepository.insertRecommendation({
+    const { row, created } = await areaSignupsRepository.insertRecommendationOnce({
       userId,
       zoneId: zone?.id ?? null,
       name: input.name,
@@ -150,10 +159,12 @@ export const areaSignupsService = {
       phone: input.phone ?? null,
       why: input.why?.trim() ? input.why.trim() : null,
     })
-    log.info({ userId, recommendationId: row!.id, zone: zone?.slug ?? null }, 'garage_recommendation:created')
+    log.info({ userId, recommendationId: row.id, zone: zone?.slug ?? null, created }, 'garage_recommendation:created')
     return {
-      id: row!.id,
-      credit: { perGarage: REFERRAL_CREDIT.perGarageRupees, max: REFERRAL_CREDIT.maxPerCustomerRupees },
+      id: row.id,
+      // No cap per customer (owner, 21 Nov 2026): `max` is null, kept so
+      // the answer only ever gains fields (older apps had a number here).
+      credit: { perGarage: REFERRAL_CREDIT.perGarageRupees, max: null },
     }
   },
 
@@ -232,9 +243,56 @@ export const areaSignupsService = {
     return { launched, issued }
   },
 
-  /** After a change that may have listed a garage: launch any zone now due, after the response. */
+  /**
+   * After a change that may have listed a garage: launch any zone now due,
+   * then tell the customers who brought a garage in that is now shown
+   * (tellJoinedGarages), after the response.
+   */
   launchSoon() {
-    runInBackground('area:launch_check', () => areaSignupsService.launchDueZones())
+    runInBackground('area:launch_check', async () => {
+      await areaSignupsService.launchDueZones()
+      await areaSignupsService.tellJoinedGarages()
+    })
+  },
+
+  /** After a recommendation was linked to a garage: tell its customer now if the garage is already shown. */
+  tellJoinedSoon() {
+    runInBackground('area:joined_notice', () => areaSignupsService.tellJoinedGarages())
+  },
+
+  /**
+   * "<Garage> joined Detlio thanks to you. Book them once to get ₹500."
+   * (Bring your garage; owner, 21 Nov 2026): sent only once the garage is
+   * first shown to customers — never at sign-up while it is pending and
+   * invisible — to each customer whose recommendation it joined, once per
+   * recommendation (claimed first: areaSignupsRepository.claimJoinedNotices)
+   * and once per customer and garage. Run where a garage can become listed
+   * (launchSoon: admin verify, update, unarchive, resume, the garage's own
+   * resume, a city switched on), after a link (tellJoinedSoon) and by the
+   * cron. Only in the area news' hours (09:00–20:59 IST): outside them
+   * nothing is claimed or sent, and the cron's first run in the morning
+   * tells them.
+   */
+  async tellJoinedGarages(now = new Date()): Promise<number> {
+    if (!isReachPushHour(now)) return 0
+    const claimed = await areaSignupsRepository.claimJoinedNotices({
+      from: joinedNoticeFrom(now),
+      limit: JOINED_NOTICE_RULES.batch,
+      actorName: AUTOMATIC_ACTOR,
+    })
+    const sends = joinedNoticeSends(claimed)
+    for (const send of sends) {
+      pushService.notifyCustomer(
+        send.userId,
+        customerRecommendedGarageJoined(
+          { id: send.recommendationId, vendorId: send.vendorId },
+          garageJoinedPushWords(send.businessName),
+          true
+        )
+      )
+    }
+    if (sends.length > 0) log.info({ told: sends.length, recommendations: claimed.length }, 'area:joined_told')
+    return sends.length
   },
 
   /**
@@ -291,17 +349,25 @@ export const areaSignupsService = {
         }
       }
     }
+    const joinedTold = await areaSignupsService
+      .tellJoinedGarages(now)
+      .catch((err: unknown) => {
+        log.error({ err }, 'area:joined_notice_failed')
+        return 0
+      })
 
     const referrals = await areaSignupsService.sweepReferrals(now)
-    return { launched: launch.launched.length, issued: launch.issued, messages, referrals }
+    return { launched: launch.launched.length, issued: launch.issued, messages, joinedTold, referrals }
   },
 
   /**
-   * Recommendation credits: a recommendation the team linked to a garage,
-   * once that garage is live and the customer completed a paid booking
-   * there (lib/area-signups.ts referralCredit; once per garage, ₹500 at
-   * most). Granted while gift credit is on (GIFTS_ENABLED), else owed and
-   * granted by a later run once it is.
+   * Recommendation credits: a recommendation linked to a garage (the team's
+   * lead, or the garage signing up with the customer's phone), once that
+   * garage is live and the customer completed a paid booking there
+   * (lib/area-signups.ts referralCredit; ₹500, once per garage, no cap per
+   * customer). Granted while gift credit is on (GIFTS_ENABLED), else owed
+   * and granted by a later run once it is. A grant tells the customer
+   * (push, like a report reward's); an owed one says nothing yet.
    */
   async sweepReferrals(now = new Date()) {
     const out = { granted: 0, owed: 0 }
@@ -331,13 +397,19 @@ export const areaSignupsService = {
               garageLive: live,
               completedPaidBooking: bookingId !== null,
               alreadyCreditedForGarage: facts.alreadyForGarage,
-              creditedSoFarRupees: facts.creditedSoFarRupees,
             })
             return 'amountRupees' in decision ? decision.amountRupees : null
           },
         })
-        if (result?.creditStatus === 'granted') out.granted++
-        else if (result?.creditStatus === 'owed') out.owed++
+        if (result?.creditStatus === 'granted') {
+          out.granted++
+          const vendorId = rec.vendorId
+          // The garage's name is read only while notifications are on.
+          pushService.notifyCustomer(rec.userId, async () => {
+            const garage = await areaSignupsRepository.garageName(vendorId)
+            return garage ? customerReferralCredit(result, referralCreditPushWords(garage, Number(result.creditAmount))) : null
+          })
+        } else if (result?.creditStatus === 'owed') out.owed++
         else await areaSignupsRepository.touchRecommendation(rec.id, now)
       } catch (err) {
         log.error({ err, recommendationId: rec.id }, 'area:referral_failed')

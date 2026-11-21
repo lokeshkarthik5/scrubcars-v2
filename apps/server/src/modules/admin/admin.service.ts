@@ -1,3 +1,4 @@
+import { garageGoogleService } from '../garage-google/garage-google.service.js'
 import { conditionCheckService } from '../condition-check/condition-check.service.js'
 import { NOTE_EDIT_HOURS, noteEditRefusal, noteEditableUntil, type NoteEditRefusal } from '../../lib/booking-notes.js'
 import { AT_GARAGE_ADDRESS_MESSAGE, atGarageAddressMissing, atGarageAddressRefused, garageAddressLine } from '../../lib/garage-address.js'
@@ -78,7 +79,8 @@ import { branchPickupTerms, planBranchCopy, planBranchOwner } from '../../lib/br
 import { groupNameOf } from '../../lib/branch-groups.js'
 import { vendorsRepository } from '../vendors/vendors.repository.js'
 import { deleteGarageFileIfUnused, vendorsService } from '../vendors/vendors.service.js'
-import type { CreateAddOnInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
+import type { CreateAddOnInput, PhotoOrderInput, UpdateAddOnInput } from '../vendors/vendors.validation.js'
+import { photoOrderError, photoOrderProblem } from '../../lib/photo-order.js'
 import {
   adminRepository,
   type BookingFilterSet,
@@ -875,9 +877,15 @@ export const adminService = {
       ])
     )
     const openCollection = await collectionListsService.openCollectionByVendor(missing)
+    // Bring your garage (21 Nov 2026): the customers whose recommendation
+    // brought each garage in, and where their ₹500 stands. One read.
+    const broughtIn = await leadsService.broughtInByGarage()
     // Cities (0069): each garage's city and whether that city (or Other
     // towns) is on for customers, read once for the whole list.
     const cityRules = await citiesService.rules()
+    // Google rating for new garages (21 Nov 2026): each garage's Google
+    // listing from its lead, for the side panel and "No Google listing".
+    const googleListings = await garageGoogleService.listingsByVendor(now)
     // Still the full array, every stage and the Bin included: the Bookings
     // garage filter reads this list too (and leaves the Bin out itself). The
     // panel's chips filter and count it on the client. A garage deleted
@@ -921,6 +929,8 @@ export const adminService = {
         openMarks: openMarks.get(vendor.id) ?? [],
         onboardedByName: vendor.onboardedByName ?? null,
         openCollection: openCollection.get(vendor.id) ?? null,
+        google: googleListings.get(vendor.id) ?? null,
+        broughtInBy: broughtIn.get(vendor.id) ?? [],
       }
     })
   },
@@ -1550,6 +1560,14 @@ export const adminService = {
         })
       if (!linked) log.warn({ vendorId: vendor.id }, 'admin:lead_not_linked')
     }
+
+    // Bring your garage (21 Nov 2026): customers who recommended one of its
+    // numbers brought it in, as when a garage signs up itself (after the
+    // lead's link, whose recommendations are linked already). Signed with
+    // the admin's name; never fails the create.
+    await leadsService
+      .linkRecommendationsByPhone(vendor.id, (await adminSubjectName(sub).catch(() => null)) ?? 'admin')
+      .catch((err: unknown) => log.error({ err, vendorId: vendor.id }, 'admin:recommendation_link_failed'))
 
     log.info({ vendorId: vendor.id, ownerId: owner.id }, 'admin:vendor-created')
     return vendor
@@ -2255,6 +2273,36 @@ export const adminService = {
       'admin:vendor-photo-added'
     )
     return created
+  },
+
+  /**
+   * "Make cover" and the arrows (lib/photo-order.ts), as the garage's own
+   * PUT /vendors/me/photos/order, with the audit row in the same
+   * transaction. Not for a garage in the Bin.
+   */
+  async setVendorPhotoOrder(
+    vendorId: string,
+    input: PhotoOrderInput,
+    actor: { sub: string; name: string }
+  ) {
+    const vendor = await assertWritableVendor(vendorId)
+    const result = await vendorsRepository.setPhotoOrder(
+      vendor.id,
+      input.photoIds,
+      (currentIds) => photoOrderProblem(currentIds, input.photoIds),
+      actor
+    )
+    if (result.problem) throw photoOrderError(result.problem)
+
+    log.info(
+      { vendorId: vendor.id, count: result.photos.length },
+      'admin:vendor-photos-reordered'
+    )
+    return result.photos.map((photo) => ({
+      id: photo.id,
+      url: photo.url,
+      sortOrder: photo.sortOrder,
+    }))
   },
 
   async deleteVendorPhoto(vendorId: string, photoId: string) {

@@ -15,9 +15,11 @@
  *   'free_wash'): up to ₹499 off one car-wash service, the customer paying
  *   anything above, valid 30 days from the zone's launch. The garage is paid
  *   the full price, as for any Detlio-funded code.
- * - Recommending a garage earns ₹100 of Detlio credit when the team links
- *   it to a garage that goes live and the customer completes a paid booking
- *   there: once per garage, ₹500 at most per customer.
+ * - Recommending a garage earns ₹500 of Detlio credit when it is linked to
+ *   a garage (the team's lead, or the garage signing up with the phone the
+ *   customer gave: lib/recommendations.ts) that goes live and the customer
+ *   completes a paid booking there: once per garage, with no limit on how
+ *   many garages a customer brings (owner, 21 Nov 2026).
  *
  * Pure, so every rule is unit-tested (area-signups.test.ts). Words and
  * numbers the app needs are twinned in packages/core/src/area-signups.ts
@@ -49,13 +51,11 @@ export const FREE_WASH_RULES = {
 } as const
 
 /**
- * The referral credit for a recommended garage.
- * PLACEHOLDER: owner to confirm (₹100 a garage, ₹500 at most a customer;
- * ADMIN-FIXES-BACKLOG "Needed from you").
+ * The referral credit for a recommended garage ("Bring your garage", owner,
+ * 21 Nov 2026): ₹500 a garage, once per garage, and no cap per customer.
  */
 export const REFERRAL_CREDIT = {
-  perGarageRupees: 100,
-  maxPerCustomerRupees: 500,
+  perGarageRupees: 500,
 } as const
 
 // ─── Signing up ──────────────────────────────────────────────────────────────
@@ -232,29 +232,26 @@ export function showLaunchBanner(signup: { launchBannerSeenAt: Date | null }, zo
 
 // ─── The referral credit ─────────────────────────────────────────────────────
 
-export type ReferralRefusal = 'NOT_LINKED' | 'GARAGE_NOT_LIVE' | 'NO_PAID_BOOKING' | 'ALREADY_FOR_GARAGE' | 'CAP_REACHED'
+export type ReferralRefusal = 'NOT_LINKED' | 'GARAGE_NOT_LIVE' | 'NO_PAID_BOOKING' | 'ALREADY_FOR_GARAGE'
 
 /**
  * Whether a recommendation earns its credit now, and how much: linked to a
  * garage that is live, a completed booking there whose money landed and was
- * kept, not already credited for that garage, and under the ₹500 cap (the
- * last credit is cut to what is left of it).
+ * kept, and not already credited for that garage (once per customer and
+ * garage, also a partial unique index). The full ₹500 every time: there is
+ * no cap on how many garages a customer brings in.
  */
 export function referralCredit(input: {
   vendorId: string | null
   garageLive: boolean
   completedPaidBooking: boolean
   alreadyCreditedForGarage: boolean
-  /** Referral credit the customer has had (granted or owed), in rupees. */
-  creditedSoFarRupees: number
 }): { amountRupees: number } | { refusal: ReferralRefusal } {
   if (!input.vendorId) return { refusal: 'NOT_LINKED' }
   if (!input.garageLive) return { refusal: 'GARAGE_NOT_LIVE' }
   if (!input.completedPaidBooking) return { refusal: 'NO_PAID_BOOKING' }
   if (input.alreadyCreditedForGarage) return { refusal: 'ALREADY_FOR_GARAGE' }
-  const left = REFERRAL_CREDIT.maxPerCustomerRupees - input.creditedSoFarRupees
-  if (left <= 0) return { refusal: 'CAP_REACHED' }
-  return { amountRupees: Math.min(REFERRAL_CREDIT.perGarageRupees, left) }
+  return { amountRupees: REFERRAL_CREDIT.perGarageRupees }
 }
 
 // ─── Words ───────────────────────────────────────────────────────────────────
@@ -285,5 +282,25 @@ export function reminderPushWords(areaName: string): { title: string; body: stri
   return {
     title: `Still waiting for ${areaName}?`,
     body: 'See the nearest garages, and who can come to you, in the meantime.',
+  }
+}
+
+/**
+ * A garage the customer recommended joined Detlio: it signed up with the
+ * phone they gave, or the team onboarded the lead made of it (Bring your
+ * garage, 21 Nov 2026). The garage's business name only.
+ */
+export function garageJoinedPushWords(garageName: string): { title: string; body: string } {
+  return {
+    title: `${garageName} joined Detlio thanks to you`,
+    body: `Book them once to get ₹${REFERRAL_CREDIT.perGarageRupees}.`,
+  }
+}
+
+/** The referral credit landed in the customer's Detlio credit (granted, not owed). */
+export function referralCreditPushWords(garageName: string, amountRupees: number): { title: string; body: string } {
+  return {
+    title: `₹${amountRupees.toLocaleString('en-IN')} credit added`,
+    body: `${garageName} joined Detlio and you booked them. Thanks for bringing them in!`,
   }
 }

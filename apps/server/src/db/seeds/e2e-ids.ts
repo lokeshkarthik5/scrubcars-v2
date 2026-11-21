@@ -2405,6 +2405,26 @@ export const SHINE = {
 } as const
 
 /**
+ * Bring your garage (21 Nov 2026; ids 8400–8449, phones 90000084xx):
+ * `customer` recommends a garage on WhatsApp from the garage list's end card
+ * (bring-garage.spec.ts; the phone is put beside SHINE's garage, the only
+ * one within 150 km there, so the list ends after one card). `earlier` and
+ * `another` recommended the same number before (one new, one the team
+ * contacted), and `dismissed` too, dismissed by the team. A garage then
+ * signs up itself in the garage app with `garagePhone`: every open one is
+ * linked to it (joined), the dismissed one never.
+ */
+export const BRING = {
+  customer: { id: id(8400), phone: '9000008400', name: 'Bringing Bhuvana' },
+  earlier: { id: id(8401), phone: '9000008401', name: 'Earlier Ezhil' },
+  another: { id: id(8402), phone: '9000008402', name: 'Another Anbu' },
+  /** The number the garage owner signs up with (no account before the spec). */
+  garagePhone: '9000008410',
+  garageName: 'Bring Test Car Spa',
+  recommendations: { earlier: id(8420), another: id(8421), dismissed: id(8422) },
+} as const
+
+/**
  * The pickup fee (0079; ids 7750–7799, phones 9000007750–99). Garages near
  * Mysuru (`home`, 12.30° N, 76.64° E), far from every other fixture, so the
  * Pickup & drop list from `home` shows only these:
@@ -2626,4 +2646,71 @@ export const LUXURY_FIXTURES = {
   approved: { id: id(8211), name: 'E2E Carbon Detail Works', serviceId: id(8221), brands: ['BMW', 'Mercedes-Benz', 'Audi'] },
   plain: { id: id(8212), name: 'E2E Kumar Auto Spa', serviceId: id(8222) },
   approvedApplication: { id: id(8230) },
+} as const
+
+/**
+ * Google rating for new garages and the d. mark (21 Nov 2026; ids
+ * 8100–8149). Three garages pinned together far south-west of every other
+ * fixture (`pin`), so a customer standing there sees them first: `newLinked`
+ * (no Detlio review, its lead read from Google 3 days ago: the card and the
+ * garage page show Google's 4.6 from 312 reviews), `stale` (its lead read 40
+ * days ago: past Google's 30 days, so "New on Detlio"), `rated` (5 counted
+ * Detlio reviews: the d. mark, and Google's 4.4 only as the Reviews tab's
+ * "Also" line) and `unlinked` (no lead: admin links it to `place`, one of
+ * PLACES_FAKE's places, and unlinks it again). Only
+ * specs/users/google-ratings.spec.ts and specs/admin/google-ratings.spec.ts
+ * read them.
+ */
+export const GOOGLE_RATINGS = {
+  pin: { lat: ORIGIN.lat - 2.2, lng: ORIGIN.lng - 0.9 },
+  owner: { id: id(8100), phone: '9000008100', name: 'Gratings Owner' },
+  customer: { id: id(8101), phone: '9000008101', name: 'Gratings Reviewer', vehicleId: id(8102) },
+  newLinked: {
+    id: id(8103),
+    name: 'Gratings Shine Hub',
+    serviceId: id(8104),
+    leadId: id(8105),
+    placeId: 'e2e-google-ratings-shine',
+    google: { rating: '4.6', reviewCount: 312 },
+  },
+  stale: {
+    id: id(8106),
+    name: 'Gratings Stale Spa',
+    serviceId: id(8107),
+    leadId: id(8108),
+    placeId: 'e2e-google-ratings-stale',
+    google: { rating: '4.9', reviewCount: 40 },
+  },
+  rated: {
+    id: id(8109),
+    name: 'Gratings Carbon Works',
+    serviceId: id(8110),
+    leadId: id(8111),
+    placeId: 'e2e-google-ratings-carbon',
+    google: { rating: '4.4', reviewCount: 186 },
+    bookings: [id(8112), id(8113), id(8114), id(8115), id(8116)],
+    reviews: [id(8117), id(8118), id(8119), id(8120), id(8121)],
+  },
+  unlinked: { id: id(8122), name: 'Gratings Royal Wash', serviceId: id(8123) },
+  /** PLACES_FAKE's place the admin spec links `unlinked` to (lib/places/fake.ts). */
+  place: { placeId: 'e2e-google-ratings-royal', name: 'Gratings Royal Car Wash', rating: 4.3, reviewCount: 58 },
+} as const
+
+/**
+ * Garage photo order (21 Nov 2026; ids 8000–8049, phones 90000080xx): one
+ * garage with three photos in a known order, owned by its own seat so only
+ * the photo-order specs (specs/admin/photo-order.spec.ts and
+ * specs/vendors/photo-order.spec.ts) read or move them. Each spec puts the
+ * seeded order back first. The server's unit tests use stand-in ids in the
+ * same range (8020–8049).
+ */
+export const PHOTO_ORDER = {
+  owner: { id: id(8000), phone: '9000008000', name: 'Photo Order Owner' },
+  garage: { id: id(8001), name: 'Photo Order Car Spa' },
+  /** In their seeded order: the first is the cover. */
+  photos: [
+    { id: id(8002), url: 'https://placehold.co/600x400/png?text=Front' },
+    { id: id(8003), url: 'https://placehold.co/600x400/png?text=Bay' },
+    { id: id(8004), url: 'https://placehold.co/600x400/png?text=Lounge' },
+  ],
 } as const

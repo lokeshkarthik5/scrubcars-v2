@@ -49,12 +49,15 @@ import { bookingsRepository } from '../bookings/bookings.repository.js'
 import { toVendorBookingResponse } from '../bookings/bookings.service.js'
 import { membersRepository } from '../members/members.repository.js'
 import { reviewsRepository } from '../reviews/reviews.repository.js'
-import { ratingsFor } from '../reviews/reviews.service.js'
+import { googleRatingsFor, ratingsFor } from '../reviews/reviews.service.js'
+import { cardGoogleRating, type GoogleRating } from '../../lib/ratings.js'
 import { vendorsRepository } from './vendors.repository.js'
 import { slotAlertsService } from '../slot-alerts/slot-alerts.service.js'
 import { areaSignupsService } from '../area-signups/area-signups.service.js'
 import { branchGroupsService } from '../branch-groups/branch-groups.service.js'
 import { citiesService } from '../cities/cities.service.js'
+import { leadsService } from '../leads/leads.service.js'
+import { GARAGE_SIGN_UP_HANDLER } from '../../lib/recommendations.js'
 import { cityById, storedWholeCity, WHOLE_CITY_NEEDS_CITY, type CityPlace } from '../../lib/cities.js'
 import { publicWholeCity, toPublicVendor, type PublicVendorFields } from './vendors.public.js'
 
@@ -108,6 +111,7 @@ import type {
   PauseBookingsInput,
   PhotoUploadUrlInput,
   ReorderPhotosInput,
+  PhotoOrderInput,
   ServiceImageUploadUrlInput,
   SetLogoInput,
   SetWorkingHoursInput,
@@ -126,6 +130,7 @@ import { tiersService } from '../tiers/tiers.service.js'
 import type { Tier } from '../../lib/tiers.js'
 import type { PickupFeePlan } from '../../lib/pickup-fee.js'
 import { pickupFeesService } from '../pickup-fees/pickup-fees.service.js'
+import { photoOrderError, photoOrderProblem } from '../../lib/photo-order.js'
 import {
   removeMediaFiles,
   serviceMediaService,
@@ -216,6 +221,14 @@ export type PublicVendorResponse = PublicVendorFields & {
   /** Its top good tag once 5+ customers picked it ("Known for On time"). */
   knownFor: { tag: string; label: string } | null
   /**
+   * Google's rating (21 Nov 2026, lib/ratings.ts): the garage's lead's,
+   * while it is under Google's 30 days. Always named as Google's on screen
+   * ("Google Maps"), never added to Detlio's. Sent whatever the count:
+   * the garage page shows it in its header under 5 counted reviews and as a
+   * small "Also" line in the Reviews tab from 5.
+   */
+  google: GoogleRating | null
+  /**
    * Set when the garage is pinned more than 50 km from the Chennai centre, or
    * is unpinned and its own city names another town (km null), so its page
    * and checkout can say where it is (lib/service-city.ts). Null when it is
@@ -276,6 +289,14 @@ export type VendorListItemResponse = {
   reviewCount: number
   isNew: boolean
   knownFor: { tag: string; label: string } | null
+  /**
+   * Google's rating (21 Nov 2026, lib/ratings.ts): the garage's lead's,
+   * while it is under Google's 30 days. Always named as Google's on screen
+   * ("Google Maps"), never added to Detlio's. On a card only while it is
+   * the main one (fewer than 5 counted reviews), and never on the map's
+   * payload (`map=true`): null otherwise.
+   */
+  google: GoogleRating | null
   serviceTags: string[]
   photos: string[]
   // null when the caller sent no origin. Never 0 as a stand-in for "unknown" —
@@ -924,7 +945,8 @@ function decodeCursor(cursor: string | undefined): {
  */
 export async function vendorCardsFor(
   page: Array<{ id: string; distanceM: number | null }>,
-  q?: string
+  q?: string,
+  options: { map?: boolean } = {}
 ): Promise<VendorListItemResponse[]> {
   const rows = await vendorsRepository.listPublicVendorsByIds(
     page.map((row) => row.id)
@@ -942,6 +964,10 @@ export async function vendorCardsFor(
     // "All over <city>" (0069) on the cards: one read of the cities.
     await citiesService.rules(),
   ]
+  // Google's rating for new garages (21 Nov 2026): one read of the leads,
+  // and none at all for the map, which never shows it.
+  const map = options.map === true
+  const googleRatings = map ? new Map<string, GoogleRating>() : await googleRatingsFor(rows.map((vendor) => vendor.id), new Date())
   // "1 of 3 … branches" (0081): one read for the whole page.
   const groups = await branchGroupsService.cardGroupsOf(rows.map((vendor) => vendor.id))
   // The Luxury specialist badge (0083): one read for the whole page.
@@ -985,6 +1011,7 @@ export async function vendorCardsFor(
       reviewCount: rating?.reviewCount ?? 0,
       isNew: rating?.isNew ?? true,
       knownFor: rating?.knownFor ?? null,
+      google: cardGoogleRating(googleRatings.get(vendor.id) ?? null, rating?.reviewCount ?? 0, { map }),
       serviceTags: categories.map(categoryLabel),
       photos: vendor.photos.map((photo) => photo.url),
       // One decimal is all a straight-line distance can honestly claim.
@@ -1220,7 +1247,7 @@ export const vendorsService = {
       segmentOffset = offset + page.length
     }
 
-    const items = await vendorCardsFor(page, query.q)
+    const items = await vendorCardsFor(page, query.q, { map: query.map === true })
 
     return {
       items,
@@ -1250,6 +1277,7 @@ export const vendorsService = {
       // The pickup fee (0079), only for a garage that collects.
       isPickupOffered(vendor) ? await pickupFeesService.settings() : null,
     ]
+    const googleRatings = await googleRatingsFor([vendor.id], new Date())
     // "Also at" (0081): its other live branches, in one read.
     const branches = await branchGroupsService.liveBranchesOf(vendor.id)
     // The Luxury specialist badge (0083).
@@ -1269,6 +1297,7 @@ export const vendorsService = {
       reviewCount: rating?.reviewCount ?? 0,
       isNew: rating?.isNew ?? true,
       knownFor: rating?.knownFor ?? null,
+      google: googleRatings.get(vendor.id) ?? null,
       outsideServiceCity: outsideServiceCity(vendor),
       garageCity: cityNameOf(vendor.cityId, cityRules.cities),
       branches,
@@ -1312,6 +1341,13 @@ export const vendorsService = {
     // than something to enforce with a count query.
     await membersRepository.createOwnerMembership(vendor.id, ownerId)
     log.info({ vendorId: vendor.id, ownerId, businessName: vendor.businessName }, 'vendor:created')
+
+    // Bring your garage (21 Nov 2026): a customer who recommended this
+    // garage's number (often by WhatsApp, with the sign-up link) brought it
+    // in. Never fails or undoes the sign-up.
+    await leadsService
+      .linkRecommendationsByPhone(vendor.id, GARAGE_SIGN_UP_HANDLER)
+      .catch((err: unknown) => log.error({ err, vendorId: vendor.id }, 'vendor:recommendation_link_failed'))
 
     return toVendorResponse(vendor)
   },
@@ -1757,6 +1793,27 @@ export const vendorsService = {
     )
 
     return photos.map(toPhotoResponse)
+  },
+
+  /**
+   * "Make cover" and the arrows (lib/photo-order.ts): the whole gallery in
+   * its new order, written under the photos' row lock. Admin's twin is
+   * adminService.setVendorPhotoOrder.
+   */
+  async setPhotoOrder(vendorId: string, input: PhotoOrderInput) {
+    const vendor = await getTenantVendor(vendorId)
+    const result = await vendorsRepository.setPhotoOrder(
+      vendor.id,
+      input.photoIds,
+      (currentIds) => photoOrderProblem(currentIds, input.photoIds)
+    )
+    if (result.problem) throw photoOrderError(result.problem)
+
+    log.info(
+      { vendorId: vendor.id, count: result.photos.length },
+      'vendor:photos-reordered'
+    )
+    return result.photos.map(toPhotoResponse)
   },
 
   async deletePhoto(vendorId: string, photoId: string) {

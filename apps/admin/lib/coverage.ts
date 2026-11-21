@@ -302,17 +302,40 @@ export function recommendationsByLead(
   return byLead
 }
 
-/** "Recommended by a customer · “Did my car well”" (by 2 customers, when more). */
+/**
+ * A garage's recommendations (Bring your garage, 21 Nov 2026): the ones
+ * made into the lead it came from and the ones linked to it straight away
+ * (it signed up with the phone a customer gave), once each, in the order
+ * the API sent them. What the garage's row in a call list says.
+ */
+export function garageRecommendations(
+  recommendations: readonly CoverageRecommendation[],
+  garageId: string,
+  leadId: string | null
+): CoverageRecommendation[] {
+  return recommendations.filter(
+    (rec) =>
+      rec.status !== 'declined' &&
+      (rec.vendorId === garageId ||
+        (leadId !== null && rec.leadId === leadId && rec.status !== 'new'))
+  )
+}
+
+/**
+ * "Recommended by a customer · “Did my car well”" (by 2 customers, when
+ * more); "· Joined" once one of them joined the garage on the row.
+ */
 export function recommendedLine(
-  recommendations: readonly Pick<CoverageRecommendation, 'why'>[]
+  recommendations: readonly Pick<CoverageRecommendation, 'why' | 'status'>[]
 ): string | null {
   if (recommendations.length === 0) return null
   const who =
     recommendations.length === 1
       ? 'Recommended by a customer'
       : `Recommended by ${recommendations.length} customers`
+  const joined = recommendations.some((rec) => rec.status === 'joined')
   const why = recommendations.find((rec) => rec.why)?.why
-  return why ? `${who} · “${why}”` : who
+  return [who, joined && 'Joined', why && `“${why}”`].filter(Boolean).join(' · ')
 }
 
 // ─── The drawn areas ────────────────────────────────────────────────────────

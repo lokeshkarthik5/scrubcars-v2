@@ -169,6 +169,8 @@ beforeAll(() => {
   patch(reviewsRepository, 'ratingAggregates', read([]))
   patch(reviewsRepository, 'tagCounts', read([]))
   patch(vendorsRepository, 'listPublicVendorsByIds', read([garageRow(QUICK), garageRow(NEAR_SLOW)]))
+  // Google rating for new garages: neither garage is linked to Google.
+  patch(vendorsRepository, 'listGoogleRatings', read([]))
   patch(tiersService, 'customerTiers', read(new Map()))
   patch(citiesService, 'rules', read({ cities: [], otherTowns: true }))
   // No branch groups (0081): the cards' one group read.

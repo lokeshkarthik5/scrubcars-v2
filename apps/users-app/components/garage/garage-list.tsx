@@ -1,5 +1,6 @@
 import { track } from '@/lib/shims/analytics';
-import { FreeWashPiece, RecommendRow } from '@/components/reach/free-wash';
+import { BringGarageCard } from '@/components/reach/bring-garage';
+import { FreeWashPiece } from '@/components/reach/free-wash';
 import { RequestSheet } from '@/components/reach/request-sheet';
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers';
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
@@ -787,11 +788,11 @@ export function GarageList({
           {listEnded && justOutside.length > 0 ? (
             <JustOutsideSection items={justOutside} mode={mode as 'doorstep' | 'pickup'} />
           ) : null}
+          {/* Bring your garage (21 Nov 2026): after the last garage, in every area; in a small
+              city it is the one way to tell us about another (it replaced the quiet row). */}
+          {listEnded ? <BringGarageCard /> : null}
           {listEnded && mode !== 'pickup' ? <NextTabFooter offer={nextOffer} onSwitch={switchTo} /> : null}
           {listEnded && mode === 'pickup' ? <FreeWashPiece placement="bottom" /> : null}
-          {/* A small city (0070, mockup D): under its garages, one quiet way to tell us about
-              another, to admin's leads. No "more coming": nobody has promised that. */}
-          {small && !isLoading && !isError && !isRefreshing ? <RecommendRow city={city} /> : null}
         </View>
       </View>
     </View>

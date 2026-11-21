@@ -22,6 +22,7 @@ import { cn } from '@repo/core/utils'
 import { TIER_LABELS } from '@repo/core/tiers'
 import { TierMedalIcon } from '@repo/ui/features/tier-medal'
 import { SidePanelMarks } from '@/components/marks/side-panel-marks'
+import { GoogleListingSection } from '@/components/garages/google-listing'
 import { GarageLuxurySection } from '@/components/garage-luxury-section'
 import { ColourCell } from '@/components/garages/colour-tags'
 import { colourSetLine } from '@/lib/garage-colours'
@@ -30,6 +31,7 @@ import { SidePanel, SidePanelFacts, SidePanelSection } from '@/components/table'
 import { PAGE_TAB_LABELS } from '@/lib/garage-edit'
 import {
   bookingParts,
+  broughtInByLines,
   editHref,
   garageArea,
   garageNextStep,
@@ -112,6 +114,21 @@ export function GarageSidePanel({
       ? ([['Onboarded by', onboardedBy(v) ?? 'Not set']] as Array<
           [string, React.ReactNode]
         >)
+      : []),
+    // Bring your garage (21 Nov 2026): which customers brought it in, and their ₹500.
+    ...(broughtInByLines(v).length > 0
+      ? ([
+          [
+            'Referral',
+            <span key="b" className="flex flex-col gap-0.5" data-brought-in-by="">
+              {broughtInByLines(v).map((line, i) => (
+                <span key={`${i}:${line}`}>
+                  <Figures text={line} />
+                </span>
+              ))}
+            </span>,
+          ],
+        ] as Array<[string, React.ReactNode]>)
       : []),
     ...(v.bookingCount !== undefined
       ? ([
@@ -217,6 +234,9 @@ export function GarageSidePanel({
           <WithTeamCell vendor={v} />
         </SidePanelSection>
       )}
+
+      {/* Google rating for new garages (21 Nov 2026). */}
+      <GoogleListingSection vendor={v} />
 
       <SidePanelSection title="Garage">
         <SidePanelFacts rows={facts} />

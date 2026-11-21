@@ -147,9 +147,9 @@ export const PRIVACY: LegalDoc = {
               'Telling you once when a garage opens in your area, once if a garage starts coming to it, and once more after 14 days with no news; and, if you are among an area\'s first 50, your free wash on the day it opens. We do not send WhatsApp messages yet: that choice is only kept for when we can.',
             ],
             [
-              'Garages you recommend: the garage\'s name, a Google Maps link or its phone number, and why (optional)',
+              'Garages you recommend: the garage\'s name, a Google Maps link or its phone number (the owner\'s WhatsApp number when you send it on WhatsApp), and why (optional)',
               'You',
-              'Our team contacts the garage to invite it to Detlio. If it joins and you complete a paid booking there, you get Detlio credit (₹100 a garage, up to ₹500).',
+              'Our team contacts the garage to invite it to Detlio. If you send it on WhatsApp, the message goes from your own WhatsApp; Detlio sends nothing. If the garage signs up with the number you gave, we link it to you. If it joins and you complete a paid booking there, you get ₹500 of Detlio credit for each garage you bring in.',
             ],
             [
               'A reason you type when cancelling (optional)',
@@ -208,7 +208,7 @@ export const PRIVACY: LegalDoc = {
         },
         {
           kind: 'note',
-          text: '**Customer reach, part 2 (0062): requests, free-wash sign-ups and recommendations.** Rows above are new in this release. Please advise: (1) the lawful basis for each (a request and a sign-up are asked for by the customer, so likely s.7(a); the 14-day reminder and the launch message are closer to marketing, sent only to people who signed up for exactly that news); (2) the WhatsApp opt-in is stored now but nothing is sent until a WhatsApp Business sender is set up, at which point the consent wording may need to name it; (3) a recommendation can contain a phone number of a garage owner (a person), kept as a lead after the customer leaves; whether that needs anything beyond this policy; (4) the referral credit (₹100 a garage, ₹500 at most; placeholder amounts, owner to confirm) is Detlio credit under the gift-credit terms.',
+          text: '**Customer reach, part 2 (0062): requests, free-wash sign-ups and recommendations.** Rows above are new in this release. Please advise: (1) the lawful basis for each (a request and a sign-up are asked for by the customer, so likely s.7(a); the 14-day reminder and the launch message are closer to marketing, sent only to people who signed up for exactly that news); (2) the WhatsApp opt-in is stored now but nothing is sent until a WhatsApp Business sender is set up, at which point the consent wording may need to name it; (3) a recommendation can contain a phone number of a garage owner (a person), kept as a lead after the customer leaves; whether that needs anything beyond this policy; (4) the referral credit (₹500 a garage, no cap per customer; owner, 21 Nov 2026) is Detlio credit under the gift-credit terms; (5) Bring your garage (21 Nov 2026): a garage that signs up with a recommended number (its phone, WhatsApp or owner login) is linked to the customer who gave it, the customer is told by app notification, and the team sees that customer\'s name beside the garage in the admin panel; whether matching a garage owner\'s number to a customer\'s recommendation needs any notice to the garage.',
         },
         {
           kind: 'note',

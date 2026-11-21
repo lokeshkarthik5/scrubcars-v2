@@ -17,7 +17,6 @@ import {
   IconPlus,
   IconRefresh,
   IconShieldCheck,
-  IconStarFilled,
   IconX,
 } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
@@ -41,7 +40,8 @@ import { ErrorState } from '@repo/ui/sc/empty-state'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { Notice } from '@repo/ui/sc/notice'
 import { OutsideCityLine, useGarageTownLine } from '@repo/ui/features/outside-city'
-import { hasStarScore } from '@repo/core/ratings'
+import { hasStarScore, mainGoogleRating } from '@repo/core/ratings'
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/ui/sc/rating-marks'
 import { useGuaranteeConfig } from '@repo/core/api/hooks/use-guarantee'
 import { GUARANTEE_BADGE, GUARANTEE_SUMMARY } from '@repo/core/guarantee'
 import { WhenPicker } from '@/components/checkout/when-picker'
@@ -1852,6 +1852,8 @@ function BookContent({ vendorId }: { vendorId: string }) {
   // Applied for the customer (F1) and still standing.
   const suggestionApplied =
     !!appliedReward && appliedReward.code === suggestedCode
+  // Google's rating while it is this garage's main one (21 Nov 2026).
+  const bookGoogle = vendor ? mainGoogleRating(vendor) : null
 
   return (
     // The booking page is one box the garage page's booking bar grows into
@@ -1942,15 +1944,23 @@ function BookContent({ vendorId }: { vendorId: string }) {
                 {vendor.name}
               </h2>
               <p className="mt-[3px] flex flex-wrap items-center gap-x-1.5 gap-y-1 text-t4 font-medium text-[#8E8E98]">
-                {hasStarScore(vendor) ? (
+                {/* The garage's main rating, as on its card and page: Google's
+                    while a linked garage has fewer than 5 counted Detlio
+                    reviews (21 Nov 2026), else Detlio's own (the d. mark). */}
+                {bookGoogle ? (
                   <span className="inline-flex items-center gap-1 text-text-primary">
-                    <IconStarFilled
-                      size={13}
-                      aria-hidden
-                      className="text-warning"
-                    />
-                    <span className="font-numeric">{vendor.rating.toFixed(1)}</span>
+                    <GoogleMark size={13} />
+                    <span className="font-numeric">{bookGoogle.rating.toFixed(1)}</span>
                     <span className="text-dim">
+                      (<span className="font-numeric">{bookGoogle.reviewCount}</span>)
+                    </span>
+                    <GoogleMapsText className="ml-0.5" />
+                  </span>
+                ) : hasStarScore(vendor) ? (
+                  <span className="inline-flex items-baseline gap-1 text-text-primary">
+                    <DetlioMark size={14} rating={vendor.rating} />
+                    <span aria-hidden="true" className="font-numeric">{vendor.rating.toFixed(1)}</span>
+                    <span aria-hidden="true" className="text-dim">
                       (<span className="font-numeric">{vendor.reviewCount}</span>)
                     </span>
                     <span className="sr-only">

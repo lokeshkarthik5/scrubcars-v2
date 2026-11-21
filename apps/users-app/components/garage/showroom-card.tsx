@@ -5,10 +5,11 @@ import { branchesLine } from '@repo/core/branches';
 import { distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
 import { useT, useTn } from '@repo/core/i18n';
 import { hoursLeftShare, openStatus } from '@repo/core/opening-hours';
-import { hasStarScore, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { googleRatingSpoken, hasStarScore, mainGoogleRating, NEW_GARAGE_LABEL } from '@repo/core/ratings';
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/native-ui/rating-marks';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Edge, Glass, HoursRing, Pearl, Raised, usePearlInk } from '@repo/native-ui/finish';
-import { IconArrowUpRight, IconHierarchy2, IconHome, IconStarFilled } from '@repo/native-ui/icons';
+import { IconArrowUpRight, IconHierarchy2, IconHome } from '@repo/native-ui/icons';
 import { useReduceMotion, useSeenOnce, type ViewRef } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
 import { createStyles, useColors, useFinish } from '@repo/native-ui/theme';
@@ -122,6 +123,9 @@ export const ShowroomCard = memo(function ShowroomCard({
   const href = modeParam ? `/garage/${vendor.id}?mode=${modeParam}` : `/garage/${vendor.id}`;
   const photos = vendor.photos;
   const stars = hasStarScore(vendor);
+  // Google's rating while it is the main one (21 Nov 2026), as the web card:
+  // the G, and "Google Maps" under the figures; the NEW tag stays.
+  const google = mainGoogleRating(vendor);
   const km = vendor.distanceKm;
   const approx = approxDistance ?? isApproximate(location);
   const now = useMinute();
@@ -154,7 +158,11 @@ export const ShowroomCard = memo(function ShowroomCard({
 
   // One plain line for screen readers, in place of the figures that count.
   const spoken = [
-    stars ? t('{rating} stars, {count} reviews.', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount }) : `${t(NEW_GARAGE_LABEL)}.`,
+    google
+      ? googleRatingSpoken(google)
+      : stars
+        ? t('{rating} stars, {count} reviews.', { rating: vendor.rating.toFixed(1), count: vendor.reviewCount })
+        : `${t(NEW_GARAGE_LABEL)}.`,
     km !== null ? `${distanceLabel(km, approx)} · ${driveTimeLabel(km)}.` : null,
     vendor.startingPrice > 0 ? t('From ₹{price}.', { price: vendor.startingPrice }) : null,
   ]
@@ -281,10 +289,22 @@ export const ShowroomCard = memo(function ShowroomCard({
         <View style={styles.facts}>
           {km !== null ? <RoadLine play={seen} delay={0} style={styles.road} /> : null}
           <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.factRow}>
-            {stars ? (
+            {google ? (
               <Fact first>
                 <View style={styles.figureRow}>
-                  <IconStarFilled size={13} color={colors.warningFill} />
+                  <GoogleMark size={14} />
+                  <T num size={16} weight={600} lh={20}>
+                    {google.rating.toFixed(1)}
+                  </T>
+                </View>
+                <T variant="t5" numberOfLines={1} color={fx.quiet}>
+                  {tn(google.reviewCount, '{count} review', '{count} reviews')}
+                </T>
+              </Fact>
+            ) : stars ? (
+              <Fact first>
+                <View style={styles.figureRow}>
+                  <DetlioMark size={15} rating={vendor.rating} />
                   <T num size={16} weight={600} lh={20}>
                     {rating}
                   </T>
@@ -295,7 +315,7 @@ export const ShowroomCard = memo(function ShowroomCard({
               </Fact>
             ) : null}
             {km !== null ? (
-              <Fact first={!stars}>
+              <Fact first={!stars && !google}>
                 <T num size={16} weight={600} lh={20} numberOfLines={1}>
                   {`${approx ? '~' : ''}${distance} ${km < 1 ? 'm' : 'km'}`}
                 </T>
@@ -305,7 +325,7 @@ export const ShowroomCard = memo(function ShowroomCard({
               </Fact>
             ) : null}
             {vendor.startingPrice > 0 ? (
-              <Fact first={!stars && km === null}>
+              <Fact first={!stars && !google && km === null}>
                 <T num size={16} weight={600} lh={20} numberOfLines={1}>
                   ₹{price}
                 </T>
@@ -319,6 +339,13 @@ export const ShowroomCard = memo(function ShowroomCard({
             <IconArrowUpRight size={18} color={ink} />
           </Pearl>
         </View>
+
+        {/* Google's attribution, in the same card as its rating (Google's rule). */}
+        {google ? (
+          <View style={styles.googleMaps}>
+            <GoogleMapsText />
+          </View>
+        ) : null}
 
         {chips || anywhere || townTag || vendor.luxury || (mode === 'dropin' && vendor.doorstepEnabled) ? (
           <View style={styles.chips}>
@@ -469,6 +496,7 @@ const useStyles = createStyles((c) => ({
   factFirst: { paddingLeft: 0 },
   factLine: { position: 'absolute', left: 0, top: 3, bottom: 3, width: 1 },
   figureRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  googleMaps: { flexDirection: 'row', paddingHorizontal: 14, paddingBottom: 10, marginTop: -6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 14, paddingBottom: 12, marginTop: -2 },
   chip: { height: 26 },
   chipInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 },

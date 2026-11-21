@@ -66,6 +66,12 @@ export interface VendorListParams {
    */
   silverAndAbove?: boolean
   /**
+   * The map views (21 Nov 2026): the API leaves Google's rating off the
+   * map's garages (Google's terms: no Google ratings on a map that isn't
+   * Google's). The list and search leave it out.
+   */
+  forMap?: boolean
+  /**
    * "Luxury specialists" (0083): only garages showing the Luxury specialist
    * badge. Filtered on the server, so paging, the counts and the map hold;
    * works with every other filter and all three modes.
@@ -127,6 +133,8 @@ export async function getVendors(
       includeUnlocated: params?.includeUnlocated,
       // Sent only when on: left out, the list is every garage.
       tier: params?.silverAndAbove ? 'silver' : undefined,
+      // Sent only on the map: left out, a list.
+      map: params?.forMap ? 'true' : undefined,
       luxury: params?.luxury ? '1' : undefined,
       luxuryMake: params?.luxuryMake || undefined,
       limit: params?.limit,
@@ -461,6 +469,20 @@ export async function addVendorPhoto(url: string): Promise<ApiVendorPhoto> {
 export async function deleteVendorPhoto(id: string): Promise<ApiVendorPhoto> {
   return apiClient<ApiVendorPhoto>(`/vendors/me/photos/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/**
+ * PUT /vendors/me/photos/order — the whole gallery in its new order, first =
+ * cover (Make cover and the arrows). 409 PHOTO_ORDER_STALE when the list
+ * isn't the garage's photos now.
+ */
+export async function setVendorPhotoOrder(
+  photoIds: string[]
+): Promise<ApiVendorPhoto[]> {
+  return apiClient<ApiVendorPhoto[]>('/vendors/me/photos/order', {
+    method: 'PUT',
+    body: JSON.stringify({ photoIds }),
   })
 }
 

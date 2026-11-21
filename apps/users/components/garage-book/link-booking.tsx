@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { IconMapPin, IconQrcode, IconStarFilled } from '@tabler/icons-react'
+import { IconMapPin, IconQrcode } from '@tabler/icons-react'
+import { DetlioMark, GoogleMapsText, GoogleMark } from '@repo/ui/sc/rating-marks'
 import type { LinkBookResult, PublicLinkPage } from '@repo/core/api/garage-book'
 import { useBookOnLink } from '@repo/core/api/hooks/use-garage-book'
 import { addDays, dayLabel, initials, istDateKey, jobTime, rupees, spacedPhone } from '@repo/core/garage-book'
@@ -80,15 +81,27 @@ export function LinkBooking({ slug, page }: { slug: string; page: PublicLinkPage
           )}
           <span aria-hidden>·</span>
           <span className={garage.openNow ? 'text-[#4ADE80]' : undefined}>{garage.openNow ? 'Open now' : 'Closed now'}</span>
-          {garage.rating !== null && (
+          {garage.google ? (
+            // Google's rating while it is the garage's main one (a linked
+            // garage under 5 counted Detlio reviews, 21 Nov 2026).
             <>
               <span aria-hidden>·</span>
               <span className="inline-flex items-center gap-1">
-                <IconStarFilled size={12} aria-hidden />
-                <span className="sr-only">Rated</span>
-                {garage.rating.toFixed(1)}
+                <GoogleMark size={12} />
+                {garage.google.rating.toFixed(1)}
+                <GoogleMapsText className="ml-0.5" />
               </span>
             </>
+          ) : (
+            garage.rating !== null && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="inline-flex items-center gap-1">
+                  <DetlioMark size={13} rating={garage.rating} />
+                  <span aria-hidden="true">{garage.rating.toFixed(1)}</span>
+                </span>
+              </>
+            )
           )}
         </p>
       </div>

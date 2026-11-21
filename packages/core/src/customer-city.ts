@@ -154,11 +154,6 @@ export function cityGaragesLine(city: CustomerCity): string | null {
 /** The cities' switch takes up to three; from four, the sheet lists them as rows. */
 export const CITY_SWITCH_MAX = 3
 
-/** "Know a great garage in Madurai? Recommend it": the small city's one quiet row. */
-export function recommendRowText(city: CustomerCity): { ask: string; action: string } {
-  return { ask: t('Know a great garage in {city}?', { city: city.name }), action: t('Recommend it') }
-}
-
 /** The map strip's words for a small city: "Detlio in Madurai", never a count. */
 export function detlioInLine(city: CustomerCity): string {
   return t('Detlio in {city}', { city: city.name })
