@@ -163,7 +163,8 @@ export interface LuxuryBadge {
 
 /**
  * The row above Nearby garages: the customer's luxury make and the
- * specialists among the garages listed, or null when it does not show
+ * specialists among the garages listed that the team approved for that make
+ * (the heading promises "for your BMW"), or null when it does not show
  * (not a luxury make, the Luxury specialists filter already on, or fewer
  * than SPECIALIST_ROW_MIN specialists).
  */
@@ -175,8 +176,26 @@ export function specialistRow<G extends { luxury?: LuxuryBadge | null }>(
   if (filterOn) return null
   const make = luxuryMakeOf(customerMake)
   if (!make) return null
-  const specialists = garages.filter((garage) => garage.luxury != null)
+  const specialists = garages.filter((garage) => handlesMake(garage, make))
   return specialists.length >= SPECIALIST_ROW_MIN ? { make, garages: specialists } : null
+}
+
+/**
+ * A garage shows the badge and the team approved it for this make: what the
+ * row keeps, and what `GET /vendors?luxuryMake=<make>` keeps on the server
+ * (luxurySpecialistFor), so the row's "See all N" and the list it opens agree.
+ */
+export function handlesMake(garage: { luxury?: LuxuryBadge | null }, make: LuxuryMake): boolean {
+  return garage.luxury != null && garage.luxury.brands.includes(make)
+}
+
+/** The list's and the map's parameter for "Specialists for your <Make>": `luxuryMake=BMW`. */
+export const LUXURY_MAKE_PARAM = 'luxuryMake'
+
+/** A link's `luxuryMake` as a luxury make, or null for anything else (only exact LUXURY_MAKES values). */
+export function luxuryMakeParam(value: string | readonly string[] | null | undefined): LuxuryMake | null {
+  const first = Array.isArray(value) ? value[0] : value
+  return typeof first === 'string' && (LUXURY_MAKES as readonly string[]).includes(first) ? (first as LuxuryMake) : null
 }
 
 /**

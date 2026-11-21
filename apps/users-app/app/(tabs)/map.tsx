@@ -1,7 +1,7 @@
 import { useVendorSearch } from '@repo/core/api/hooks/use-vendors';
 import { BOOKING_TYPE_LABELS, bookingTypeParam, parseBookingType } from '@repo/core/booking-types';
 import { categoryLabel } from '@repo/core/categories';
-import { LUXURY_MAP_EMPTY, LUXURY_PARAM, luxuryMapWords, luxuryParamOn } from '@repo/core/luxury';
+import { LUXURY_MAKE_PARAM, LUXURY_MAP_EMPTY, LUXURY_PARAM, luxuryMakeParam, luxuryMapWords, luxuryParamOn } from '@repo/core/luxury';
 import { atGarageListHasGarages } from '@repo/core/reach';
 import { distanceAndDrive, distanceLabel, driveTimeLabel } from '@repo/core/drive-time';
 import { fill, useT } from '@repo/core/i18n';
@@ -341,11 +341,13 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const clearance = useNavClearance();
   const { width } = useWindowDimensions();
-  const params = useLocalSearchParams<{ bookingType?: string; category?: string; luxury?: string }>();
+  const params = useLocalSearchParams<{ bookingType?: string; category?: string; luxury?: string; luxuryMake?: string }>();
   const bookingType = parseBookingType(params.bookingType) ?? 'dropin';
   const category = params.category ?? undefined;
   // "Luxury specialists" (0083), carried from the list's map peek.
-  const luxury = luxuryParamOn(params[LUXURY_PARAM]);
+  // "Specialists for your <Make>": that make's specialists only (it implies the filter).
+  const luxuryMake = luxuryMakeParam(params[LUXURY_MAKE_PARAM]) ?? undefined;
+  const luxury = luxuryParamOn(params[LUXURY_PARAM]) || luxuryMake !== undefined;
 
   const location = useLocationStore((s) => s.location);
   const locating = useLocationStore((s) => s.locating);
@@ -376,6 +378,7 @@ export default function MapScreen() {
     bookingType,
     category,
     luxury: luxury || undefined,
+    luxuryMake,
     bbox: areaBounds ? boundsToParam(areaBounds) : undefined,
     lat: origin?.lat,
     lng: origin?.lng,

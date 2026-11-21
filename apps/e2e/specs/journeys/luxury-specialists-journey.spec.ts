@@ -94,7 +94,9 @@ const card = (scope: Page | ReturnType<Page['locator']>, garage: { id: string })
 
 async function resetApplicant() {
   await sql`delete from luxury_applications where vendor_id = ${L.applicant.id}`
-  await sql`update vendors set luxury_approved_at = null, luxury_approved_by = null, luxury_brands = null where id = ${L.applicant.id}`
+  // The applicant, and the plain garage's badge the customer test gives it for a while.
+  await sql`update vendors set luxury_approved_at = null, luxury_approved_by = null, luxury_brands = null
+             where id in (${L.applicant.id}, ${L.plain.id})`
 }
 
 test.describe.serial('luxury car specialists @p0', () => {
@@ -115,7 +117,7 @@ test.describe.serial('luxury car specialists @p0', () => {
       const sent = await api.put(`${API}/api/v1/vendors/me/luxury`, {
         headers: { 'X-Vendor-Id': L.applicant.id },
         data: {
-          brands: ['Mini', 'BMW', 'Volvo'],
+          brands: ['Mini', 'BMW', 'Mercedes-Benz'],
           photos: [1, 2, 3].map((n) => ({ url: photoUrl(n), caption: n === 1 ? 'BMW 5 Series' : null })),
           coveredBay: true,
           products: 'Gtechniq Crystal Serum',
@@ -123,7 +125,7 @@ test.describe.serial('luxury car specialists @p0', () => {
         },
       })
       expect(sent.status()).toBe(200)
-      expect((await sent.json()).data.application).toMatchObject({ status: 'review', brands: ['BMW', 'Volvo', 'Mini'] })
+      expect((await sent.json()).data.application).toMatchObject({ status: 'review', brands: ['BMW', 'Mercedes-Benz', 'Mini'] })
 
       await page.reload()
       await expect(page.getByText('Under review', { exact: true })).toBeVisible()
@@ -186,12 +188,24 @@ test.describe.serial('luxury car specialists @p0', () => {
       luxury: { brands: string[] } | null
     }>
     expect(all.find((v) => v.id === L.plain.id)?.luxury).toBeNull()
-    expect(all.find((v) => v.id === L.applicant.id)?.luxury).toEqual({ brands: ['BMW', 'Volvo', 'Mini'] })
+    expect(all.find((v) => v.id === L.applicant.id)?.luxury).toEqual({ brands: ['BMW', 'Mercedes-Benz', 'Mini'] })
 
     const only = (await (await request.get(`${API}/api/v1/vendors`, { params: { ...params, luxury: '1' } })).json()).data
       .items as Array<{ id: string }>
     const ours = only.map((v) => v.id).filter((id) => [L.applicant.id, L.approved.id, L.plain.id].includes(id as never))
     expect(ours.sort()).toEqual([L.applicant.id, L.approved.id].sort())
+
+    // luxuryMake: only the specialists approved for that make.
+    const forMake = async (make: string) =>
+      ((await (await request.get(`${API}/api/v1/vendors`, { params: { ...params, luxuryMake: make } })).json()).data
+        .items as Array<{ id: string }>)
+        .map((v) => v.id)
+        .filter((id) => [L.applicant.id, L.approved.id, L.plain.id].includes(id as never))
+        .sort()
+    expect(await forMake('Mercedes-Benz')).toEqual([L.applicant.id, L.approved.id].sort())
+    expect(await forMake('Audi')).toEqual([L.approved.id])
+    expect(await forMake('Porsche')).toEqual([])
+    expect((await request.get(`${API}/api/v1/vendors`, { params: { ...params, luxuryMake: 'benz' } })).status()).toBe(400)
 
     const page = (await (await request.get(`${API}/api/v1/vendors/${L.approved.id}`)).json()).data as Record<string, unknown>
     expect(page.luxury).toEqual({ brands: [...L.approved.brands] })
@@ -199,6 +213,10 @@ test.describe.serial('luxury car specialists @p0', () => {
   })
 
   test('the customer sees "Specialists for your Mercedes-Benz", the filter and the badge', async ({ browser }) => {
+    // The plain garage is a specialist for a while, but for Porsche only: never in
+    // "Specialists for your Mercedes-Benz", though the plain chip finds it.
+    await sql`update vendors set luxury_approved_at = now(), luxury_approved_by = 'E2E', luxury_brands = ${['Porsche']}
+               where id = ${L.plain.id}`
     const { ctx, page } = await openCustomer(browser)
     try {
       await page.goto('/garages')
@@ -210,14 +228,16 @@ test.describe.serial('luxury car specialists @p0', () => {
       await expect(card(row, L.plain)).toHaveCount(0)
       await expect(card(row, L.approved).getByText('Luxury specialist', { exact: true })).toBeVisible()
 
-      // "See all 2" turns the filter on: the list keeps the specialists only.
+      // "See all 2" turns on the row's own filter: Mercedes-Benz specialists only.
       const filter = page.getByRole('button', { name: 'Luxury specialists' })
       await expect(filter).toHaveAttribute('aria-pressed', 'false')
-      const asked = page.waitForRequest((r) => r.url().includes('/api/v1/vendors?') && r.url().includes('luxury=1'))
-      await row.getByRole('button', { name: /^See all \d+/ }).click()
+      const asked = page.waitForRequest(
+        (r) => r.url().includes('/api/v1/vendors?') && r.url().includes('luxury=1') && r.url().includes('luxuryMake=Mercedes-Benz')
+      )
+      await row.getByRole('button', { name: /^See all 2$/ }).click()
       await asked
       await expect(filter).toHaveAttribute('aria-pressed', 'true')
-      await expect(page.getByRole('heading', { level: 2, name: 'Luxury specialists' })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 2, name: 'Specialists for your Mercedes-Benz' })).toBeVisible()
       await expect(row).toHaveCount(0)
       await expect(card(page, L.plain)).toHaveCount(0)
       await expect(card(page, L.applicant)).toBeVisible()
@@ -225,12 +245,21 @@ test.describe.serial('luxury car specialists @p0', () => {
       // The map peek opens the map with the filter still on.
       const peek = page.locator('a.map-peek')
       await expect(peek).toHaveAttribute('href', /[?&]luxury=1(&|$)/)
+      await expect(peek).toHaveAttribute('href', /[?&]luxuryMake=Mercedes-Benz(&|$)/)
       await expect(peek).toHaveAccessibleName(/specialists near you/)
 
       // Off again: every garage, and the row back.
       await filter.click()
       await expect(filter).toHaveAttribute('aria-pressed', 'false')
       await expect(card(page, L.plain)).toBeVisible()
+      await expect(row).toBeVisible()
+
+      // The chip itself: every specialist, the Porsche one too.
+      await filter.click()
+      await expect(page.getByRole('heading', { level: 2, name: 'Luxury specialists' })).toBeVisible()
+      await expect(card(page, L.plain)).toBeVisible()
+      await expect(card(page, L.applicant)).toBeVisible()
+      await filter.click()
 
       // The garage page: the badge, the brands with hers in white, and "What this means".
       await page.goto(`/garage/${L.approved.id}`)
@@ -255,10 +284,13 @@ test.describe.serial('luxury car specialists @p0', () => {
       await page.keyboard.press('Escape')
 
       // The map, opened with the filter on (as the peek links it), counts specialists only.
-      await page.goto('/map?bookingType=dropin&luxury=1')
+      await page.goto('/map?bookingType=dropin&luxury=1&luxuryMake=Mercedes-Benz')
       await expect(page.getByRole('button', { name: /^2 specialists near you/ })).toBeVisible()
+      await page.goto('/map?bookingType=dropin&luxury=1')
+      await expect(page.getByRole('button', { name: /^3 specialists near you/ })).toBeVisible()
     } finally {
       await ctx.close()
+      await sql`update vendors set luxury_approved_at = null, luxury_approved_by = null, luxury_brands = null where id = ${L.plain.id}`
     }
   })
 

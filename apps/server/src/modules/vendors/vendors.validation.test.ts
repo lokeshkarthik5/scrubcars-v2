@@ -135,6 +135,14 @@ describe('"Certified only" on GET /vendors', () => {
 })
 
 describe('"Luxury specialists" on GET /vendors (0083)', () => {
+  test('luxuryMake takes a luxury make exactly as LUXURY_MAKES writes it, nothing else', () => {
+    expect(listPublicVendorsQuerySchema.parse({ luxuryMake: 'Mercedes-Benz' }).luxuryMake).toBe('Mercedes-Benz')
+    expect(listPublicVendorsQuerySchema.parse({}).luxuryMake).toBeUndefined()
+    for (const bad of ['benz', 'bmw', 'Toyota', 'Other', '']) {
+      expect(listPublicVendorsQuerySchema.safeParse({ luxuryMake: bad }).success).toBe(false)
+    }
+  })
+
   test('luxury=1 or true filters, 0, false or absent does not, anything else is refused', () => {
     expect(listPublicVendorsQuerySchema.parse({ luxury: '1' }).luxury).toBe(true)
     expect(listPublicVendorsQuerySchema.parse({ luxury: 'true' }).luxury).toBe(true)

@@ -263,6 +263,26 @@ export function silverAndAboveCondition(tiers: ReadonlyArray<'silver' | 'gold'>)
  */
 export const LUXURY_SPECIALIST = sql`(v.luxury_approved_at IS NOT NULL AND (${CERTIFIED_GARAGE} OR ${SILVER_GARAGE}))`
 
+/**
+ * A Luxury specialist whose approved brands include `make` (one of
+ * LUXURY_MAKES, the customer's normalised make): "Specialists for your
+ * <Make>" and its "See all" (`GET /vendors?luxuryMake=BMW`). The row twin is
+ * luxuryShownFor in lib/luxury.ts. Against the alias `v`.
+ */
+export function luxurySpecialistFor(make: string) {
+  return sql`(${LUXURY_SPECIALIST} AND v.luxury_brands @> ARRAY[${make}]::text[])`
+}
+
+/**
+ * The customer lists' luxury condition, or null for none: `luxuryMake`
+ * (that make's specialists) wins over `luxury` (every specialist). The
+ * garage list, the reach figures and "Just outside" all filter with this.
+ */
+export function luxuryCondition(filters: { luxury?: boolean; luxuryMake?: string }) {
+  if (filters.luxuryMake) return luxurySpecialistFor(filters.luxuryMake)
+  return filters.luxury ? LUXURY_SPECIALIST : null
+}
+
 // ─── The Bin ─────────────────────────────────────────────────────────────────
 
 /** In the Bin: moved there by admin, and not restored. */

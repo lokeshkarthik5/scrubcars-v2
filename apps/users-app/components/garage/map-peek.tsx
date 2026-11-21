@@ -1,5 +1,5 @@
 import { useT } from '@repo/core/i18n';
-import { LUXURY_PARAM } from '@repo/core/luxury';
+import { LUXURY_MAKE_PARAM, LUXURY_PARAM } from '@repo/core/luxury';
 import type { BookingType, Vendor } from '@repo/core/types';
 import { Glass, Odometer } from '@repo/native-ui/finish';
 import { IconArrowUpRight } from '@repo/native-ui/icons';
@@ -46,6 +46,7 @@ export function MapPeek({
   mode,
   category,
   luxury = false,
+  luxuryMake,
   countLabel,
   scrollY,
 }: {
@@ -56,6 +57,8 @@ export function MapPeek({
   category?: string;
   /** "Luxury specialists" is on (0083): the map opens with it on too. */
   luxury?: boolean;
+  /** "Specialists for your <Make>"'s See all is on: that make only, on the map too. */
+  luxuryMake?: string;
   /** "12 garages near you"; with no count (a small city, 0070), the words alone: "Detlio in Madurai". */
   countLabel: { count: string | null; words: string };
   /** The list's scroll, for the drift. */
@@ -117,6 +120,7 @@ export function MapPeek({
   const query = new URLSearchParams({ bookingType: mode });
   if (category) query.set('category', category);
   if (luxury) query.set(LUXURY_PARAM, '1');
+  if (luxuryMake) query.set(LUXURY_MAKE_PARAM, luxuryMake);
   const plane = scheme === 'light' ? fx.recessedFill[0] : '#0D0E12';
   const street = scheme === 'light' ? 'rgba(10,10,11,0.06)' : 'rgba(255,255,255,0.05)';
 

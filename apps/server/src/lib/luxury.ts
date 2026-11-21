@@ -96,6 +96,18 @@ export function luxuryShown(row: { luxuryApprovedAt: Date | string | null }, hel
   return row.luxuryApprovedAt != null && holdsSilverOrGold(held)
 }
 
+/**
+ * "Specialists for your <Make>": the badge shows and the team approved this
+ * make. SQL twin luxurySpecialistFor in vendors.predicates.ts.
+ */
+export function luxuryShownFor(
+  row: { luxuryApprovedAt: Date | string | null; luxuryBrands: readonly string[] | null },
+  held: SilverHoldings | null | undefined,
+  make: string
+): boolean {
+  return luxuryShown(row, held) && (row.luxuryBrands ?? []).includes(make)
+}
+
 // ─── Applying ────────────────────────────────────────────────────────────────
 
 /** The application row as the rules read it. */

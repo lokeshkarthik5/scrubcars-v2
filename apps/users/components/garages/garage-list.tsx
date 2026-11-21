@@ -43,7 +43,14 @@ import { ScButton } from '@repo/ui/sc/button'
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
-import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, LUXURY_PARAM, specialistRow } from '@repo/core/luxury'
+import {
+  LUXURY_APPROVED_LINE,
+  LUXURY_FILTER_LABEL,
+  LUXURY_MAKE_PARAM,
+  LUXURY_PARAM,
+  specialistRow,
+  type LuxuryMake,
+} from '@repo/core/luxury'
 import { LuxuryIcon } from '@repo/ui/features/luxury-badge'
 import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
@@ -185,7 +192,12 @@ export function GarageList({
   // "Luxury specialists" (0083): a filter on the server like "Silver & above",
   // so the list, its count, the map peek and the reach pieces all follow it,
   // with every service and mode.
-  const [luxuryOn, setLuxuryOn] = useState(false)
+  // null: off; 'all': every specialist (the chip); a make: the specialists the
+  // team approved for that make ("Specialists for your <Make>"'s See all,
+  // luxuryMake on the server, so its count and the list agree).
+  const [luxuryFilter, setLuxuryFilter] = useState<LuxuryMake | 'all' | null>(null)
+  const luxuryOn = luxuryFilter !== null
+  const luxuryMake = luxuryFilter !== null && luxuryFilter !== 'all' ? luxuryFilter : undefined
   // The signed-in customer's main car, for "Specialists for your <Make>".
   const carMake = useDefaultCarMake()
   // `null` means "the customer has not chosen", which is what lets the default
@@ -256,6 +268,7 @@ export function GarageList({
       category: category_,
       silverAndAbove: silverOnly || undefined,
       luxury: luxuryOn || undefined,
+      luxuryMake,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -278,6 +291,7 @@ export function GarageList({
       bookingType: serviceMode,
       silverAndAbove: silverOnly || undefined,
       luxury: luxuryOn || undefined,
+      luxuryMake,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -445,6 +459,7 @@ export function GarageList({
       ...(category === 'all' ? {} : { category }),
       // "Luxury specialists" (0083): the map shows what the list does.
       ...(luxuryOn ? { [LUXURY_PARAM]: '1' } : {}),
+      ...(luxuryMake ? { [LUXURY_MAKE_PARAM]: luxuryMake } : {}),
     },
   }
   // Only garages within reach (or inside the customer's city, with no
@@ -459,8 +474,8 @@ export function GarageList({
   // listed, above Nearby garages, for a customer whose main car is a luxury
   // make; not with the filter on, nor with fewer than two.
   const specialists = isLoading || isError ? null : specialistRow(carMake, vendors, luxuryOn)
-  const turnLuxuryOn = () => {
-    setLuxuryOn(true)
+  const turnLuxuryOn = (make: LuxuryMake) => {
+    setLuxuryFilter(make)
     pinRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
   }
 
@@ -508,6 +523,7 @@ export function GarageList({
           mode={serviceMode}
           category={category_}
           luxury={luxuryOn}
+          luxuryMake={luxuryMake}
           countLabel={
             small
               ? { count: null, words: detlioInLine(city) }
@@ -585,7 +601,7 @@ export function GarageList({
           <button
             type="button"
             aria-pressed={luxuryOn}
-            onClick={() => setLuxuryOn((on) => !on)}
+            onClick={() => setLuxuryFilter(luxuryOn ? null : 'all')}
             className={cn(
               'fx-press inline-flex h-[34px] items-center gap-1.5 rounded-pill px-3 text-t4',
               luxuryOn ? 'fx-pearl font-semibold' : 'fx-raised font-medium text-[#D4D4DA]'
@@ -628,7 +644,7 @@ export function GarageList({
             </div>
             <button
               type="button"
-              onClick={turnLuxuryOn}
+              onClick={() => turnLuxuryOn(specialists.make)}
               className="fx-raised fx-press flex h-10 shrink-0 items-center gap-1 rounded-[12px] px-3.5 text-t4 font-medium text-[#C8C8D0]"
             >
               {t('See all {count}', { count: `${specialists.garages.length}${hasMore ? '+' : ''}` })}
@@ -653,7 +669,9 @@ export function GarageList({
                 not whitespace-nowrap, so at 360px the heading wraps rather than
                 pushing the page sideways. */}
             <h2 className="min-w-0 text-t2 font-semibold text-text-primary">
-              {luxuryOn
+              {luxuryMake
+                ? t('Specialists for your {make}', { make: luxuryMake })
+                : luxuryOn
                 ? t(LUXURY_FILTER_LABEL)
                 : serviceMode === 'dropin' && atGarage.skipTheDrive
                 ? t('Or drive to')
@@ -763,7 +781,7 @@ export function GarageList({
                   </ScButton>
                 )}
                 {luxuryOn && (
-                  <ScButton variant="outline" fullWidth={false} onClick={() => setLuxuryOn(false)}>
+                  <ScButton variant="outline" fullWidth={false} onClick={() => setLuxuryFilter(null)}>
                     {t('Show every garage')}
                   </ScButton>
                 )}

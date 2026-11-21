@@ -10,6 +10,9 @@ import {
   luxuryMakeOf,
   makeWords,
   specialistRow,
+  handlesMake,
+  LUXURY_MAKE_PARAM,
+  luxuryMakeParam,
 } from './luxury'
 
 describe('luxuryMakeOf: a make typed freely', () => {
@@ -98,7 +101,7 @@ describe('luxuryMakeOf: a make typed freely', () => {
   })
 })
 
-const specialist = (id: string) => ({ id, luxury: { brands: ['BMW'] } })
+const specialist = (id: string, brands: string[] = ['BMW', 'Mercedes-Benz']) => ({ id, luxury: { brands } })
 const plain = (id: string) => ({ id, luxury: null })
 
 describe('specialistRow: "Specialists for your <Make>"', () => {
@@ -123,6 +126,29 @@ describe('specialistRow: "Specialists for your <Make>"', () => {
   test('a card from an older API (no luxury field) is not a specialist', () => {
     const older: Array<{ id: string; luxury?: null }> = [{ id: 'a' }, { id: 'b' }]
     expect(specialistRow('BMW', older)).toBeNull()
+  })
+  test("only specialists approved for the customer's make: the heading says so", () => {
+    const garages = [specialist('a', ['Audi']), specialist('b', ['BMW']), specialist('c', ['Audi', 'BMW']), specialist('d', ['Other'])]
+    expect(specialistRow('bmw 320d', garages)?.garages.map((g) => g.id)).toEqual(['b', 'c'])
+    expect(specialistRow('Audi Q5', garages)?.garages.map((g) => g.id)).toEqual(['a', 'c'])
+    // Two specialists listed, but only one for a Porsche: the row stays hidden.
+    expect(specialistRow('Porsche', [specialist('a', ['Porsche']), specialist('b', ['BMW'])])).toBeNull()
+    // "Range Rover" is Land Rover, the value a garage picks.
+    expect(specialistRow('Range Rover', [specialist('a', ['Land Rover']), specialist('b', ['Land Rover', 'Volvo'])])?.make).toBe('Land Rover')
+  })
+
+  test('handlesMake: the badge and the make approved', () => {
+    expect(handlesMake(specialist('a', ['BMW']), 'BMW')).toBe(true)
+    expect(handlesMake(specialist('a', ['Audi']), 'BMW')).toBe(false)
+    expect(handlesMake(plain('a'), 'BMW')).toBe(false)
+    expect(handlesMake({}, 'BMW')).toBe(false)
+  })
+
+  test('the luxuryMake parameter takes only an exact luxury make', () => {
+    expect(LUXURY_MAKE_PARAM).toBe('luxuryMake')
+    expect(luxuryMakeParam('Mercedes-Benz')).toBe('Mercedes-Benz')
+    expect(luxuryMakeParam(['BMW', 'Audi'])).toBe('BMW')
+    for (const bad of ['benz', 'bmw', 'Toyota', 'Other', '', null, undefined]) expect(luxuryMakeParam(bad)).toBeNull()
   })
 })
 

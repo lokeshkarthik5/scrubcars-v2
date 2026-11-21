@@ -10,7 +10,7 @@ import { cardPickupChip } from '@repo/core/pickup-fee-customer';
 import { atGarageReach, canCollectFrom, nextTabOffer, outsideLine, skipTheDriveTitle, type NextTabOffer, type SkipTheDriveRow } from '@repo/core/reach';
 import { requestActionLabel } from '@repo/core/booking-requests';
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers';
-import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, specialistRow } from '@repo/core/luxury';
+import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, specialistRow, type LuxuryMake } from '@repo/core/luxury';
 import type { BookingType, Vendor } from '@repo/core/types';
 import type { JustOutsideVendor } from '@repo/core/api/vendors';
 import { msg, t, useT } from '@repo/core/i18n';
@@ -287,7 +287,12 @@ export function GarageList({
   const silverOnly = silverChosen && silverFilterOffered;
   // "Luxury specialists" (0083): a filter on the server like Silver+, so the list, its
   // count, the map peek and the reach pieces all follow it, with every service and mode.
-  const [luxuryOn, setLuxuryOn] = useState(false);
+  // null: off; 'all': every specialist (the chip); a make: the specialists the team approved for
+  // that make ("Specialists for your <Make>"'s See all, luxuryMake on the server, so its count and
+  // the list agree).
+  const [luxuryFilter, setLuxuryFilter] = useState<LuxuryMake | 'all' | null>(null);
+  const luxuryOn = luxuryFilter !== null;
+  const luxuryMake = luxuryFilter !== null && luxuryFilter !== 'all' ? luxuryFilter : undefined;
   // The signed-in customer's main car, for "Specialists for your <Make>".
   const carMake = useDefaultCarMake();
   const { width: screen } = useWindowDimensions();
@@ -328,6 +333,7 @@ export function GarageList({
       category: categoryParam,
       silverAndAbove: silverOnly || undefined,
       luxury: luxuryOn || undefined,
+      luxuryMake,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -344,6 +350,7 @@ export function GarageList({
       bookingType: mode,
       silverAndAbove: silverOnly || undefined,
       luxury: luxuryOn || undefined,
+      luxuryMake,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -441,8 +448,8 @@ export function GarageList({
   // Nearby garages, for a customer whose main car is a luxury make; not with the filter
   // on, nor with fewer than two.
   const specialists = isLoading || isError ? null : specialistRow(carMake, vendors, luxuryOn);
-  const turnLuxuryOn = () => {
-    setLuxuryOn(true);
+  const turnLuxuryOn = (make: LuxuryMake) => {
+    setLuxuryFilter(make);
     scroll.current?.scrollTo({ y: Math.max(0, (controlsY.current ?? 0) - 1), animated: !reduce });
   };
 
@@ -509,7 +516,7 @@ export function GarageList({
       </View>
       {/* "Luxury specialists" (0083): its own short line under Service and Silver+. */}
       <View style={styles.luxuryRow}>
-        <LuxuryFilterChip on={luxuryOn} onToggle={() => setLuxuryOn((on) => !on)} />
+        <LuxuryFilterChip on={luxuryOn} onToggle={() => setLuxuryFilter(luxuryOn ? null : 'all')} />
       </View>
     </View>
   );
@@ -583,6 +590,7 @@ export function GarageList({
           mode={mode}
           category={categoryParam}
           luxury={luxuryOn}
+          luxuryMake={luxuryMake}
           scrollY={scrollY}
           countLabel={
             small
@@ -624,7 +632,7 @@ export function GarageList({
                 {t(LUXURY_APPROVED_LINE)}
               </T>
             </View>
-            <PressScale accessibilityRole="button" onPress={turnLuxuryOn}>
+            <PressScale accessibilityRole="button" onPress={() => turnLuxuryOn(specialists.make)}>
               <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
                 <T variant="t4" numberOfLines={1} color={fx.soft}>
                   {t('See all {count}', { count: `${specialists.garages.length}${hasMore ? '+' : ''}` })}
@@ -662,7 +670,7 @@ export function GarageList({
           <View style={styles.headRow}>
             {/* No count beside it: the count lives in the filter button. */}
             <T variant="t2" accessibilityRole="header" style={styles.flex}>
-              {luxuryOn ? t(LUXURY_FILTER_LABEL) : mode === 'dropin' && atGarage.skipTheDrive ? t('Or drive to') : small ? inCityHeading(city) : t('Nearby garages')}
+              {luxuryMake ? t('Specialists for your {make}', { make: luxuryMake }) : luxuryOn ? t(LUXURY_FILTER_LABEL) : mode === 'dropin' && atGarage.skipTheDrive ? t('Or drive to') : small ? inCityHeading(city) : t('Nearby garages')}
             </T>
             <PressScale accessibilityRole="button" onPress={() => setSortOpen(true)}>
               <Raised radius={12} style={styles.sort} innerStyle={styles.sortInner}>
@@ -732,7 +740,7 @@ export function GarageList({
                   </ScButton>
                 ) : null}
                 {luxuryOn ? (
-                  <ScButton variant="outline" fullWidth={false} onPress={() => setLuxuryOn(false)}>
+                  <ScButton variant="outline" fullWidth={false} onPress={() => setLuxuryFilter(null)}>
                     {t('Show every garage')}
                   </ScButton>
                 ) : null}

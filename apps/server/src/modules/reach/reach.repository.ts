@@ -10,7 +10,7 @@ import {
   pickupCovers,
   pickupReach,
   silverAndAboveCondition,
-  LUXURY_SPECIALIST,
+  luxuryCondition,
   withinFarLimit,
 } from '../vendors/vendors.predicates.js'
 
@@ -26,6 +26,8 @@ export interface ReachFilters {
   tiers?: Array<'silver' | 'gold'>
   /** "Luxury specialists" (0083): only garages showing the badge. */
   luxury?: boolean
+  /** "Specialists for your <Make>" (0083): only specialists approved for this make. */
+  luxuryMake?: string
 }
 
 function geography(origin: Point) {
@@ -42,7 +44,8 @@ function filterConditions(filters: ReachFilters) {
     )`)
   }
   if (filters.tiers && filters.tiers.length > 0) conditions.push(silverAndAboveCondition(filters.tiers))
-  if (filters.luxury) conditions.push(LUXURY_SPECIALIST)
+  const luxury = luxuryCondition(filters)
+  if (luxury) conditions.push(luxury)
   return conditions
 }
 

@@ -29,6 +29,7 @@ import {
   pickupCovers,
   silverAndAboveCondition,
   LUXURY_SPECIALIST,
+  luxuryCondition,
   vendorOpenForItsBookings,
   vendorPageOpen,
   vendorPagesOpen,
@@ -241,6 +242,8 @@ export const vendorsRepository = {
     tiers?: Array<'silver' | 'gold'>
     /** "Luxury specialists" (0083): only garages showing the badge (LUXURY_SPECIALIST). */
     luxury?: boolean
+    /** "Specialists for your <Make>" (0083): only specialists approved for this make (luxurySpecialistFor). */
+    luxuryMake?: string
     q?: string
     sort: VendorSort
     /**
@@ -317,7 +320,8 @@ export const vendorsRepository = {
 
     if (params.tiers && params.tiers.length > 0) conditions.push(silverAndAboveCondition(params.tiers))
 
-    if (params.luxury) conditions.push(LUXURY_SPECIALIST)
+    const luxury = luxuryCondition(params)
+    if (luxury) conditions.push(luxury)
 
     if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)
 

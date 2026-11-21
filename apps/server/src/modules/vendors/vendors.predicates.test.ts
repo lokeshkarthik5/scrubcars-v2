@@ -3,7 +3,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { isCertified, type CertificationRow } from '../../lib/certification.js'
 import { isPickupOffered, type PickupSettings } from '../../lib/pickup.js'
 import { holdsSilver } from '../../lib/tiers.js'
-import { luxuryShown } from '../../lib/luxury.js'
+import { luxuryShown, luxuryShownFor } from '../../lib/luxury.js'
 import { sql as sqlTag } from 'drizzle-orm'
 import {
   CERTIFIED_GARAGE,
@@ -13,6 +13,8 @@ import {
   GARAGE_CITY_ID,
   LISTED_TO_CUSTOMERS,
   LUXURY_SPECIALIST,
+  luxuryCondition,
+  luxurySpecialistFor,
   NOT_IN_BIN,
   PICKUP_OFFERED,
   SILVER_GARAGE,
@@ -352,5 +354,34 @@ describe('Luxury specialist (0083)', () => {
         }
       }
     }
+  })
+})
+
+describe('Specialists for your <Make> (0083)', () => {
+  const dialect = new PgDialect()
+  const specialist = dialect.sqlToQuery(LUXURY_SPECIALIST).sql
+
+  test('the SQL: a specialist, and the make among its approved brands, as a bound value', () => {
+    const { sql, params } = dialect.sqlToQuery(luxurySpecialistFor('BMW'))
+    expect(sql).toBe(`(${specialist} AND v.luxury_brands @> ARRAY[$1]::text[])`)
+    expect(params).toEqual(['BMW'])
+  })
+
+  test('luxuryMake wins over luxury; neither is no condition', () => {
+    expect(luxuryCondition({})).toBeNull()
+    expect(luxuryCondition({ luxury: false })).toBeNull()
+    expect(dialect.sqlToQuery(luxuryCondition({ luxury: true })!).sql).toBe(specialist)
+    expect(dialect.sqlToQuery(luxuryCondition({ luxury: true, luxuryMake: 'Audi' })!).params).toEqual(['Audi'])
+    expect(dialect.sqlToQuery(luxuryCondition({ luxuryMake: 'Audi' })!).sql).toContain('@> ARRAY[$1]::text[]')
+  })
+
+  test('the row twin: shown, and the make approved', () => {
+    const at = new Date('2026-11-21T04:30:00Z')
+    const silver = { gold: false, silver: true }
+    expect(luxuryShownFor({ luxuryApprovedAt: at, luxuryBrands: ['BMW', 'Audi'] }, silver, 'BMW')).toBe(true)
+    expect(luxuryShownFor({ luxuryApprovedAt: at, luxuryBrands: ['Audi'] }, silver, 'BMW')).toBe(false)
+    expect(luxuryShownFor({ luxuryApprovedAt: at, luxuryBrands: null }, silver, 'BMW')).toBe(false)
+    expect(luxuryShownFor({ luxuryApprovedAt: at, luxuryBrands: ['BMW'] }, { gold: false, silver: false }, 'BMW')).toBe(false)
+    expect(luxuryShownFor({ luxuryApprovedAt: null, luxuryBrands: ['BMW'] }, silver, 'BMW')).toBe(false)
   })
 })

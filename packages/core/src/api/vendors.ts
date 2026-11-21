@@ -71,6 +71,12 @@ export interface VendorListParams {
    * works with every other filter and all three modes.
    */
   luxury?: boolean
+  /**
+   * "Specialists for your <Make>" (0083): only specialists the team approved
+   * for this make (one of LUXURY_MAKES, already normalised). Narrower than
+   * `luxury`; filtered on the server, so the row's "See all" count holds.
+   */
+  luxuryMake?: string
   limit?: number
   cursor?: string
 }
@@ -122,6 +128,7 @@ export async function getVendors(
       // Sent only when on: left out, the list is every garage.
       tier: params?.silverAndAbove ? 'silver' : undefined,
       luxury: params?.luxury ? '1' : undefined,
+      luxuryMake: params?.luxuryMake || undefined,
       limit: params?.limit,
       cursor: params?.cursor,
     },
