@@ -21,6 +21,7 @@ import { Notice } from '@repo/ui/sc/notice'
 import { Reveal } from '@repo/ui/sc/reveal'
 import { Stars } from '@repo/ui/sc/stars'
 import { TierSeal } from '@repo/ui/features/tier-medal'
+import { LuxuryBlock } from '@repo/ui/features/luxury-badge'
 import { OutsideCityLine, useGarageTownLine } from '@repo/ui/features/outside-city'
 import { GarageMonogram } from '@repo/ui/features/garage-cover'
 import { Odometer } from '@repo/ui/finish/odometer'
@@ -732,6 +733,14 @@ export default function GaragePage({
                   plain words. Only which tier, never its numbers. */}
               {vendor.tier && <TierSeal tier={vendor.tier} />}
             </div>
+
+            {/* Luxury car specialists (0083): the team's quiet grey badge
+                with "What this means", and the brands it handles, the
+                customer's own make in white. Under the medal, never in its
+                place; prices stay by car size. */}
+            {vendor.luxury && (
+              <LuxuryBlock brands={vendor.luxury.brands} customerMake={myCar?.make} className="mt-2.5" />
+            )}
 
             {/* "Also at" (0081): the business's other live branches, each
                 with how far it is from the customer when that is known. A

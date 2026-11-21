@@ -175,6 +175,8 @@ export interface ApiVendorListItem {
    * branches customers can find; null unless two or more. Absent on older servers.
    */
   branchGroup?: BranchGroupLine | null
+  /** The Luxury specialist badge (0083): the approved brands, or null. Absent on older servers. */
+  luxury?: { brands: string[] } | null
 }
 
 export interface ApiVendorList {
@@ -271,6 +273,8 @@ export interface ApiPublicVendor {
   tier?: Tier | null
   /** "Also at" (0081): its other live branches. Absent on older servers. */
   branches?: GarageBranch[]
+  /** The Luxury specialist badge (0083): the approved brands, or null. Absent on older servers. */
+  luxury?: { brands: string[] } | null
 }
 
 export interface VendorProfileExtras {

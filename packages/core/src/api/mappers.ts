@@ -137,6 +137,7 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     ...(item.garageCity !== undefined ? { garageCity: item.garageCity } : {}),
     tier: item.tier ?? null,
     branchGroup: item.branchGroup ?? null,
+    luxury: item.luxury ?? null,
   }
 }
 
@@ -189,6 +190,7 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     ...(vendor.garageCity !== undefined ? { garageCity: vendor.garageCity } : {}),
     tier: vendor.tier ?? null,
     branches: vendor.branches ?? [],
+    luxury: vendor.luxury ?? null,
   }
 }
 

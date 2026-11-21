@@ -47,6 +47,7 @@ import {
 import { vendorDocumentsRepository } from '../vendor-documents/vendor-documents.repository.js'
 import { bypassReportsService } from '../bypass-reports/bypass-reports.service.js'
 import { certificationRepository } from '../certification/certification.repository.js'
+import { luxuryService } from '../luxury/luxury.service.js'
 import { graceEndsOn, isCertified } from '../../lib/certification.js'
 import { tiersService } from '../tiers/tiers.service.js'
 import { usesCustomerAddress } from '../../lib/booking-types.js'
@@ -843,6 +844,9 @@ export const adminService = {
     // Bronze / Silver / Gold (0063): the tier each garage holds (whatever
     // customers are shown), for the card's tier chip. Three grouped reads.
     const tiers = await tiersService.heldTiers(vendors.map((vendor) => vendor.id), now)
+    // Luxury car specialists (0083): each garage's application and badge, for
+    // More filters' "Luxury applications" and "Luxury specialists". One read.
+    const luxury = await luxuryService.summariesFor(vendors, tiers)
     // Bypass reports (0052): each garage's strikes, confirmed reports of the
     // last 180 IST days. One grouped read; 2 or more are highlighted.
     const strikes = await bypassReportsService.strikesByGarage(now)
@@ -901,6 +905,7 @@ export const adminService = {
         certification: certificationSummary(certifications.get(vendor.id)),
         tier: tiers.get(vendor.id) ?? null,
         tierHidden: vendor.tierHidden,
+        luxury: luxury.get(vendor.id) ?? null,
         photoCompliance: compliance.get(vendor.id) ?? NO_COMPLETED_JOBS,
         bypassStrikes: strikes.get(vendor.id) ?? 0,
         redoClaims90d: redoClaims ? (redoClaims.get(vendor.id) ?? 0) : null,

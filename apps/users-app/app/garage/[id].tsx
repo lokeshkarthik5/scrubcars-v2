@@ -39,6 +39,7 @@ import { GarageSlotAlerts } from '@/components/slot-alerts/garage-slot-alerts';
 import { SaveGarageButton } from '@/components/garage/save-button';
 import { GarageAddOns, PackageCard, ServiceCard, ServiceSheet } from '@/components/garage/service-cards';
 import { OutsideCityLine, TierSeal } from '@/components/garage/tier';
+import { LuxuryBlock } from '@/components/garage/luxury';
 import { useGarageTownLine } from '@/lib/customer-place';
 import { useAuth } from '@/lib/auth';
 import { browseCategory } from '@repo/core/analytics-events';
@@ -363,6 +364,9 @@ export default function GarageScreen() {
                   ) : null}
                   {vendor.tier ? <TierSeal tier={vendor.tier} /> : null}
                 </View>
+                {/* Luxury car specialists (0083): the team's quiet grey badge with "What this means",
+                    and the brands it handles, the customer's own make in the main text colour. */}
+                {vendor.luxury ? <LuxuryBlock brands={vendor.luxury.brands} customerMake={myCar?.make} /> : null}
                 {/* "Also at" (0081): the business's other live branches, each with how far it is from the
                     customer when that is known. A tap opens that branch's own page. As the website. */}
                 <AlsoAt

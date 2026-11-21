@@ -19,6 +19,7 @@ import { cn } from '@repo/core/utils'
 import { GarageCover, GarageMonogram } from '@repo/ui/features/garage-cover'
 import { GarageTownChip } from '@repo/ui/features/outside-city'
 import { TierMark } from '@repo/ui/features/tier-medal'
+import { LuxuryCardChip } from '@repo/ui/features/luxury-badge'
 import { HoursRing } from '@repo/ui/finish/hours-ring'
 import { usePrefersReducedMotion, useSeenOnce } from '@repo/ui/finish/motion'
 import { useCountUp } from '@repo/ui/finish/odometer'
@@ -413,8 +414,10 @@ export function ShowroomCard({
           </span>
         </div>
 
-        {(chips || anywhere || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
+        {(chips || anywhere || vendor.luxury || vendor.outsideServiceCity || (mode === 'dropin' && vendor.doorstepEnabled)) && (
           <div className="-mt-0.5 flex flex-wrap gap-1.5 px-3.5 pb-3">
+            {/* Luxury car specialists (0083): one quiet grey chip, never instead of the medal. */}
+            {vendor.luxury && <LuxuryCardChip />}
             {mode === 'dropin' && vendor.doorstepEnabled && (
               <span className="fx-raised inline-flex h-[26px] items-center gap-1.5 rounded-pill px-2.5 text-t4 font-medium text-[#D4D4DA]">
                 <IconHome size={13} aria-hidden className="text-[#A8A8B2]" />

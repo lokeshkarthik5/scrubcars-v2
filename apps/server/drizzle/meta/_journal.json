@@ -582,6 +582,13 @@
       "when": 1788870989748,
       "tag": "0082_service_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1788870989749,
+      "tag": "0083_luxury_specialists",
+      "breakpoints": true
     }
   ]
 }
