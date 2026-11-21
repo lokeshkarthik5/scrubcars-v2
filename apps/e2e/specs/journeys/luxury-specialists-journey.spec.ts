@@ -295,12 +295,19 @@ test.describe.serial('luxury car specialists @p0', () => {
   })
 
   test('below Silver the badge hides, and comes back with Silver', async ({ request }) => {
-    await sql`update vendor_tier_standings set silver_at = null where vendor_id = ${L.approved.id}`
+    // An earlier tier evaluation in the run may have started the 14 days
+    // (silver_short_since), which the table only allows while Silver is held:
+    // clear both, and put both back as they were.
+    const [before] = await sql<{ silverAt: Date; shortSince: Date | null }[]>`
+      select silver_at as "silverAt", silver_short_since as "shortSince"
+        from vendor_tier_standings where vendor_id = ${L.approved.id}`
+    await sql`update vendor_tier_standings set silver_at = null, silver_short_since = null where vendor_id = ${L.approved.id}`
     try {
       const hidden = (await (await request.get(`${API}/api/v1/vendors/${L.approved.id}`)).json()).data
       expect(hidden.luxury).toBeNull()
     } finally {
-      await sql`update vendor_tier_standings set silver_at = now() - interval '30 days' where vendor_id = ${L.approved.id}`
+      await sql`update vendor_tier_standings set silver_at = ${before.silverAt}, silver_short_since = ${before.shortSince}
+        where vendor_id = ${L.approved.id}`
     }
     const back = (await (await request.get(`${API}/api/v1/vendors/${L.approved.id}`)).json()).data
     expect(back.luxury).toEqual({ brands: [...L.approved.brands] })
