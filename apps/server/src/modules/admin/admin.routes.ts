@@ -56,6 +56,7 @@ import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
 import { adminServiceCategoryRoutes } from '../service-categories/service-categories.routes.js'
+import { adminServiceTemplateRoutes } from '../service-templates/service-templates.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
 import { adminGarageBackupRoutes } from '../garage-backup/garage-backup.routes.js'
@@ -575,6 +576,8 @@ adminRoutes.route('/repair-quotes', adminRepairQuoteRoutes)
 // Settings → Services in Others (0080): every garage's services in Others,
 // Move into the new categories, and "Not this".
 adminRoutes.route('/service-categories', adminServiceCategoryRoutes)
+// Settings → Service templates (0082): the editor's "Add from template".
+adminRoutes.route('/service-templates', adminServiceTemplateRoutes)
 // Garage Book (0072): a garage's book, read-only, every look logged.
 adminRoutes.route('/', adminGarageBookRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)

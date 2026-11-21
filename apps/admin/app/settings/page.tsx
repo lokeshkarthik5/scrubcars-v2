@@ -6,6 +6,7 @@ import {
   IconCategory,
   IconChevronRight,
   IconFileText,
+  IconTemplate,
   IconTrash,
   IconTruck,
   IconUsers,
@@ -113,6 +114,13 @@ export default function SettingsPage() {
           icon={IconTruck}
           title="Pickup fee"
           body="Detlio’s suggested fee, the limits garages can set, and the Detlio convenience fee (₹0, off)."
+        />
+        {/* Service templates (0082): the editor's "Add from template". */}
+        <SettingsLink
+          href="/settings/service-templates"
+          icon={IconTemplate}
+          title="Service templates"
+          body="Ready-made services the team adds to a garage in one tap. No prices: every garage sets its own."
         />
       </section>
       {/* One-off tools: the first sort into the new categories (0080). */}

@@ -104,6 +104,7 @@ export function ServicesTab({
         openRows={openRows}
         setOpenRows={setOpenRows}
         garageName={draft.form.businessName}
+        vendorId={vendorId}
         otherNames={hiddenServices.map((s) => s.name)}
         emptyText={
           hiddenServices.length > 0

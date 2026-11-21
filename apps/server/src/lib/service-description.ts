@@ -68,7 +68,8 @@ const MODEL_OVERCLAIMS: readonly string[] = [
   'brand new',
 ]
 
-const PRICE_PATTERN = /₹|\brs\.?(?=\s|\d|$)|\brupees?\b|\binr\b|\/-|\bprice[ds]?\b|\bcosts?\b/i
+/** Money words: ₹, Rs, rupees, INR, "/-", price, cost. Template names keep it too. */
+export const PRICE_PATTERN = /₹|\brs\.?(?=\s|\d|$)|\brupees?\b|\binr\b|\/-|\bprice[ds]?\b|\bcosts?\b/i
 const TIME_PATTERN =
   /\b\d+(\.\d+)?\s*(-\s*\d+\s*)?(min|mins|minutes?|hrs?|hours?|days?)\b|\b(minutes?|hours?)\b/i
 
