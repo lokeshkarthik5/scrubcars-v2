@@ -3966,10 +3966,11 @@ async function seedRepairQuoteRows() {
     { vendorId: Q.noInspection.id, userId: Q.noInspectionOwner.id, role: 'vendor_admin', status: 'active' },
     { vendorId: Q.switchGarage.id, userId: Q.switchOwner.id, role: 'vendor_admin', status: 'active' },
   ])
-  // Open all day, so the 4-hour clock runs whenever the suite does.
+  // Open through midnight. 23:59 leaves the last minute shut, so a 4-hour
+  // window started after 8 pm IST comes out a minute long.
   await db.insert(vendorWorkingHours).values([
-    ...hoursFor(Q.garage.id, '00:00:00', '23:59:00'),
-    ...hoursFor(Q.second.id, '00:00:00', '23:59:00'),
+    ...hoursFor(Q.garage.id, '00:00:00', '24:00:00'),
+    ...hoursFor(Q.second.id, '00:00:00', '24:00:00'),
     ...hoursFor(Q.noInspection.id, '06:00:00', '22:00:00'),
     ...hoursFor(Q.switchGarage.id, '06:00:00', '22:00:00'),
   ])
