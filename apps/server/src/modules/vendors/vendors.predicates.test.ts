@@ -3,6 +3,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { isCertified, type CertificationRow } from '../../lib/certification.js'
 import { isPickupOffered, type PickupSettings } from '../../lib/pickup.js'
 import { holdsSilver } from '../../lib/tiers.js'
+import { luxuryShown } from '../../lib/luxury.js'
 import { sql as sqlTag } from 'drizzle-orm'
 import {
   CERTIFIED_GARAGE,
@@ -11,6 +12,7 @@ import {
   doorstepReach,
   GARAGE_CITY_ID,
   LISTED_TO_CUSTOMERS,
+  LUXURY_SPECIALIST,
   NOT_IN_BIN,
   PICKUP_OFFERED,
   SILVER_GARAGE,
@@ -326,5 +328,29 @@ describe('"Silver & above"', () => {
     expect(goldOnly.startsWith('(v.tier_hidden = false AND EXISTS (SELECT 1 FROM vendor_certifications')).toBe(true)
     expect(goldOnly).not.toContain('vendor_tier_standings')
     expect(dialect.sqlToQuery(silverAndAboveCondition(['silver'])).sql).toBe(both)
+  })
+})
+
+describe('Luxury specialist (0083)', () => {
+  const dialect = new PgDialect()
+  const { sql, params } = dialect.sqlToQuery(LUXURY_SPECIALIST)
+  const gold = dialect.sqlToQuery(CERTIFIED_GARAGE).sql
+  const silver = dialect.sqlToQuery(SILVER_GARAGE).sql
+
+  test('the SQL the lists run is the twin: approved, and Silver or Gold held', () => {
+    expect(sql).toBe(`(v.luxury_approved_at IS NOT NULL AND (${gold} OR ${silver}))`)
+    expect(params).toEqual([])
+  })
+
+  test('evaluated as the twin reads it, it agrees on every garage', () => {
+    const at = new Date('2026-11-21T04:30:00Z')
+    for (const luxuryApprovedAt of [null, at]) {
+      for (const goldHeld of [false, true]) {
+        for (const silverHeld of [false, true]) {
+          const sqlShown = luxuryApprovedAt !== null && (goldHeld || silverHeld)
+          expect(luxuryShown({ luxuryApprovedAt }, { gold: goldHeld, silver: silverHeld })).toBe(sqlShown)
+        }
+      }
+    }
   })
 })

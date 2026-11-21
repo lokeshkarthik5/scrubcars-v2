@@ -1,3 +1,4 @@
+import type { LuxuryBadge } from './luxury'
 import type { Tier } from '@repo/core/tiers'
 import type { OpeningDay } from '@repo/core/opening-hours'
 import type { PickupNext } from '@repo/core/pickup'
@@ -151,6 +152,12 @@ export interface Vendor {
    * pins. Empty when none and from an older API. The garage page only.
    */
   branches?: GarageBranch[]
+  /**
+   * The quiet "Luxury specialist" badge (0083): the brands the Detlio team
+   * approved, while it shows (approved, and Silver or Gold held); null
+   * otherwise and from an older API. See ./luxury.
+   */
+  luxury?: LuxuryBadge | null
 }
 
 // Photos of a service's work, shown in the details popup on the garage page.

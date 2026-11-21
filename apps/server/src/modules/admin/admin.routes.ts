@@ -40,6 +40,7 @@ import { adminDocumentRoutes } from '../vendor-documents/vendor-documents.routes
 import { adminCertificationRoutes } from '../certification/certification.routes.js'
 import { adminAgreementRoutes } from '../agreements/agreements.routes.js'
 import { adminTierRoutes } from '../tiers/tiers.routes.js'
+import { adminLuxuryRoutes } from '../luxury/luxury.routes.js'
 import { adminPickupFeeRoutes } from '../pickup-fees/pickup-fees.routes.js'
 import { adminVendorImportRoutes } from '../vendor-imports/vendor-imports.routes.js'
 import {
@@ -518,6 +519,9 @@ adminRoutes.route('/certification', adminCertificationRoutes)
 adminRoutes.route('/tiers', adminTierRoutes)
 adminRoutes.route('/pickup-fees', adminPickupFeeRoutes)
 adminRoutes.route('/agreements', adminAgreementRoutes)
+// Luxury car specialists (0083): a garage's application and the team's
+// Approve / Ask for more / Decline / Remove badge.
+adminRoutes.route('/luxury', adminLuxuryRoutes)
 
 // Telegram: whether the team's alerts are set up, and "Send test alert".
 // Nested here for the same cookie reason as discounts.

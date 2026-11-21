@@ -65,6 +65,12 @@ export interface VendorListParams {
    * admin switched the tiers on). Filtered on the server, so paging holds.
    */
   silverAndAbove?: boolean
+  /**
+   * "Luxury specialists" (0083): only garages showing the Luxury specialist
+   * badge. Filtered on the server, so paging, the counts and the map hold;
+   * works with every other filter and all three modes.
+   */
+  luxury?: boolean
   limit?: number
   cursor?: string
 }
@@ -115,6 +121,7 @@ export async function getVendors(
       includeUnlocated: params?.includeUnlocated,
       // Sent only when on: left out, the list is every garage.
       tier: params?.silverAndAbove ? 'silver' : undefined,
+      luxury: params?.luxury ? '1' : undefined,
       limit: params?.limit,
       cursor: params?.cursor,
     },

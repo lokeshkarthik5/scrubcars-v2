@@ -253,6 +253,16 @@ export function silverAndAboveCondition(tiers: ReadonlyArray<'silver' | 'gold'>)
     : sql`(v.tier_hidden = false AND ${CERTIFIED_GARAGE})`
 }
 
+/**
+ * **Luxury specialist** (0083): the team's approval stands and the garage
+ * holds Silver or Gold (whatever admin switched on for customers: the badge
+ * is the team's, the tier only its floor). Against the alias `v`, for the
+ * customer lists' "Luxury specialists" filter, the reach figures and "Just
+ * outside". The row twin is luxuryShown in lib/luxury.ts, pinned to this by
+ * vendors.predicates.test.ts. Change one, change both.
+ */
+export const LUXURY_SPECIALIST = sql`(v.luxury_approved_at IS NOT NULL AND (${CERTIFIED_GARAGE} OR ${SILVER_GARAGE}))`
+
 // ─── The Bin ─────────────────────────────────────────────────────────────────
 
 /** In the Bin: moved there by admin, and not restored. */

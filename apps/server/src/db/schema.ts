@@ -691,6 +691,15 @@ export const vendors = pgTable(
     // NULL for none. Written by "Add a branch" and admin's Link / Remove from
     // group (modules/branch-groups); never backfilled.
     groupId: uuid('group_id').references(() => garageGroups.id, { onDelete: 'set null' }),
+    // Luxury car specialists (0083): the badge the Detlio team approved, who
+    // approved it and the brands customers see (copied from the application,
+    // editable by the team). Cleared by Remove badge. Customers see it only
+    // while the garage also holds Silver or Gold (lib/luxury.ts luxuryShown,
+    // LUXURY_SPECIALIST in vendors.predicates.ts). Internal: never on a public
+    // payload but as `luxury: { brands }`.
+    luxuryApprovedAt: timestamp('luxury_approved_at', { withTimezone: true }),
+    luxuryApprovedBy: varchar('luxury_approved_by', { length: 100 }),
+    luxuryBrands: text('luxury_brands').array(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -741,6 +750,9 @@ export const vendors = pgTable(
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} is not null`),
+    index('vendors_luxury_approved_idx')
+      .on(table.luxuryApprovedAt)
+      .where(sql`${table.luxuryApprovedAt} is not null`),
     // Only a garage in the Bin can be deleted forever.
     check(
       'vendors_purged_in_bin_check',
@@ -6510,3 +6522,50 @@ export const serviceTemplates = pgTable(
 )
 
 export type ServiceTemplateRecord = typeof serviceTemplates.$inferSelect
+
+// Luxury car specialists (0083): a garage's application for the badge, one
+// row per garage, sent again in place (after "Asked for more", a decline's
+// wait or a removal). `status`: review, more, approved, declined, removed.
+// `photos`: [{ url, caption }] in the public bucket under
+// vendors/<id>/luxury/, seen only by admin. `team_note`: the team's words on
+// Ask for more, Decline or Remove, read by the garage. `sent_at` is its place
+// in the queue. Rules in lib/luxury.ts; every decision in admin_audit_log.
+export const luxuryApplications = pgTable(
+  'luxury_applications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    status: text('status').$type<'review' | 'more' | 'approved' | 'declined' | 'removed'>().default('review').notNull(),
+    brands: text('brands').array().notNull(),
+    photos: jsonb('photos').$type<Array<{ url: string; caption: string | null }>>().default([]).notNull(),
+    coveredBay: boolean('covered_bay').notNull(),
+    products: text('products'),
+    staff: text('staff'),
+    teamNote: text('team_note'),
+    decidedBy: varchar('decided_by', { length: 100 }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+    timesSent: integer('times_sent').default(1).notNull(),
+    sentBy: uuid('sent_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('luxury_applications_vendor_key').on(table.vendorId),
+    index('luxury_applications_status_idx').on(table.status, table.sentAt),
+    check(
+      'luxury_applications_status_check',
+      sql`${table.status} in ('review', 'more', 'approved', 'declined', 'removed')`
+    ),
+    check('luxury_applications_brands_check', sql`cardinality(${table.brands}) >= 1`),
+    check('luxury_applications_photos_check', sql`jsonb_typeof(${table.photos}) = 'array'`),
+    check('luxury_applications_products_check', sql`${table.products} is null or length(${table.products}) <= 300`),
+    check('luxury_applications_staff_check', sql`${table.staff} is null or length(${table.staff}) <= 200`),
+    check('luxury_applications_note_check', sql`${table.teamNote} is null or length(${table.teamNote}) <= 300`),
+    check('luxury_applications_times_check', sql`${table.timesSent} >= 1`),
+  ]
+)
+
+export type LuxuryApplicationRecord = typeof luxuryApplications.$inferSelect

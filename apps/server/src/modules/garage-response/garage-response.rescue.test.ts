@@ -173,6 +173,8 @@ beforeAll(() => {
   patch(citiesService, 'rules', read({ cities: [], otherTowns: true }))
   // No branch groups (0081): the cards' one group read.
   patch(branchGroupsRepository, 'listCardGroups', read([]))
+  // No Luxury specialists (0083): the cards' one badge read.
+  patch(vendorsRepository, 'listLuxuryBadges', read(new Map()))
 })
 
 afterAll(() => {

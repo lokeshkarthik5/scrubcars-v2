@@ -28,6 +28,7 @@ import {
   PICKUP_OFFERED,
   pickupCovers,
   silverAndAboveCondition,
+  LUXURY_SPECIALIST,
   vendorOpenForItsBookings,
   vendorPageOpen,
   vendorPagesOpen,
@@ -67,6 +68,20 @@ const withImages = {
 }
 
 export const vendorsRepository = {
+  /**
+   * The brands of each of these garages that shows the Luxury specialist
+   * badge now (0083, LUXURY_SPECIALIST), by id; a garage without it is
+   * absent. One read for a page of cards or one garage page.
+   */
+  async listLuxuryBadges(ids: string[]): Promise<Map<string, string[]>> {
+    if (ids.length === 0) return new Map()
+    const rows = await db.execute<{ id: string; brands: string[] | null }>(sql`
+      SELECT v.id, v.luxury_brands AS brands FROM vendors v
+       WHERE v.id IN (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)}) AND ${LUXURY_SPECIALIST}
+    `)
+    return new Map(rows.map((row) => [row.id, row.brands ?? []]))
+  },
+
   findVendorById(id: string) {
     return db.query.vendors.findFirst({
       where: eq(vendors.id, id),
@@ -224,6 +239,8 @@ export const vendorsRepository = {
      * Silver while Silver is on. Hidden medals are left out.
      */
     tiers?: Array<'silver' | 'gold'>
+    /** "Luxury specialists" (0083): only garages showing the badge (LUXURY_SPECIALIST). */
+    luxury?: boolean
     q?: string
     sort: VendorSort
     /**
@@ -299,6 +316,8 @@ export const vendorsRepository = {
     }
 
     if (params.tiers && params.tiers.length > 0) conditions.push(silverAndAboveCondition(params.tiers))
+
+    if (params.luxury) conditions.push(LUXURY_SPECIALIST)
 
     if (bookingType === 'dropin') conditions.push(sql`v.dropin_enabled = true`)
 
