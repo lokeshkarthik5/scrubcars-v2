@@ -15,6 +15,8 @@ import {
   isNearCustomer,
   isSmallCity,
   nearGarageCount,
+  driveNearCount,
+  NEAR_DRIVE_MINUTES,
   outsideCityLine,
   outsideCityTag,
   recommendRowText,
@@ -210,5 +212,32 @@ describe('garages near you', () => {
     // Coimbatore reaches 30 km: a garage 35 km off is already "further away" there.
     const kovai = [{ ...KOVAI_GARAGE, distanceKm: 3 }, { ...KOVAI_GARAGE, distanceKm: 35 }]
     expect(firstFarIndex(kovai, { located: true, nearestFirst: true, city: COIMBATORE })).toBe(1)
+  })
+})
+
+describe('garages within ~30 min', () => {
+  // Live At-garage distances from two Chennai areas, 20 Nov 2026: the same 12
+  // garages are all within the city's 50 km reach of both, so only the drive tells them apart.
+  const km = (list: number[]) => list.map((distanceKm) => ({ ...CHENNAI_GARAGE, distanceKm }))
+  const adyar = km([2.9, 5.7, 7.7, 8.2, 8.6, 11.3, 13.2, 13.5, 13.6, 18, 18.4, 19.4])
+  const tambaram = km([0.5, 5.8, 6.4, 14.2, 15.5, 15.8, 15.9, 16.3, 19, 19.8, 20.3, 27.2])
+
+  test('counts the garages within half an hour by the card’s own estimate', () => {
+    expect(NEAR_DRIVE_MINUTES).toBe(30)
+    expect(driveNearCount(adyar, { hasMore: false, nearestFirst: true })).toEqual({ count: 5, more: false })
+    expect(driveNearCount(tambaram, { hasMore: false, nearestFirst: true })).toEqual({ count: 3, more: false })
+    expect(nearGarageCount(adyar, { located: true, hasMore: false, nearestFirst: true, city: CHENNAI }).count).toBe(12)
+  })
+
+  test('10 km is ~30 min and in; just past it is out; a garage with no pin never counts', () => {
+    expect(driveNearCount(km([10]), { hasMore: false, nearestFirst: true }).count).toBe(1)
+    expect(driveNearCount(km([10.3]), { hasMore: false, nearestFirst: true }).count).toBe(0)
+    expect(driveNearCount([{ ...CHENNAI_GARAGE, distanceKm: null }], { hasMore: false, nearestFirst: true }).count).toBe(0)
+  })
+
+  test('a "+" only while a nearest-first list may still hold closer garages', () => {
+    expect(driveNearCount(adyar, { hasMore: true, nearestFirst: true }).more).toBe(false)
+    expect(driveNearCount(adyar.slice(0, 3), { hasMore: true, nearestFirst: true }).more).toBe(true)
+    expect(driveNearCount(adyar, { hasMore: true, nearestFirst: false }).more).toBe(true)
   })
 })
