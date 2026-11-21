@@ -55,6 +55,7 @@ import { adminCityRoutes } from '../cities/cities.routes.js'
 import { adminLeadsRoutes } from '../leads/leads.routes.js'
 import { adminBookingRequestRoutes } from '../booking-requests/booking-requests.routes.js'
 import { adminRepairQuoteRoutes } from '../repair-quotes/repair-quotes.routes.js'
+import { adminServiceCategoryRoutes } from '../service-categories/service-categories.routes.js'
 import { adminPlacesRoutes } from '../places/places.routes.js'
 import { adminGarageGoogleRoutes } from '../garage-google/garage-google.routes.js'
 import { adminOwnerDeleteRoutes } from '../owner-delete/owner-delete.routes.js'
@@ -566,6 +567,9 @@ adminRoutes.route('/leads', adminLeadsRoutes)
 adminRoutes.route('/requests', adminBookingRequestRoutes)
 // Repair & bodywork quotes (0076): the list and the garage editor's switch.
 adminRoutes.route('/repair-quotes', adminRepairQuoteRoutes)
+// Settings → Services in Others (0080): every garage's services in Others,
+// Move into the new categories, and "Not this".
+adminRoutes.route('/service-categories', adminServiceCategoryRoutes)
 // Garage Book (0072): a garage's book, read-only, every look logged.
 adminRoutes.route('/', adminGarageBookRoutes)
 adminRoutes.route('/places', adminPlacesRoutes)

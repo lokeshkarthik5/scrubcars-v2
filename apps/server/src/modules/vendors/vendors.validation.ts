@@ -256,6 +256,9 @@ export const serviceCategorySchema = z.enum([
   'detailing',
   'coating',
   'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ])

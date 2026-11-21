@@ -6,6 +6,9 @@
  *
  * - 8% on car wash, package and "others" services; 5% on detailing, coating
  *   and scratch removal, the high-ticket work.
+ * - 16 Nov 2026 (0080): 5% on the new mechanical and body work too —
+ *   general service, repairs, dent & paint — the owner's suggested default,
+ *   held in MECHANICAL_AND_BODY_RATE so it changes in one place.
  * - Each garage's first 25 bookings are free. A booking counts towards the
  *   25 as soon as the garage received it — paid, or (an old pay-later
  *   booking) accepted — including bookings later cancelled or marked a
@@ -38,6 +41,15 @@ import { earningKind } from './earnings.js'
 import { wasAccepted } from './pilot-stats.js'
 
 /**
+ * Detlio's rate on general service, repairs and dent & paint (0080). The
+ * owner may still change it: change it here, in the apps' twin
+ * (packages/core/src/commission-rates.ts MECHANICAL_AND_BODY_PERCENT;
+ * commission-rates.parity.test.ts holds them equal) and in the garage-facing
+ * Earnings sentence ("Commission is 8% on washes, …").
+ */
+export const MECHANICAL_AND_BODY_RATE = 0.05
+
+/**
  * The rate on each category. Keyed exhaustively, so a new category fails the
  * build here until someone decides what Detlio takes on it.
  */
@@ -48,6 +60,9 @@ export const COMMISSION_RATES: Record<ServiceCategory, number> = {
   detailing: 0.05,
   coating: 0.05,
   scratch_removal: 0.05,
+  general_service: MECHANICAL_AND_BODY_RATE,
+  repairs: MECHANICAL_AND_BODY_RATE,
+  dent_paint: MECHANICAL_AND_BODY_RATE,
 }
 
 /** Bookings each garage gets without commission. */

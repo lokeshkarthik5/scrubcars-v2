@@ -26,6 +26,9 @@ export type ServiceCategory =
   | 'detailing'
   | 'coating'
   | 'scratch_removal'
+  | 'general_service'
+  | 'repairs'
+  | 'dent_paint'
   | 'others'
   | 'package'
 // New bookings always prepay online; 'cash' remains only for historical rows.

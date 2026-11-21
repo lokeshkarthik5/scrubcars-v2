@@ -178,6 +178,22 @@ test('step 3: capacity is sent only when something was typed', () => {
   expect(step3Settings({ bays: '3', jobsPerDay: '25' })).toEqual({ bays: 3, jobsPerDay: 25 });
 });
 
+test('step 4: the presets pick the new categories (16 Nov 2026)', () => {
+  expect(Object.fromEntries(SERVICE_PRESETS.map((preset) => [preset.name, preset.category]))).toEqual({
+    'Exterior / foam wash': 'car_wash',
+    'Interior cleaning & vacuum': 'detailing',
+    'Full detailing': 'detailing',
+    'Ceramic / paint protection': 'coating',
+    'Polishing & buffing': 'detailing',
+    'Denting & painting': 'dent_paint',
+    'General / periodic service': 'general_service',
+    'AC service & repair': 'repairs',
+    'Battery service': 'repairs',
+    'Windshield & glass': 'others',
+    'EV servicing': 'general_service',
+  });
+});
+
 test('step 4: eleven presets, and prices by pricing type', () => {
   expect(SERVICE_PRESETS).toHaveLength(11);
   const tiers = { hatchback: '300', sedan: '400', suv: '500' };

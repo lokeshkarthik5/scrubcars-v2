@@ -205,7 +205,10 @@ export function payoutsReads(conn: Tx) {
 
     /**
      * The services sold on those chains, from each one's latest row, with
-     * the category the catalogue has now (as Statistics reads it).
+     * the category each was booked at (booking_items.category, 0080), so
+     * moving a service later never re-prices a past payout. A line written
+     * before 0080's code has none and reads the service's category now (as
+     * Statistics reads it).
      */
     async earningItems(vendorId?: string): Promise<EarningItemRow[]> {
       const rows = await conn.execute<{
@@ -218,7 +221,7 @@ export function payoutsReads(conn: Tx) {
         is_addon: boolean
       }>(sql`
         with ${earningCte(vendorId)}
-        select e.root_id, bi.name, s.category, s.pricing_type, bi.amount::text as amount, bi.sort_order, bi.is_addon
+        select e.root_id, bi.name, coalesce(bi.category, s.category) as category, s.pricing_type, bi.amount::text as amount, bi.sort_order, bi.is_addon
           from earning e
           join booking_items bi on bi.booking_id = e.id
           join services s on s.id = bi.service_id

@@ -32,6 +32,9 @@ const CATEGORIES: ServiceCategory[] = [
   'detailing',
   'coating',
   'scratch_removal',
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ]

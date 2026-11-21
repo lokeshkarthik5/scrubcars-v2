@@ -324,6 +324,11 @@ export interface AdminVendorDetail {
      * category's rate (0064). Absent from an older server.
      */
     commissionRate?: string | null
+    /**
+     * When admin turned down the "Looks like Repairs · Move" hint ("Not
+     * this", 0080), or null. Absent from an older server.
+     */
+    categoryHintDismissedAt?: string | null
     images: AdminPhoto[]
     /** Photos and the video, with each video's state. */
     media: ServiceMedia[]
@@ -370,6 +375,11 @@ export interface UpdateVendorServiceInput {
    * category's rate (0064). Left out leaves it as it is.
    */
   commissionRate?: number | null
+  /**
+   * "Not this" on the category hint (0080): true keeps it hidden, false
+   * shows it again. Left out leaves it as it is.
+   */
+  categoryHintDismissed?: boolean
 }
 
 export interface UpdateVendorInput {
@@ -1559,6 +1569,55 @@ export async function setAdminServiceActive(
   return apiClient<AdminService>(
     `/admin/vendors/${vendorId}/services/${serviceId}/active`,
     { method: 'PATCH', body: JSON.stringify({ isActive }) }
+  )
+}
+
+// ─── Services in Others (0080) ──────────────────────────────────────────────
+
+/** A live plain service filed under Others, at any garage not in the Bin. */
+export interface AdminOthersService {
+  id: string
+  name: string
+  vendorId: string
+  vendorName: string
+  pricingType: 'flat' | 'per_vehicle' | 'on_inspection'
+  price: string
+  priceHatchback: string | null
+  priceSedan: string | null
+  priceSuv: string | null
+  approxPrice: string | null
+  /** "Not this" was tapped on its hint, or null. */
+  categoryHintDismissedAt: string | null
+}
+
+/**
+ * GET /admin/service-categories/others — every garage's services in Others.
+ * The page decides which look like another category (core category-hints).
+ */
+export async function listAdminOthersServices() {
+  return apiClient<{ services: AdminOthersService[] }>('/admin/service-categories/others')
+}
+
+/**
+ * POST /admin/service-categories/services/:id/move — saved at once. `from`
+ * is the category the page showed: 409 CATEGORY_CHANGED when someone moved
+ * it since. Undo is the same call back to Others.
+ */
+export async function moveAdminServiceCategory(
+  serviceId: string,
+  input: { from: Exclude<ServiceCategory, 'package'>; category: Exclude<ServiceCategory, 'package'> }
+) {
+  return apiClient<{ id: string; category: ServiceCategory }>(
+    `/admin/service-categories/services/${serviceId}/move`,
+    { method: 'POST', body: signedBody(input) }
+  )
+}
+
+/** POST /admin/service-categories/services/:id/hint — "Not this" (true), or show it again. */
+export async function setAdminCategoryHint(serviceId: string, dismissed: boolean) {
+  return apiClient<{ id: string; categoryHintDismissedAt: string | null }>(
+    `/admin/service-categories/services/${serviceId}/hint`,
+    { method: 'POST', body: signedBody({ dismissed }) }
   )
 }
 

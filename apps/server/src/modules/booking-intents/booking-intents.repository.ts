@@ -13,6 +13,7 @@ import {
 } from '../../db/schema.js'
 import {
   allocateReceiptNumber,
+  bookedCategory,
   checkGarageCanTake,
   countHeldRedemptions,
   findOverlappingVehicleBooking,
@@ -412,6 +413,7 @@ export const bookingIntentsRepository = {
           durationMins: item.durationMins,
           sortOrder: item.sortOrder,
           isAddon: item.isAddon,
+          category: bookedCategory(item.serviceId),
         }))
       )
 
