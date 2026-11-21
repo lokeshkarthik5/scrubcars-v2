@@ -1,14 +1,17 @@
-import { CATEGORY_LABELS } from '@repo/core/categories';
+import { CATEGORY_LABELS, PLAIN_CATEGORY_ORDER } from '@repo/core/categories';
 import { t, useT } from '@repo/core/i18n';
 import type { ServiceCategory } from '@repo/core/types';
 import { Pearl, Raised } from '@repo/native-ui/finish';
 import {
   IconDots,
   IconDroplet,
+  IconEngine,
   IconLayoutGrid,
   IconPackage,
   IconShieldCheck,
   IconSparkles,
+  IconSpray,
+  IconTool,
   IconWand,
   type IconProps,
 } from '@repo/native-ui/icons';
@@ -21,16 +24,8 @@ import { View } from 'react-native';
 
 export type ServiceFilter = ServiceCategory | 'all';
 
-/** The filter's services, in the order the chips had them (apps/users/components/garages/filter-sheet.tsx). */
-export const SERVICE_FILTERS: ServiceFilter[] = [
-  'all',
-  'package',
-  'car_wash',
-  'detailing',
-  'coating',
-  'scratch_removal',
-  'others',
-];
+/** The filter's services: All and Packages, then every plain category in the order used everywhere (apps/users/components/garages/filter-sheet.tsx). */
+export const SERVICE_FILTERS: ServiceFilter[] = ['all', 'package', ...PLAIN_CATEGORY_ORDER];
 
 const ICONS: Record<ServiceFilter, (props: IconProps) => ReactElement> = {
   all: IconLayoutGrid,
@@ -39,6 +34,9 @@ const ICONS: Record<ServiceFilter, (props: IconProps) => ReactElement> = {
   detailing: IconSparkles,
   coating: IconShieldCheck,
   scratch_removal: IconWand,
+  general_service: IconEngine,
+  repairs: IconTool,
+  dent_paint: IconSpray,
   others: IconDots,
 };
 
@@ -101,7 +99,7 @@ export function FilterSheet({
               <T
                 variant="t3"
                 weight={selected ? 600 : 500}
-                numberOfLines={1}
+                numberOfLines={2}
                 color={selected ? fx.pearlInk : undefined}
                 style={styles.label}
               >
@@ -149,5 +147,7 @@ const useStyles = createStyles(() => ({
   cell: { width: '48.5%' },
   tile: { height: 56, width: '100%' },
   tileRow: { flex: 1, width: '100%', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12 },
-  label: { flex: 1, minWidth: 0 },
+  // Two lines rather than cut short, as the web: "Scratch removal" and "General service"
+  // do not fit beside a count.
+  label: { flex: 1, minWidth: 0, lineHeight: 17 },
 }));

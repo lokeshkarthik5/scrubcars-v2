@@ -136,6 +136,8 @@ export function mapVendorListItem(item: ApiVendorListItem): Vendor {
     // Absent from an API before 0070: left undefined, so the signs know to fall back.
     ...(item.garageCity !== undefined ? { garageCity: item.garageCity } : {}),
     tier: item.tier ?? null,
+    branchGroup: item.branchGroup ?? null,
+    luxury: item.luxury ?? null,
   }
 }
 
@@ -187,6 +189,8 @@ export function mapPublicVendor(vendor: ApiPublicVendor): Vendor {
     outsideServiceCity: vendor.outsideServiceCity ?? null,
     ...(vendor.garageCity !== undefined ? { garageCity: vendor.garageCity } : {}),
     tier: vendor.tier ?? null,
+    branches: vendor.branches ?? [],
+    luxury: vendor.luxury ?? null,
   }
 }
 

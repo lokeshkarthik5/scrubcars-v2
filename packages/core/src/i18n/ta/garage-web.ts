@@ -800,8 +800,8 @@ export const garageWeb: Readonly<Record<string, string>> = {
   'Oldest from {date}': 'பழையது {date} முதல்',
   'Paid within {hours} hours': '{hours} மணி நேரத்துக்குள் செலுத்தப்படும்',
   'Paid this month': 'இந்த மாதம் செலுத்தியது',
-  'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI. Commission is 8% on washes, packages and others, 5% on detailing, coating and scratch removal.':
-    'ஒவ்வொரு வேலைக்கும் {hours} மணி நேரத்துக்குள் Detlio உங்கள் பங்கை வங்கிப் பரிமாற்றம் அல்லது UPI மூலம் செலுத்தும். கமிஷன்: வாஷ், பேக்கேஜ் மற்றும் மற்றவற்றுக்கு 8%, டீடெய்லிங், கோட்டிங், ஸ்கிராட்ச் நீக்கத்துக்கு 5%.',
+  'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI. Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.':
+    'ஒவ்வொரு வேலைக்கும் {hours} மணி நேரத்துக்குள் Detlio உங்கள் பங்கை வங்கிப் பரிமாற்றம் அல்லது UPI மூலம் செலுத்தும். கமிஷன்: வாஷ், பேக்கேஜ் மற்றும் மற்றவற்றுக்கு 8%, டீடெய்லிங், கோட்டிங், ஸ்கிராட்ச் நீக்கம், ஜெனரல் சர்வீஸ், ரிப்பேர், டென்ட் & பெயிண்ட்டுக்கு 5%.',
   'Your first {count} bookings are free: {used} used so far.':
     'உங்கள் முதல் {count} புக்கிங்குகள் இலவசம்: இதுவரை {used} பயன்படுத்தப்பட்டன.',
   Period: 'காலம்',

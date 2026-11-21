@@ -60,4 +60,26 @@ export const customer: Readonly<Record<string, string>> = {
   // ─── "All over <city>" garages (0069), on a Doorstep or Pickup & drop list ───
   'Comes anywhere in {city}': '{city}-ல் எங்கும் வருவார்கள்',
   'Collects anywhere in {city}': '{city}-ல் எங்கிருந்தும் எடுத்துச் செல்வார்கள்',
+  // ─── Branches (0081): "Also at" on the garage page, the line on a card ───
+  // "Also at" heads a row of other places: "also at other places", not
+  // "இங்கும் உள்ளது" ("here too"), which reads as this garage.
+  'Also at': 'மற்ற இடங்களிலும் உள்ளது',
+  '1 of {count} {name} branches': '{name}-ன் {count} கிளைகளில் ஒன்று',
+  '{name}, {distance} away. Open this branch': '{name}, {distance} தொலைவில். இந்தக் கிளையைத் திறக்கவும்',
+  '{name}. Open this branch': '{name}. இந்தக் கிளையைத் திறக்கவும்',
+  // ─── Luxury car specialists (0083): the list's chip and row, the card, the garage page ───
+  'Specialists for your {make}': 'உங்கள் {make}-க்கான ஸ்பெஷலிஸ்ட்கள்',
+  'See all {count}': 'எல்லா {count}-ஐயும் பார்க்கவும்',
+  'specialist near you': 'உங்கள் அருகில் ஸ்பெஷலிஸ்ட்',
+  'specialists near you': 'உங்கள் அருகில் ஸ்பெஷலிஸ்ட்கள்',
+  'specialist in {city}': '{city}-ல் ஸ்பெஷலிஸ்ட்',
+  'specialist here': 'இங்கே ஸ்பெஷலிஸ்ட்',
+  'specialists here': 'இங்கே ஸ்பெஷலிஸ்ட்கள்',
+  'No luxury specialists in this area yet.': 'இந்தப் பகுதியில் இன்னும் லக்ஸரி ஸ்பெஷலிஸ்ட்கள் இல்லை.',
+  'specialists in {city}': '{city}-ல் ஸ்பெஷலிஸ்ட்கள்',
+  'Approved by Detlio for luxury cars · nearest first': 'லக்ஸரி கார்களுக்கு Detlio அனுமதித்தது · அருகிலுள்ளவை முதலில்',
+  'No luxury specialists here yet. Turn off “{label}” to see every garage.':
+    'இங்கே இன்னும் லக்ஸரி ஸ்பெஷலிஸ்ட்கள் இல்லை. எல்லா கேரேஜ்களையும் பார்க்க “{label}”-ஐ அணைக்கவும்.',
+  'Show every garage': 'எல்லா கேரேஜ்களையும் காட்டவும்',
+  'Handles {brands}': 'கையாளும் பிராண்டுகள்: {brands}',
 }

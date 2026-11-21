@@ -11,7 +11,9 @@ import { ScSelect } from '@repo/ui/sc/select'
 import { LocationPicker } from '@repo/ui/features/location-picker'
 import { useAdminCities, useCreateBranch } from '@repo/core/api/hooks/use-admin-cities'
 import { errorMessage } from '@repo/core/api/hooks/use-discounts'
+import { IconHierarchy2 } from '@tabler/icons-react'
 import { SignedAs } from '@/components/signed-as'
+import { joinsGroupLine } from '@/lib/branch-groups'
 import {
   ANOTHER_TOWN,
   BRANCH_OWNER_HINT,
@@ -41,13 +43,15 @@ import type { ServiceRow } from '@/lib/service-editor'
  * name, and pickup & drop waits for that garage's own agreement.
  *
  * The branch is added Pending and not shown to customers; the editor opens
- * on it next, to check it and switch on Show to customers.
+ * on it next, to check it and switch on Show to customers. It joins this
+ * garage's branch group (0081), which is made when this garage has none.
  */
 export function BranchSheet({
   open,
   onClose,
   vendorId,
   garageName,
+  groupName,
   services,
   atGarage,
   ownerPhone,
@@ -57,6 +61,11 @@ export function BranchSheet({
   onClose: () => void
   vendorId: string
   garageName: string
+  /**
+   * The group the branch joins (0081): this garage's, or the one it will
+   * start. The suggested name starts from it ("Shine Auto Spa – <city>").
+   */
+  groupName: string
   /** The garage's live services, as saved (ids and prices). */
   services: ServiceRow[]
   /** Customers come to the garage: the branch then needs its address. */
@@ -73,11 +82,12 @@ export function BranchSheet({
   const [draft, setDraft] = useState<BranchDraft | null>(null)
   const [error, setError] = useState<string | null>(null)
   const create = useCreateBranch(vendorId)
+  const joins = joinsGroupLine(groupName)
 
   // Starts afresh on each opening, once the cities are known.
   const current =
     draft ??
-    (open && citiesQuery.data ? branchDraftFrom(garageName, saved.map((row) => row.id), cities, ownerPhone) : null)
+    (open && citiesQuery.data ? branchDraftFrom(groupName, saved.map((row) => row.id), cities, ownerPhone) : null)
   const otherLogin = current !== null && !isSameOwnerLogin(current, ownerPhone)
   const chosenCity = current && current.cityChoice !== ANOTHER_TOWN
     ? cities.find((city) => city.id === current.cityChoice) ?? null
@@ -132,6 +142,16 @@ export function BranchSheet({
         </p>
       </div>
 
+      {/* The one new line (0081, mockup 2-branches-2): the branch joins the group. */}
+      <p className="flex items-start gap-2.5 rounded-[12px] bg-white/[0.05] px-3.5 py-3 text-[12.5px] text-text-secondary">
+        <IconHierarchy2 size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+        <span>
+          {joins.lead}
+          <span className="font-medium text-text-primary">{joins.strong}</span>
+          {joins.rest}
+        </span>
+      </p>
+
       {!current ? (
         <p role="status" className="text-[13px] text-text-secondary">
           {citiesQuery.isError ? "Couldn't load the cities. Close and try again." : 'Loading the cities…'}
@@ -149,7 +169,7 @@ export function BranchSheet({
           <ScSelect
             label="City"
             value={current.cityChoice}
-            onChange={(event) => update(withCity(current, garageName, { cityChoice: event.target.value }, cities))}
+            onChange={(event) => update(withCity(current, groupName, { cityChoice: event.target.value }, cities))}
           >
             {cities.map((city) => (
               <option key={city.id} value={city.id}>
@@ -162,7 +182,7 @@ export function BranchSheet({
             <ScField
               label="Town"
               value={current.townTyped}
-              onChange={(townTyped) => update(withCity(current, garageName, { townTyped }, cities))}
+              onChange={(townTyped) => update(withCity(current, groupName, { townTyped }, cities))}
               maxLength={100}
               autoComplete="off"
             />

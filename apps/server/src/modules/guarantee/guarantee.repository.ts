@@ -30,6 +30,7 @@ import {
 } from '../../lib/guarantee.js'
 import { getDateKeyFromScheduledAt } from '../../lib/slots.js'
 import {
+  bookedCategory,
   checkGarageCanTake,
   findOverlappingVehicleBooking,
   lockVehicle,
@@ -562,6 +563,8 @@ export const guaranteeRepository = {
           amount: '0.00',
           durationMins: item.durationMins,
           sortOrder: item.sortOrder,
+          // The job again: the category the original was booked at (0080).
+          category: bookedCategory(item.serviceId, item.category),
         }))
       )
 

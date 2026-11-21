@@ -118,6 +118,15 @@ export const telegramTestRateLimiter = createRateLimiter(
   bySignedInAdmin
 )
 
+// Back up all garages (owner only), per signed-in admin per hour: the
+// manifest, the start and every page of every sheet count. BACKUP_RATE_LIMIT,
+// default 2000; read on each request, so a test can lower it.
+export const backupRateLimiter = createRateLimiter(
+  () => env.backupRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
+)
+
 // Gift codes (0049): looking one up or redeeming it, per IP per minute, on
 // its own count (never the login limiter's). A burst backstop in front of
 // the wrong-code limit the gifts service keeps in the database, which is
@@ -173,3 +182,13 @@ export const garageBookPublicRateLimiter = createRateLimiter(() => env.garageBoo
 // Booking on a garage's own link: no sign-in and no OTP, so per IP per hour
 // here, and per phone per garage per day in the database (garage-book-link).
 export const garageLinkBookRateLimiter = createRateLimiter(() => env.garageLinkBookRateLimit, 60 * 60 * 1000)
+
+// Service templates (0082): Add, Edit, On/Off and Delete, per signed-in admin
+// per hour. Nothing paid, but each is a write every garage's editor reads;
+// this caps a script or a stuck button. SERVICE_TEMPLATE_WRITE_RATE_LIMIT,
+// default 120, read on each request so the routes test can lower it.
+export const serviceTemplateWriteRateLimiter = createRateLimiter(
+  () => env.serviceTemplateWriteRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
+)

@@ -177,6 +177,11 @@ export const serviceCategoryEnum = pgEnum('service_category', [
   'detailing',
   'coating',
   'scratch_removal',
+  // The mechanical and body work (0080). Listed in the apps in the order of
+  // packages/core/src/categories.ts, never this enum's.
+  'general_service',
+  'repairs',
+  'dent_paint',
   'others',
   'package',
 ])
@@ -682,6 +687,19 @@ export const vendors = pgTable(
     // lib/cities.ts cityOfGarage's rule (drizzle/0069_cities_reach.sql). Never
     // set it from code; read it.
     cityId: uuid('city_id').references(() => cities.id, { onDelete: 'set null' }),
+    // The branch group (0081): the business this garage is one branch of, or
+    // NULL for none. Written by "Add a branch" and admin's Link / Remove from
+    // group (modules/branch-groups); never backfilled.
+    groupId: uuid('group_id').references(() => garageGroups.id, { onDelete: 'set null' }),
+    // Luxury car specialists (0083): the badge the Detlio team approved, who
+    // approved it and the brands customers see (copied from the application,
+    // editable by the team). Cleared by Remove badge. Customers see it only
+    // while the garage also holds Silver or Gold (lib/luxury.ts luxuryShown,
+    // LUXURY_SPECIALIST in vendors.predicates.ts). Internal: never on a public
+    // payload but as `luxury: { brands }`.
+    luxuryApprovedAt: timestamp('luxury_approved_at', { withTimezone: true }),
+    luxuryApprovedBy: varchar('luxury_approved_by', { length: 100 }),
+    luxuryBrands: text('luxury_brands').array(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -726,9 +744,15 @@ export const vendors = pgTable(
     ),
     index('vendors_status_idx').on(table.status),
     index('vendors_city_id_idx').on(table.cityId),
+    index('vendors_group_id_idx')
+      .on(table.groupId)
+      .where(sql`${table.groupId} is not null`),
     index('vendors_deleted_at_idx')
       .on(table.deletedAt)
       .where(sql`${table.deletedAt} is not null`),
+    index('vendors_luxury_approved_idx')
+      .on(table.luxuryApprovedAt)
+      .where(sql`${table.luxuryApprovedAt} is not null`),
     // Only a garage in the Bin can be deleted forever.
     check(
       'vendors_purged_in_bin_check',
@@ -949,6 +973,10 @@ export const services = pgTable(
     // filters it out; its category is always 'others', never shown, and it is
     // never priced on inspection (services_addon_shape_check). See lib/add-ons.ts.
     isAddon: boolean('is_addon').default(false).notNull(),
+    // When admin turned down the "Looks like Repairs · Move" hint on this
+    // service in Others ("Not this", 0080): never suggested again. Null is
+    // never turned down. Read by admin only.
+    categoryHintDismissedAt: timestamp('category_hint_dismissed_at', { withTimezone: true }),
   },
   (table) => [
     index('services_vendor_id_idx').on(table.vendorId),
@@ -1607,6 +1635,12 @@ export const bookingItems = pgTable(
     // Snapshot of services.is_addon (0068): an add-on stays marked on this
     // booking and its receipt whatever later happens to the service.
     isAddon: boolean('is_addon').default(false).notNull(),
+    // Snapshot of services.category (0080): the category the service had
+    // when it was booked, which payouts, commission and Statistics charge.
+    // Moving a service to another category later never re-prices its past
+    // bookings. Null (a row written before 0080's code) reads as the
+    // service's category now. bookedCategory (bookings.repository) fills it.
+    category: serviceCategoryEnum('category'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -2317,6 +2351,24 @@ export const adminSettings = pgTable(
     check('admin_settings_value_check', sql`jsonb_typeof(${table.value}) = 'object'`),
   ]
 )
+
+// One business, several garages (0081, "Branches"): the group a garage is a
+// branch of (vendors.group_id). Named after the first garage's business name
+// without its area ("Shine Auto Spa – Anna Nagar" → "Shine Auto Spa",
+// lib/branch-groups.ts groupNameOf). Each branch stays a whole garage; the
+// group is for the Branches card, changing services and prices at every
+// branch at once, and the customers' "Also at" and "1 of 3 … branches".
+export const garageGroups = pgTable(
+  'garage_groups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [check('garage_groups_name_check', sql`length(btrim(${table.name})) > 0`)]
+)
+
+export type GarageGroup = typeof garageGroups.$inferSelect
 
 // The cities Detlio serves (0069), with the owner's switch "Customers see
 // garages here". A garage's city is the city whose reach (straight-line km
@@ -4276,7 +4328,7 @@ export const rewardChallenges = pgTable(
     check('reward_challenges_goal_check', sql`${table.goalCount} between 1 and 20`),
     check(
       'reward_challenges_category_check',
-      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'others', 'package')`
+      sql`${table.category} is null or ${table.category} in ('car_wash', 'detailing', 'coating', 'scratch_removal', 'general_service', 'repairs', 'dent_paint', 'others', 'package')`
     ),
     check('reward_challenges_booking_type_check', sql`${table.bookingType} is null or ${table.bookingType} in ('dropin', 'doorstep', 'pickup')`),
     check(
@@ -6428,3 +6480,92 @@ export const shineJobScores = pgTable(
     ),
   ]
 )
+
+// Service templates (0082): the ready-made services behind the admin
+// editor's "Add from template", managed at Settings → Service templates and
+// added to with "Save as template" on any garage's service. Never a price:
+// every garage sets its own. `key` and `position` are the built-ins' (seeded
+// from the old code list, in its order); the team's own have neither and
+// follow, oldest first. Off hides one from the editor; Delete is soft, and
+// the name is unique in any case among those not deleted. Admin only:
+// garages do not see these yet. Every change is in admin_audit_log.
+export const serviceTemplates = pgTable(
+  'service_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: varchar('key', { length: 60 }),
+    position: integer('position'),
+    name: varchar('name', { length: 80 }).notNull(),
+    category: serviceCategoryEnum('category').notNull(),
+    durationMins: integer('duration_mins').notNull(),
+    pricingType: servicePricingTypeEnum('pricing_type').notNull(),
+    description: text('description').notNull(),
+    isOn: boolean('is_on').default(true).notNull(),
+    builtIn: boolean('built_in').default(false).notNull(),
+    createdByAdmin: varchar('created_by_admin', { length: 100 }),
+    updatedByAdmin: varchar('updated_by_admin', { length: 100 }),
+    sourceVendorId: uuid('source_vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('service_templates_key_key').on(table.key),
+    uniqueIndex('service_templates_name_key')
+      .on(sql`lower(btrim(${table.name}))`)
+      .where(sql`${table.deletedAt} is null`),
+    check('service_templates_name_check', sql`length(btrim(${table.name})) > 0`),
+    check('service_templates_category_check', sql`${table.category}::text <> 'package'`),
+    check('service_templates_duration_check', sql`${table.durationMins} between 1 and 10080`),
+    check('service_templates_description_check', sql`length(btrim(${table.description})) between 1 and 500`),
+  ]
+)
+
+export type ServiceTemplateRecord = typeof serviceTemplates.$inferSelect
+
+// Luxury car specialists (0083): a garage's application for the badge, one
+// row per garage, sent again in place (after "Asked for more", a decline's
+// wait or a removal). `status`: review, more, approved, declined, removed.
+// `photos`: [{ url, caption }] in the public bucket under
+// vendors/<id>/luxury/, seen only by admin. `team_note`: the team's words on
+// Ask for more, Decline or Remove, read by the garage. `sent_at` is its place
+// in the queue. Rules in lib/luxury.ts; every decision in admin_audit_log.
+export const luxuryApplications = pgTable(
+  'luxury_applications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    vendorId: uuid('vendor_id')
+      .notNull()
+      .references(() => vendors.id, { onDelete: 'cascade' }),
+    status: text('status').$type<'review' | 'more' | 'approved' | 'declined' | 'removed'>().default('review').notNull(),
+    brands: text('brands').array().notNull(),
+    photos: jsonb('photos').$type<Array<{ url: string; caption: string | null }>>().default([]).notNull(),
+    coveredBay: boolean('covered_bay').notNull(),
+    products: text('products'),
+    staff: text('staff'),
+    teamNote: text('team_note'),
+    decidedBy: varchar('decided_by', { length: 100 }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+    timesSent: integer('times_sent').default(1).notNull(),
+    sentBy: uuid('sent_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('luxury_applications_vendor_key').on(table.vendorId),
+    index('luxury_applications_status_idx').on(table.status, table.sentAt),
+    check(
+      'luxury_applications_status_check',
+      sql`${table.status} in ('review', 'more', 'approved', 'declined', 'removed')`
+    ),
+    check('luxury_applications_brands_check', sql`cardinality(${table.brands}) >= 1`),
+    check('luxury_applications_photos_check', sql`jsonb_typeof(${table.photos}) = 'array'`),
+    check('luxury_applications_products_check', sql`${table.products} is null or length(${table.products}) <= 300`),
+    check('luxury_applications_staff_check', sql`${table.staff} is null or length(${table.staff}) <= 200`),
+    check('luxury_applications_note_check', sql`${table.teamNote} is null or length(${table.teamNote}) <= 300`),
+    check('luxury_applications_times_check', sql`${table.timesSent} >= 1`),
+  ]
+)
+
+export type LuxuryApplicationRecord = typeof luxuryApplications.$inferSelect

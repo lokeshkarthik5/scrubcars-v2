@@ -3,12 +3,13 @@
 import type { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { IconStarFilled } from '@tabler/icons-react'
+import { IconHierarchy2, IconStarFilled } from '@tabler/icons-react'
 import { NEW_GARAGE_LABEL, hasStarScore } from '@repo/core/ratings'
 import { BOOKING_TYPE_LABELS, bookingTypeParam } from '@repo/core/booking-types'
 import { distanceAndDrive } from '@repo/core/drive-time'
 import { straightLineKm } from '@repo/core/map'
 import { anywhereInCityLine } from '@repo/core/reach'
+import { branchesLine } from '@repo/core/branches'
 import {
   isApproximate,
   isCitywide,
@@ -139,6 +140,7 @@ export function VendorCard({
     : null
   const modeParam = mode ? bookingTypeParam(mode) : null
   const anywhere = anywhereInCityLine(vendor, mode)
+  const branchLine = branchesLine(vendor.branchGroup)
 
   return (
     <div className="relative">
@@ -283,6 +285,13 @@ export function VendorCard({
             {/* "Comes anywhere in Chennai" (0069): on a Doorstep or Pickup &
                 drop list, a garage that covers its whole city says so. */}
             {anywhere && <p className="truncate text-[12px] text-text-secondary">{anywhere}</p>}
+            {/* "1 of 3 Shine Auto Spa branches" (0081): live branches only. */}
+            {branchLine && (
+              <p className="flex items-center gap-1.5 truncate text-[12px] text-text-secondary">
+                <IconHierarchy2 size={13} aria-hidden="true" className="shrink-0" />
+                {branchLine}
+              </p>
+            )}
             {note && <p className="truncate text-[12px] text-text-muted">{note}</p>}
             {/* Distance and drive time on a line of their own, with any chips
                 after them, so the figures never push the price off a 360px
