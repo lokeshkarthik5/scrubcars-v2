@@ -143,6 +143,7 @@ import {
   REPAIR_QUOTES,
   OFF_APP_FLAGS,
   SHINE,
+  BRING,
 } from './e2e-ids.js'
 import { hashPassword } from '../../lib/passwords.js'
 import { codeSuffix, couponCodeHash, couponKeys, deriveCouponCode } from '../../lib/coupons.js'
@@ -4788,8 +4789,33 @@ async function main() {
   await seedOffAppFlagRows()
   console.log('[e2e-seed] shine score…')
   await seedShineRows()
+  console.log('[e2e-seed] bring your garage…')
+  await seedBringGarageRows()
   console.log('[e2e-seed] done')
   process.exit(0)
+}
+
+/**
+ * Bring your garage (BRING, ids 8400–8449): three customers, and three
+ * earlier recommendations of the number a garage signs up with in the spec
+ * (new, contacted by the team, dismissed). Nothing linked yet.
+ */
+async function seedBringGarageRows() {
+  const B = BRING
+  await db.insert(users).values(
+    [B.customer, B.earlier, B.another].map((c) => ({
+      id: c.id, name: c.name, phone: c.phone, isCustomer: true, isVendorOwner: false,
+      phoneVerified: true, status: 'active' as const,
+    }))
+  )
+  await db.insert(garageRecommendations).values([
+    { id: B.recommendations.earlier, userId: B.earlier.id, name: B.garageName, phone: B.garagePhone,
+      why: 'Careful with the interior', status: 'new', createdAt: daysAgo(10), updatedAt: daysAgo(10) },
+    { id: B.recommendations.another, userId: B.another.id, name: 'Bring Car Spa', phone: B.garagePhone,
+      status: 'contacted', handledBy: 'E2E Admin', handledAt: daysAgo(5), createdAt: daysAgo(8), updatedAt: daysAgo(5) },
+    { id: B.recommendations.dismissed, userId: B.another.id, name: 'Bring Car Spa (old)', phone: B.garagePhone,
+      status: 'declined', handledBy: 'E2E Admin', handledAt: daysAgo(6), createdAt: daysAgo(9), updatedAt: daysAgo(6) },
+  ])
 }
 
 /**

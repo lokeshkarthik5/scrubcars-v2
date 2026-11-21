@@ -12,6 +12,7 @@ import {
   launchPushWordsNoWash,
   REFERRAL_CREDIT,
   referralCredit,
+  referralCreditPushWords,
   reminderPushWords,
   showLaunchBanner,
   signupOffer,
@@ -22,7 +23,7 @@ import {
   zoneIsLive,
   zonesToLaunch,
 } from '../../lib/area-signups.js'
-import { customerAreaNews } from '../../lib/push-messages.js'
+import { customerAreaNews, customerReferralCredit } from '../../lib/push-messages.js'
 import { zoneFor, zonesWithGarages } from '../../lib/zones.js'
 import { bookingRequestsService, type CustomerRequestView } from '../booking-requests/booking-requests.service.js'
 import { pushService } from '../push/push.service.js'
@@ -153,7 +154,8 @@ export const areaSignupsService = {
     log.info({ userId, recommendationId: row!.id, zone: zone?.slug ?? null }, 'garage_recommendation:created')
     return {
       id: row!.id,
-      credit: { perGarage: REFERRAL_CREDIT.perGarageRupees, max: REFERRAL_CREDIT.maxPerCustomerRupees },
+      // No cap per customer (owner, 21 Nov 2026): no `max` any more.
+      credit: { perGarage: REFERRAL_CREDIT.perGarageRupees },
     }
   },
 
@@ -297,11 +299,13 @@ export const areaSignupsService = {
   },
 
   /**
-   * Recommendation credits: a recommendation the team linked to a garage,
-   * once that garage is live and the customer completed a paid booking
-   * there (lib/area-signups.ts referralCredit; once per garage, ₹500 at
-   * most). Granted while gift credit is on (GIFTS_ENABLED), else owed and
-   * granted by a later run once it is.
+   * Recommendation credits: a recommendation linked to a garage (the team's
+   * lead, or the garage signing up with the customer's phone), once that
+   * garage is live and the customer completed a paid booking there
+   * (lib/area-signups.ts referralCredit; ₹500, once per garage, no cap per
+   * customer). Granted while gift credit is on (GIFTS_ENABLED), else owed
+   * and granted by a later run once it is. A grant tells the customer
+   * (push, like a report reward's); an owed one says nothing yet.
    */
   async sweepReferrals(now = new Date()) {
     const out = { granted: 0, owed: 0 }
@@ -331,13 +335,19 @@ export const areaSignupsService = {
               garageLive: live,
               completedPaidBooking: bookingId !== null,
               alreadyCreditedForGarage: facts.alreadyForGarage,
-              creditedSoFarRupees: facts.creditedSoFarRupees,
             })
             return 'amountRupees' in decision ? decision.amountRupees : null
           },
         })
-        if (result?.creditStatus === 'granted') out.granted++
-        else if (result?.creditStatus === 'owed') out.owed++
+        if (result?.creditStatus === 'granted') {
+          out.granted++
+          const vendorId = rec.vendorId
+          // The garage's name is read only while notifications are on.
+          pushService.notifyCustomer(rec.userId, async () => {
+            const garage = await areaSignupsRepository.garageName(vendorId)
+            return garage ? customerReferralCredit(result, referralCreditPushWords(garage, Number(result.creditAmount))) : null
+          })
+        } else if (result?.creditStatus === 'owed') out.owed++
         else await areaSignupsRepository.touchRecommendation(rec.id, now)
       } catch (err) {
         log.error({ err, recommendationId: rec.id }, 'area:referral_failed')

@@ -9,9 +9,14 @@
  * Status, as the team moves it: `new` (in the zone's list) → `contacted`
  * (a lead was made from it, or it was linked to a lead the team had) →
  * `joined` (that lead became a garage) or `declined` (dismissed).
+ *
+ * Bring your garage (21 Nov 2026): a garage that signs up itself (the
+ * garage app's onboarding, or the team's Add garage) with the phone a
+ * customer gave is that recommendation's garage too, `joined` at once:
+ * `recommendationsMatchingGarage`.
  */
 import { coordsInLink } from './geo/maps-link.js'
-import { LEAD_NAME_MAX, normalisePhone } from './leads.js'
+import { isIndianMobile, LEAD_NAME_MAX, normalisePhone } from './leads.js'
 import { leadZoneId } from './zone-edits.js'
 
 export type RecommendationStatus = 'new' | 'contacted' | 'joined' | 'declined'
@@ -90,3 +95,61 @@ export function leadFromRecommendation(
     ),
   }
 }
+
+// ─── Bring your garage: a garage that signs up itself (21 Nov 2026) ─────────
+
+/**
+ * The numbers a new garage can be matched on: its business phone, its
+ * WhatsApp and its owner's login phone, each normalised to ten digits
+ * (`normalisePhone`: +91 / 0 dropped) and kept only when it is an Indian
+ * mobile, which is all a recommendation's phone can be (its CHECK).
+ */
+export function garageMatchPhones(garage: {
+  phone: string | null | undefined
+  whatsapp?: string | null
+  ownerPhone?: string | null
+}): string[] {
+  const phones = new Set<string>()
+  for (const raw of [garage.phone, garage.whatsapp, garage.ownerPhone]) {
+    const phone = normalisePhone(raw)
+    if (phone && isIndianMobile(phone)) phones.add(phone)
+  }
+  return [...phones]
+}
+
+/** A recommendation as the phone match reads it. */
+export interface RecommendationPhoneCandidate extends RecommendationLink {
+  phone: string | null
+  userId: string | null
+}
+
+/**
+ * Which recommendations a garage that has just been made is the garage
+ * for, by phone: a recommendation still open (`new` or `contacted`, so
+ * neither dismissed nor joined), linked to no garage yet and with no credit
+ * decided, whose phone (normalised) is one of the garage's numbers. Every
+ * customer who recommended that number is linked, each earning once per
+ * garage when they book it (`referralCredit`; the partial unique index on
+ * customer and garage). A recommendation already following a lead to a
+ * garage is the team's link and is never moved here.
+ */
+export function recommendationsMatchingGarage(
+  candidates: readonly RecommendationPhoneCandidate[],
+  garagePhones: readonly string[]
+): string[] {
+  const phones = new Set(garagePhones)
+  if (phones.size === 0) return []
+  return candidates
+    .filter(
+      (rec) =>
+        (rec.status === 'new' || rec.status === 'contacted') &&
+        rec.vendorId === null &&
+        rec.creditStatus === null &&
+        rec.phone !== null &&
+        phones.has(normalisePhone(rec.phone) ?? '')
+    )
+    .map((rec) => rec.id)
+}
+
+/** Who a garage-sign-up link is recorded as (`handled_by`), when nobody on the team handled it before. */
+export const GARAGE_SIGN_UP_HANDLER = 'Garage sign-up'

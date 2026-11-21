@@ -736,6 +736,36 @@ export function customerAreaNews(
   })
 }
 
+/**
+ * Bring your garage (21 Nov 2026): a garage the customer recommended joined
+ * (its business name only; Reminders switch, like the area news), and its
+ * referral credit landed (the amount and the garage; like a report reward).
+ * Words from lib/area-signups.ts.
+ */
+export function customerRecommendedGarageJoined(
+  rec: { id: string; vendorId: string },
+  words: { title: string; body: string },
+  listed: boolean
+): PushMessage {
+  return message({
+    ...words,
+    // The garage page opens only once customers can find the garage.
+    url: listed ? `/garage/${rec.vendorId}` : '/garages',
+    tag: `recommendation-joined:${rec.id}`,
+    category: 'reminder',
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
+export function customerReferralCredit(rec: { id: string }, words: { title: string; body: string }): PushMessage {
+  return message({
+    ...words,
+    url: CREDIT_PATH,
+    tag: `referral-credit:${rec.id}`,
+    ttlSeconds: 24 * 60 * 60,
+  })
+}
+
 // ─── Repair & bodywork quotes (0076) ─────────────────────────────────────────
 
 /** The customer's request page (detlio.com). */

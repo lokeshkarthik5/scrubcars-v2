@@ -16,6 +16,16 @@ import type { ColourTag } from '@repo/core/garage-target'
 import { setAdminSigner, signedBody } from './admin-signer'
 import type { OnboardingMarkBrief } from './admin-marks'
 
+/** One customer who brought a garage in (AdminVendor.broughtInBy). */
+export interface AdminBroughtInBy {
+  recommendationId: string
+  /** Null once the customer's account is gone. */
+  customerName: string | null
+  credit: 'paid' | 'owed' | 'waiting'
+  amountRupees: number
+  recommendedAt: string
+}
+
 export interface AdminVendor {
   id: string
   businessName: string
@@ -104,6 +114,14 @@ export interface AdminVendor {
    * last 90 days. Null while the guarantee is off; absent from older servers.
    */
   redoClaims90d?: number | null
+  /**
+   * Bring your garage (21 Nov 2026): the customers whose recommendation
+   * brought this garage in (it signed up with the phone they gave, or the
+   * team onboarded the lead made of it), and whether each one's ₹500 is
+   * paid, owed (credit is off) or waiting for their paid booking there.
+   * Admin only. Absent from older servers.
+   */
+  broughtInBy?: AdminBroughtInBy[]
   /**
    * Its garage documents in short (0043): whether it has the badge, how
    * many required are approved, how many wait for review. Null while garage

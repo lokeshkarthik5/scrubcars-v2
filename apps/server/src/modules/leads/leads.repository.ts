@@ -19,7 +19,7 @@ import {
   zones,
 } from '../../db/schema.js'
 import type { RecommendationStatus } from '../../lib/recommendations.js'
-import { vendorNotInBin } from '../vendors/vendors.predicates.js'
+import { LISTED_TO_CUSTOMERS, vendorNotInBin } from '../vendors/vendors.predicates.js'
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 /** The pool, or a transaction the write runs in (one connection: never mix the two inside one). */
@@ -406,11 +406,130 @@ export const leadsRepository = {
         status: garageRecommendations.status,
         vendorId: garageRecommendations.vendorId,
         creditStatus: garageRecommendations.creditStatus,
+        userId: garageRecommendations.userId,
       })
       .from(garageRecommendations)
       .where(eq(garageRecommendations.leadId, leadId))
       .orderBy(asc(garageRecommendations.id))
       .for('update')
+  },
+
+  /**
+   * Bring your garage: the open recommendations with one of a new garage's
+   * numbers, locked like a lead's (the credit's own transaction locks the
+   * same rows). Only the ones the phone match may take (no garage, no
+   * credit, new or contacted); lib/recommendations.ts decides.
+   */
+  lockRecommendationsByPhones(phones: readonly string[], conn: Conn = db) {
+    if (phones.length === 0) return Promise.resolve([])
+    return conn
+      .select({
+        id: garageRecommendations.id,
+        status: garageRecommendations.status,
+        vendorId: garageRecommendations.vendorId,
+        creditStatus: garageRecommendations.creditStatus,
+        phone: garageRecommendations.phone,
+        userId: garageRecommendations.userId,
+        leadId: garageRecommendations.leadId,
+      })
+      .from(garageRecommendations)
+      .where(
+        and(
+          inArray(garageRecommendations.phone, [...phones]),
+          isNull(garageRecommendations.vendorId),
+          isNull(garageRecommendations.creditStatus),
+          inArray(garageRecommendations.status, ['new', 'contacted'])
+        )
+      )
+      .orderBy(asc(garageRecommendations.id))
+      .for('update')
+  },
+
+  /**
+   * Links matched recommendations to the garage that signed up with their
+   * phone: `joined`, the garage, and who and when (kept when the team made
+   * a lead of it already; else the sign-up's), each only while it is still
+   * unlinked with no credit decided.
+   */
+  async linkRecommendationsToGarage(
+    ids: readonly string[],
+    vendorId: string,
+    handledBy: string,
+    now: Date,
+    conn: Conn = db
+  ): Promise<Array<{ id: string; userId: string | null; leadId: string | null }>> {
+    if (ids.length === 0) return []
+    return conn
+      .update(garageRecommendations)
+      .set({
+        vendorId,
+        status: 'joined',
+        handledBy: sql`coalesce(${garageRecommendations.handledBy}, ${handledBy})`,
+        handledAt: sql`coalesce(${garageRecommendations.handledAt}, ${now.toISOString()}::timestamptz)`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          inArray(garageRecommendations.id, [...ids]),
+          isNull(garageRecommendations.vendorId),
+          isNull(garageRecommendations.creditStatus)
+        )
+      )
+      .returning({
+        id: garageRecommendations.id,
+        userId: garageRecommendations.userId,
+        leadId: garageRecommendations.leadId,
+      })
+  },
+
+  /**
+   * Every recommendation that brought a garage in (joined, linked), with
+   * the customer's name, for the admin Garages panel's "Brought in by".
+   * One read for the whole list.
+   */
+  async listJoinedRecommendations() {
+    const rows = await db.execute<{
+      id: string
+      vendor_id: string
+      credit_status: 'owed' | 'granted' | null
+      credit_amount: string | null
+      customer_name: string | null
+      has_user: boolean
+      created_at: Date | string
+    }>(sql`
+      SELECT r.id, r.vendor_id, r.credit_status, r.credit_amount, u.name AS customer_name,
+             (r.user_id IS NOT NULL) AS has_user, r.created_at
+        FROM garage_recommendations r LEFT JOIN users u ON u.id = r.user_id
+       WHERE r.vendor_id IS NOT NULL AND r.status = 'joined'
+       ORDER BY r.created_at ASC, r.id ASC
+    `)
+    return Array.from(rows)
+  },
+
+  /** A garage's numbers for the phone match: its phone, its WhatsApp and its owner's login phone. */
+  async garagePhones(vendorId: string, conn: Conn = db): Promise<{ phone: string; whatsapp: string | null; ownerPhone: string | null } | null> {
+    const rows = await conn.execute<{ phone: string; whatsapp: string | null; owner_phone: string | null }>(sql`
+      SELECT v.phone, v.whatsapp, u.phone AS owner_phone
+        FROM vendors v LEFT JOIN users u ON u.id = v.owner_id
+       WHERE v.id = ${vendorId}
+    `)
+    const row = Array.from(rows)[0]
+    return row ? { phone: row.phone, whatsapp: row.whatsapp, ownerPhone: row.owner_phone } : null
+  },
+
+  /** The lead a garage was made from or linked to, if any (one at most: unique). */
+  async leadIdOfGarage(vendorId: string, conn: Conn = db): Promise<string | null> {
+    const [row] = await conn.select({ id: leads.id }).from(leads).where(eq(leads.vendorId, vendorId)).limit(1)
+    return row?.id ?? null
+  },
+
+  /** A garage's business name and whether customers can find it (the lists' own rule), for "joined thanks to you". */
+  async garageForJoinedNotice(vendorId: string, conn: Conn = db): Promise<{ businessName: string; listed: boolean } | null> {
+    const rows = await conn.execute<{ business_name: string; listed: boolean }>(sql`
+      SELECT v.business_name, ${LISTED_TO_CUSTOMERS} AS listed FROM vendors v WHERE v.id = ${vendorId}
+    `)
+    const row = Array.from(rows)[0]
+    return row ? { businessName: row.business_name, listed: row.listed === true } : null
   },
 
   /** Each change, only while its credit is undecided (the rule's own condition, kept here too). */

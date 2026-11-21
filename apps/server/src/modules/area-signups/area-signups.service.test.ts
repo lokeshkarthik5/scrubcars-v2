@@ -149,6 +149,73 @@ describe('referral credit while credit is off', () => {
   })
 })
 
+describe('the referral credit: ₹500 a garage, no cap, and the customer told when it lands', () => {
+  test('a customer bringing their tenth garage gets the full ₹500, and a notification naming the garage', async () => {
+    ;(env as unknown as Record<string, unknown>).giftsEnabled = true
+    const repo = areaSignupsRepository as unknown as Patchable
+    const service = pushService as unknown as Patchable
+    const restore: Array<[Patchable, string, unknown]> = []
+    const swap = (target: Patchable, key: string, value: unknown) => {
+      restore.push([target, key, target[key]])
+      target[key] = value
+    }
+    const decided: Array<number | null> = []
+    const pushes: Array<{ userId: string; title: string; body: string; url: string }> = []
+    swap(repo, 'listCreditCandidates', async () => [
+      { id: 'rec10', userId: 'u1', vendorId: 'g10', creditStatus: null, creditBookingId: null, createdAt: NOW },
+    ])
+    swap(repo, 'garageListed', async () => true)
+    swap(repo, 'firstPaidCompletedBooking', async () => 'b10')
+    swap(repo, 'garageName', async () => 'Sri Krishna Car Spa')
+    // Nine garages credited before: nothing about them reaches the rule any more.
+    swap(repo, 'creditRecommendation', async (input: { decide: (facts: { alreadyForGarage: boolean }) => number | null }) => {
+      const amount = input.decide({ alreadyForGarage: false })
+      decided.push(amount)
+      return { id: 'rec10', creditStatus: 'granted', creditAmount: amount!.toFixed(2) }
+    })
+    swap(service, 'notifyCustomer', (userId: string, source: () => Promise<{ title: string; body: string; url: string } | null>) => {
+      void source().then((message) => message && pushes.push({ userId, ...message }))
+    })
+    try {
+      expect(await areaSignupsService.sweepReferrals(NOW)).toEqual({ granted: 1, owed: 0 })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(decided).toEqual([500])
+      expect(pushes).toEqual([
+        expect.objectContaining({
+          userId: 'u1',
+          title: '₹500 credit added',
+          body: 'Sri Krishna Car Spa joined Detlio and you booked them. Thanks for bringing them in!',
+          url: '/profile/credit',
+        }),
+      ])
+    } finally {
+      for (const [target, key, value] of restore.reverse()) target[key] = value
+    }
+  })
+
+  test('owed while credit is off: recorded, and nothing is sent yet', async () => {
+    ;(env as unknown as Record<string, unknown>).giftsEnabled = false
+    const repo = areaSignupsRepository as unknown as Patchable
+    const restore: Array<[string, unknown]> = []
+    const fakes: Record<string, unknown> = {
+      listCreditCandidates: async () => [{ id: 'r', userId: 'u1', vendorId: 'g', creditStatus: null, creditBookingId: null, createdAt: NOW }],
+      garageListed: async () => true,
+      firstPaidCompletedBooking: async () => 'b',
+      creditRecommendation: async () => ({ id: 'r', creditStatus: 'owed', creditAmount: '500.00' }),
+    }
+    for (const [key, value] of Object.entries(fakes)) {
+      restore.push([key, repo[key]])
+      repo[key] = value
+    }
+    try {
+      expect(await areaSignupsService.sweepReferrals(NOW)).toEqual({ granted: 0, owed: 1 })
+      expect(sent).toEqual([])
+    } finally {
+      for (const [key, value] of restore) repo[key] = value
+    }
+  })
+})
+
 describe('signing up as the zone goes live', () => {
   test('a sign-up the launch got to first is refused as AREA_LIVE, not left without its free wash', async () => {
     const restore: Array<[string, unknown]> = []

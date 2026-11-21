@@ -336,6 +336,12 @@ export const areaSignupsRepository = {
     await db.update(garageRecommendations).set({ updatedAt: now }).where(eq(garageRecommendations.id, id))
   },
 
+  /** A garage's business name, for the referral credit's notification. */
+  async garageName(vendorId: string): Promise<string | null> {
+    const rows = await db.execute<{ business_name: string }>(sql`SELECT v.business_name FROM vendors v WHERE v.id = ${vendorId}`)
+    return Array.from(rows)[0]?.business_name ?? null
+  },
+
   /** Whether the garage is listed to customers now. */
   async garageListed(vendorId: string): Promise<boolean> {
     const rows = await db.execute<{ id: string }>(sql`SELECT v.id FROM vendors v WHERE v.id = ${vendorId} AND ${LISTED_TO_CUSTOMERS}`)
@@ -371,8 +377,8 @@ export const areaSignupsRepository = {
   /**
    * Decides one recommendation's credit under the customer's own lock
    * (`garage-recommendations:<userId>`, taken on its own; then the credit
-   * lock inside the ledger insert): `decide` reads what the customer has had
-   * and what this garage has had, and says how much (or nothing). Granted
+   * lock inside the ledger insert): `decide` reads whether this garage has
+   * earned the customer credit already, and says how much (or nothing). Granted
    * when credit is on, else owed (the cron grants it once it is on).
    */
   creditRecommendation(input: {
@@ -382,7 +388,7 @@ export const areaSignupsRepository = {
     bookingId: string
     creditOn: boolean
     now: Date
-    decide: (facts: { creditedSoFarRupees: number; alreadyForGarage: boolean }) => number | null
+    decide: (facts: { alreadyForGarage: boolean }) => number | null
     reason: string
   }): Promise<RecommendationRecord | null> {
     return db.transaction(async (tx) => {
@@ -400,17 +406,19 @@ export const areaSignupsRepository = {
       if (row.creditStatus === 'owed') {
         amountRupees = Number(row.creditAmount)
       } else {
+        // Once per customer and garage (the partial unique index holds it
+        // too); no cap on how many garages (owner, 21 Nov 2026).
         const [totals] = await tx
-          .select({
-            total: sql<string>`coalesce(sum(${garageRecommendations.creditAmount}), 0)`,
-            forGarage: sql<number>`count(*) filter (where ${garageRecommendations.vendorId} = ${input.vendorId})::int`,
-          })
+          .select({ forGarage: sql<number>`count(*)::int` })
           .from(garageRecommendations)
-          .where(and(eq(garageRecommendations.userId, input.userId), isNotNull(garageRecommendations.creditStatus)))
-        const decided = input.decide({
-          creditedSoFarRupees: Number(totals?.total ?? 0),
-          alreadyForGarage: Number(totals?.forGarage ?? 0) > 0,
-        })
+          .where(
+            and(
+              eq(garageRecommendations.userId, input.userId),
+              eq(garageRecommendations.vendorId, input.vendorId),
+              isNotNull(garageRecommendations.creditStatus)
+            )
+          )
+        const decided = input.decide({ alreadyForGarage: Number(totals?.forGarage ?? 0) > 0 })
         if (decided === null) return null
         amountRupees = decided
       }

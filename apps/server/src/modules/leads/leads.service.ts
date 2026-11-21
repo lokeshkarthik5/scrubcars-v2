@@ -31,9 +31,14 @@ import {
   isGoogleRefreshHour,
 } from '../../lib/places/refresh.js'
 import {
+  garageMatchPhones,
   leadFromRecommendation,
   recommendationGarageChanges,
+  recommendationsMatchingGarage,
 } from '../../lib/recommendations.js'
+import { garageJoinedPushWords, isReachPushHour, REFERRAL_CREDIT } from '../../lib/area-signups.js'
+import { customerRecommendedGarageJoined } from '../../lib/push-messages.js'
+import { pushService } from '../push/push.service.js'
 import { leadZoneId } from '../../lib/zone-edits.js'
 import { zoneFor } from '../../lib/zones.js'
 import { geoService } from '../geo/geo.service.js'
@@ -217,14 +222,73 @@ async function syncRecommendations(
   conn: Conn,
   leadId: string,
   vendorId: string | null,
-  now: Date
+  now: Date,
+  /** Filled with the ones that joined the garage, to tell their customers. */
+  joined?: Array<{ id: string; userId: string | null }>
 ): Promise<number> {
   const recommendations = await leadsRepository.lockRecommendationsOfLead(
     leadId,
     conn
   )
   const changes = recommendationGarageChanges(recommendations, vendorId)
-  return leadsRepository.setRecommendationGarages(changes, now, conn)
+  const changed = await leadsRepository.setRecommendationGarages(changes, now, conn)
+  if (joined && vendorId) {
+    for (const change of changes) {
+      if (change.status !== 'joined') continue
+      const rec = recommendations.find((r) => r.id === change.id)
+      joined.push({ id: change.id, userId: rec?.userId ?? null })
+    }
+  }
+  return changed
+}
+
+/**
+ * "<Garage> joined Detlio thanks to you. Book them once to get ₹500." to
+ * each customer whose recommendation just joined a garage (Bring your
+ * garage, 21 Nov 2026), once per customer, after the response. Only in the
+ * area news' hours (09:00–20:59 IST, lib/area-signups.ts isReachPushHour);
+ * outside them nothing is sent (there is nowhere to keep it for the
+ * morning without a column). The garage's name and whether customers can
+ * find it are read only while notifications are on.
+ */
+function tellRecommendersJoined(
+  vendorId: string,
+  recommendations: ReadonlyArray<{ id: string; userId: string | null }>,
+  now: Date
+) {
+  const seen = new Set<string>()
+  const recipients = recommendations.filter((rec): rec is { id: string; userId: string } => {
+    if (!rec.userId || seen.has(rec.userId)) return false
+    seen.add(rec.userId)
+    return true
+  })
+  if (recipients.length === 0) return
+  if (!isReachPushHour(now)) {
+    log.info({ vendorId, customers: recipients.length }, 'recommendations:joined_not_told_quiet_hours')
+    return
+  }
+  pushService.notifyLater(async () => {
+    const garage = await leadsRepository.garageForJoinedNotice(vendorId)
+    if (!garage) return []
+    const words = garageJoinedPushWords(garage.businessName)
+    return recipients.map((rec) => ({
+      recipient: { audience: 'customer' as const, userId: rec.userId },
+      message: customerRecommendedGarageJoined({ id: rec.id, vendorId }, words, garage.listed),
+    }))
+  })
+}
+
+/**
+ * Who brought a garage in (Bring your garage, 21 Nov 2026), for the admin
+ * Garages panel only: the customer's name, and whether their ₹500 is paid,
+ * owed (credit is off) or waiting for their paid booking there.
+ */
+export interface BroughtInBy {
+  recommendationId: string
+  customerName: string | null
+  credit: 'paid' | 'owed' | 'waiting'
+  amountRupees: number
+  recommendedAt: string
 }
 
 /** A customer recommendation as Coverage lists it: never who recommended it. */
@@ -613,6 +677,7 @@ export const leadsService = {
     vendorId: string,
     now = new Date()
   ): Promise<boolean> {
+    const joined: Array<{ id: string; userId: string | null }> = []
     const { linked, synced } = await leadsRepository.transaction(async (tx) => {
       const linked = await leadsRepository.markOnboarded(
         leadId,
@@ -621,12 +686,81 @@ export const leadsService = {
         tx
       )
       const synced = linked
-        ? await syncRecommendations(tx, leadId, vendorId, now)
+        ? await syncRecommendations(tx, leadId, vendorId, now, joined)
         : 0
       return { linked, synced }
     })
+    tellRecommendersJoined(vendorId, joined, now)
     log.info({ linked, recommendations: synced }, 'leads:onboarded')
     return linked
+  },
+
+  /** Each garage's "Brought in by" (admin only), by garage id. One read. */
+  async broughtInByGarage(): Promise<Map<string, BroughtInBy[]>> {
+    const byGarage = new Map<string, BroughtInBy[]>()
+    for (const row of await leadsRepository.listJoinedRecommendations()) {
+      const entry: BroughtInBy = {
+        recommendationId: row.id,
+        customerName: row.has_user ? row.customer_name : null,
+        credit: row.credit_status === 'granted' ? 'paid' : row.credit_status === 'owed' ? 'owed' : 'waiting',
+        amountRupees: row.credit_amount !== null ? Number(row.credit_amount) : REFERRAL_CREDIT.perGarageRupees,
+        recommendedAt: new Date(row.created_at).toISOString(),
+      }
+      byGarage.set(row.vendor_id, [...(byGarage.get(row.vendor_id) ?? []), entry])
+    }
+    return byGarage
+  },
+
+  /**
+   * Bring your garage (21 Nov 2026): a garage that has just been made — by
+   * its owner in the garage app's onboarding, or by the team's Add garage —
+   * is the garage of every open recommendation with one of its numbers
+   * (its phone, its WhatsApp, its owner's login; lib/recommendations.ts
+   * recommendationsMatchingGarage). Each becomes `joined` with the garage,
+   * under the rows' lock; who and when are kept when the team handled it
+   * already, else `handledBy` and now. The first of their leads not yet a
+   * garage is Onboarded to it too (while the garage has no lead), so the
+   * team's call list shows the garage rather than a lead to chase, and that
+   * lead's other recommendations follow it. Each customer is told once.
+   * The number linked; the team's own linking is untouched.
+   */
+  async linkRecommendationsByPhone(
+    vendorId: string,
+    handledBy: string,
+    now = new Date()
+  ): Promise<number> {
+    const garage = await leadsRepository.garagePhones(vendorId)
+    const phones = garage ? garageMatchPhones(garage) : []
+    if (phones.length === 0) return 0
+    const linked = await leadsRepository.transaction(async (tx) => {
+      const candidates = await leadsRepository.lockRecommendationsByPhones(phones, tx)
+      const ids = recommendationsMatchingGarage(candidates, phones)
+      return leadsRepository.linkRecommendationsToGarage(ids, vendorId, handledBy, now, tx)
+    })
+    if (linked.length === 0) return 0
+
+    const joined: Array<{ id: string; userId: string | null }> = [...linked]
+    let leadLinked = false
+    const leadIds = [...new Set(linked.map((rec) => rec.leadId).filter((id): id is string => id !== null))]
+    if (leadIds.length > 0 && !(await leadsRepository.leadIdOfGarage(vendorId))) {
+      for (const leadId of leadIds) {
+        try {
+          leadLinked = await leadsRepository.transaction(async (tx) => {
+            const onboarded = await leadsRepository.markOnboarded(leadId, vendorId, now, tx)
+            if (onboarded) await syncRecommendations(tx, leadId, vendorId, now, joined)
+            return onboarded
+          })
+        } catch (err) {
+          // Another lead took the garage meanwhile (leads_vendor_id_key): the recommendations stay linked.
+          log.warn({ err, vendorId }, 'recommendations:lead_not_linked')
+          break
+        }
+        if (leadLinked) break
+      }
+    }
+    tellRecommendersJoined(vendorId, joined, now)
+    log.info({ vendorId, linked: linked.length, leadLinked }, 'recommendations:linked_by_phone')
+    return linked.length
   },
 
   /**

@@ -19,10 +19,9 @@ export const FREE_WASH_RULES = {
   maxCloses: 3,
 } as const
 
-/** PLACEHOLDER: owner to confirm (₹100 a garage, ₹500 at most a customer). */
+/** Bring your garage (owner, 21 Nov 2026): ₹500 a garage, once per garage, no cap per customer. */
 export const REFERRAL_CREDIT = {
-  perGarageRupees: 100,
-  maxPerCustomerRupees: 500,
+  perGarageRupees: 500,
 } as const
 
 const DAY_MS = 24 * 60 * 60 * 1000

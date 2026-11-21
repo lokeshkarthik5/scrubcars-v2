@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { referralCredit } from './area-signups.js'
-import type { RecommendationLink } from './recommendations.js'
+import type { RecommendationLink, RecommendationPhoneCandidate } from './recommendations.js'
 
 // The Maps link reader sits beside the geo providers, which read the env;
 // nothing here connects to anything.
 process.env.DATABASE_URL ??= 'postgres://test:test@localhost:5432/test'
-const { leadFromRecommendation, recommendationGarageChanges } =
+const { garageMatchPhones, leadFromRecommendation, recommendationGarageChanges, recommendationsMatchingGarage } =
   await import('./recommendations.js')
 
 const GARAGE = 'garage-1'
@@ -88,9 +88,8 @@ describe('the referral credit on that link is paid once (customer reach’s rule
       garageLive: true,
       completedPaidBooking: true,
       alreadyCreditedForGarage: false,
-      creditedSoFarRupees: 0,
     })
-    expect(first).toEqual({ amountRupees: 100 })
+    expect(first).toEqual({ amountRupees: 500 })
     // A second recommendation of the same garage by the same customer.
     expect(
       referralCredit({
@@ -98,7 +97,6 @@ describe('the referral credit on that link is paid once (customer reach’s rule
         garageLive: true,
         completedPaidBooking: true,
         alreadyCreditedForGarage: true,
-        creditedSoFarRupees: 100,
       })
     ).toEqual({ refusal: 'ALREADY_FOR_GARAGE' })
   })
@@ -110,7 +108,6 @@ describe('the referral credit on that link is paid once (customer reach’s rule
         garageLive: true,
         completedPaidBooking: true,
         alreadyCreditedForGarage: false,
-        creditedSoFarRupees: 0,
       })
     ).toEqual({ refusal: 'NOT_LINKED' })
   })
@@ -162,5 +159,61 @@ describe('leadFromRecommendation', () => {
         ZONES
       )
     ).toMatchObject({ phone: '9000005061', zoneId: null, mapsUrl: null })
+  })
+})
+
+describe('bring your garage: a garage that signs up itself, matched by phone', () => {
+  const candidate = (patch: Partial<RecommendationPhoneCandidate> = {}): RecommendationPhoneCandidate => ({
+    id: 'rec-1',
+    status: 'new',
+    vendorId: null,
+    creditStatus: null,
+    phone: '9840123456',
+    userId: 'priya',
+    ...patch,
+  })
+
+  test('the garage’s numbers: its phone, WhatsApp and owner login, as ten digits, mobiles only', () => {
+    expect(garageMatchPhones({ phone: '+91 98401 23456', whatsapp: '09840123456', ownerPhone: '919840654321' })).toEqual([
+      '9840123456',
+      '9840654321',
+    ])
+    // A landline (044…) can never be a recommendation's phone, so it is left out.
+    expect(garageMatchPhones({ phone: '044 2490 1234', whatsapp: null, ownerPhone: null })).toEqual([])
+    expect(garageMatchPhones({ phone: null })).toEqual([])
+  })
+
+  test('a recommendation with the same number, new or contacted, is the garage’s', () => {
+    expect(recommendationsMatchingGarage([candidate()], ['9840123456'])).toEqual(['rec-1'])
+    expect(recommendationsMatchingGarage([candidate({ status: 'contacted' })], ['9840123456'])).toEqual(['rec-1'])
+    // Normalised on both sides: a phone stored with a 0 still matches (old rows were checked to ten digits anyway).
+    expect(recommendationsMatchingGarage([candidate({ phone: '09840123456' })], ['9840123456'])).toEqual(['rec-1'])
+  })
+
+  test('every customer who recommended the number is linked, each to earn once', () => {
+    const recs = [
+      candidate({ id: 'a', userId: 'priya' }),
+      candidate({ id: 'b', userId: 'arun' }),
+      candidate({ id: 'c', userId: 'priya', phone: '9840999999' }),
+    ]
+    expect(recommendationsMatchingGarage(recs, ['9840123456'])).toEqual(['a', 'b'])
+  })
+
+  test('never: another number, no phone, dismissed, joined, linked, or credit decided', () => {
+    const phones = ['9840123456']
+    expect(recommendationsMatchingGarage([candidate({ phone: '9840000000' })], phones)).toEqual([])
+    expect(recommendationsMatchingGarage([candidate({ phone: null })], phones)).toEqual([])
+    expect(recommendationsMatchingGarage([candidate({ status: 'declined' })], phones)).toEqual([])
+    expect(recommendationsMatchingGarage([candidate({ status: 'joined' })], phones)).toEqual([])
+    // Already following a lead to a garage: the team's link stands.
+    expect(recommendationsMatchingGarage([candidate({ status: 'contacted', vendorId: OTHER })], phones)).toEqual([])
+    expect(recommendationsMatchingGarage([candidate({ creditStatus: 'owed' })], phones)).toEqual([])
+    expect(recommendationsMatchingGarage([candidate()], [])).toEqual([])
+  })
+
+  test('the team’s manual link still moves a phone-matched one until its credit is decided', () => {
+    // Joined by the sign-up, then the team links its lead to another garage: it follows, as before.
+    const joined = { id: 'rec-1', status: 'joined' as const, vendorId: GARAGE, creditStatus: null }
+    expect(recommendationGarageChanges([joined], OTHER)).toEqual([{ id: 'rec-1', vendorId: OTHER, status: 'joined' }])
   })
 })
