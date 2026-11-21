@@ -7,7 +7,7 @@
  * use too.
  *
  * Only "E2E Test Zone" (LEADS.testZone) is added, changed and removed, and
- * it is removed again after; Perambur's seeded leads are only read here,
+ * it is removed again after; Pallikaranai's seeded leads are only read here,
  * and only ones coverage-leads.spec.ts never changes (`notInterested`,
  * `knownAqua`): that file runs at the same time and edits `toTarget`.
  * The figures' rules are unit-tested in apps/admin/lib/coverage.test.ts and
@@ -59,7 +59,7 @@ test.describe.serial('Coverage in zones @p0', () => {
     await expect(totals.getByText('To target')).toBeVisible()
     await expect(totals.getByText('Not interested')).toBeVisible()
 
-    // Priority & Hot: the seven, and Perambur (not a priority zone, but Hot:
+    // Priority & Hot: the seven, and Pallikaranai (not a priority zone, but Hot:
     // DEMAND's 12 waiting and 2 failed requests); Egmore (neither) only
     // under All zones.
     for (const name of [
@@ -78,7 +78,7 @@ test.describe.serial('Coverage in zones @p0', () => {
     await page.getByRole('radio', { name: 'All zones' }).click()
     await expect(zoneButton(page, 'Egmore')).toBeVisible()
     await expect(zoneButton(page, LEADS.zoneName)).toHaveAccessibleName(
-      /Perambur: \d+ of 5 live, \d+ known/
+      /Pallikaranai: \d+ of 5 live, \d+ known/
     )
     await page.getByRole('radio', { name: 'Priority & Hot' }).click()
     await expect(zoneButton(page, 'Egmore')).toHaveCount(0)
@@ -90,7 +90,7 @@ test.describe.serial('Coverage in zones @p0', () => {
       'Hot: the top 3 zones'
     )
 
-    // Perambur's call list: its seeded leads, filtered by status.
+    // Pallikaranai's call list: its seeded leads, filtered by status.
     await zoneButton(page, LEADS.zoneName).click()
     await expect(page).toHaveURL(/\/coverage\?zone=/)
     const drawer = page.getByRole('dialog', { name: LEADS.zoneName })
@@ -212,7 +212,7 @@ test.describe.serial('Coverage in zones @p0', () => {
 
     // A name taken by another zone is refused.
     await editor.getByRole('button', { name: '+ Add a zone' }).click()
-    await editor.getByLabel('Name', { exact: true }).fill('perambur')
+    await editor.getByLabel('Name', { exact: true }).fill('pallikaranai')
     await editor.getByLabel('Centre latitude').fill('12.9')
     await editor.getByLabel('Centre longitude').fill('80.1')
     await editor.getByRole('button', { name: 'Add zone' }).click()
@@ -279,19 +279,19 @@ test.describe.serial('Coverage in zones @p0', () => {
     await editor
       .getByRole('button', { name: `Edit zone ${LEADS.zoneName}` })
       .click()
-    const perambur = editor
+    const pallikaranai = editor
       .getByRole('listitem')
       .filter({
         has: page.getByRole('button', { name: `Edit zone ${LEADS.zoneName}` }),
       })
-    await perambur.getByRole('button', { name: 'Remove zone' }).click()
-    await perambur
+    await pallikaranai.getByRole('button', { name: 'Remove zone' }).click()
+    await pallikaranai
       .getByRole('button', { name: `Remove ${LEADS.zoneName}` })
       .click()
-    await expect(perambur.getByRole('alert')).toContainText(
+    await expect(pallikaranai.getByRole('alert')).toContainText(
       `${LEADS.zoneName} is kept: it has 12 free-wash sign-ups`
     )
-    await expect(perambur.getByRole('alert')).toContainText(
+    await expect(pallikaranai.getByRole('alert')).toContainText(
       "A zone customers have used can't be removed; rename it instead."
     )
     expect(

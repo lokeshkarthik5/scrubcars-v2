@@ -7,6 +7,7 @@ import {
   zoneFor,
   zoneSlug,
   zonesWithGarages,
+  SERVED_WITHIN_KM,
 } from './zones.js'
 
 const sql = readFileSync(new URL('../../drizzle/0062_customer_reach.sql', import.meta.url), 'utf8')
@@ -109,14 +110,26 @@ describe('which zone a point is in', () => {
 })
 
 describe('zones with a live garage', () => {
-  test('a zone counts once it holds a garage’s pin; pins in no zone and unpinned garages count nowhere', () => {
+  test('a zone counts once a garage is within ~30 min (10 km) of its centre; far and unpinned garages count nowhere', () => {
     const live = zonesWithGarages(CHENNAI_ZONES, [
-      eastOf('adyar', 1),
-      eastOf('adyar', 2),
-      zone('guindy'),
       { lat: 12.6208, lng: 80.1945 },
       { lat: null, lng: null },
     ])
-    expect([...live].sort()).toEqual(['adyar', 'guindy'])
+    expect([...live]).toEqual([])
+    const one = zonesWithGarages([zone('adyar'), zone('tambaram')], [eastOf('adyar', 2)])
+    expect([...one]).toEqual(['adyar'])
+  })
+
+  test('a garage that belongs to a neighbouring zone still serves this one (Adyar, 20 Nov 2026)', () => {
+    // 2.9 km from Adyar's centre but nearer Kotturpuram's: Adyar used to read "no garage".
+    const pin = { lat: 13.0215, lng: 80.2465 }
+    expect(zoneFor(pin, CHENNAI_ZONES)?.slug).not.toBe('adyar')
+    expect(zonesWithGarages(CHENNAI_ZONES, [pin]).has('adyar')).toBe(true)
+  })
+
+  test('10 km is in, just past it is out', () => {
+    expect(zonesWithGarages([zone('adyar')], [eastOf('adyar', 9.9)]).has('adyar')).toBe(true)
+    expect(zonesWithGarages([zone('adyar')], [eastOf('adyar', 10.2)]).has('adyar')).toBe(false)
+    expect(SERVED_WITHIN_KM).toBe(10)
   })
 })

@@ -6,7 +6,7 @@
  * greyed with its status (LEADS.knownAqua shares a phone with "Aqua Foam
  * Car Wash"), the sort, ticking, assigning, and "Add N as leads".
  *
- * Searches Perambur. The leads it adds are removed before and after, by
+ * Searches Pallikaranai. The leads it adds are removed before and after, by
  * the fake places' ids. Merging and matching are unit-tested in
  * apps/server/src/lib/places/merge.test.ts.
  */
@@ -143,7 +143,7 @@ test.describe.serial('the zone finder @p0', () => {
       .getByRole('checkbox', { name: 'Tick Splash Doorstep Wash' })
       .uncheck()
     await expect(
-      page.getByText('2 ticked · become leads in Perambur, status To target')
+      page.getByText('2 ticked · become leads in Pallikaranai, status To target')
     ).toBeVisible()
     await page.getByLabel('Assign to').selectOption({ label: 'E2E Admin' })
     await page.getByRole('button', { name: 'Add 2 as leads' }).click()
