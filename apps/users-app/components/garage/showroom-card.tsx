@@ -34,6 +34,7 @@ import { isApproximate, useLocationStore } from '@/lib/location';
 import { useGarageTownTag } from '@/lib/customer-place';
 
 import { GarageCover, GarageMonogram } from './cover';
+import { LuxuryCardChip } from './luxury';
 import { NextFreeRow } from './next-free-row';
 import { SaveGarageButton } from './save-button';
 import { OutsideCityChip, TierMark } from './tier';
@@ -80,6 +81,7 @@ export const ShowroomCard = memo(function ShowroomCard({
   onQuickLook,
   scrollY,
   top,
+  width,
 }: {
   vendor: Vendor;
   mode: BookingType;
@@ -89,6 +91,8 @@ export const ShowroomCard = memo(function ShowroomCard({
   /** The list's scroll and where on it this card sits, for the photos' drift. */
   scrollY?: Animated.Value;
   top?: number;
+  /** The card's width when it is not the list's full width (the specialists' sideways row). */
+  width?: number;
 }) {
   const tn = useTn();
   const t = useT();
@@ -132,7 +136,7 @@ export const ShowroomCard = memo(function ShowroomCard({
   const distance = useCountUp(distanceValue ?? 0, km !== null && km < 1 ? 0 : 1, seen);
   const price = useCountUp(vendor.startingPrice, 0, seen);
 
-  const cardWidth = screen - 32;
+  const cardWidth = width ?? screen - 32;
   const drift =
     scrollY && top !== undefined && !reduce
       ? scrollY.interpolate({
@@ -316,8 +320,10 @@ export const ShowroomCard = memo(function ShowroomCard({
           </Pearl>
         </View>
 
-        {chips || anywhere || townTag || (mode === 'dropin' && vendor.doorstepEnabled) ? (
+        {chips || anywhere || townTag || vendor.luxury || (mode === 'dropin' && vendor.doorstepEnabled) ? (
           <View style={styles.chips}>
+            {/* Luxury car specialists (0083): one quiet grey chip, never instead of the medal. */}
+            {vendor.luxury ? <LuxuryCardChip /> : null}
             {mode === 'dropin' && vendor.doorstepEnabled ? (
               <Raised radius={999} style={styles.chip} innerStyle={styles.chipInner}>
                 <IconHome size={13} color={fx.quietBright} />
@@ -392,6 +398,7 @@ export const ShowroomCard = memo(function ShowroomCard({
   prev.onQuickLook === next.onQuickLook &&
   prev.scrollY === next.scrollY &&
   prev.top === next.top &&
+  prev.width === next.width &&
   !!prev.chips === !!next.chips
 );
 

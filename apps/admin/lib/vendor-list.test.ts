@@ -20,6 +20,14 @@ import {
   showHints,
   stateWord,
   SHOW_FILTERS,
+  LUXURY_APPLICATIONS_FILTER,
+  LUXURY_SPECIALISTS_FILTER,
+  luxuryCounts,
+  luxuryStatusCell,
+  moreToReviewCount,
+  oldestApplicationFirst,
+  istDayMonth,
+  istDayMonthTime,
 } from './vendor-list'
 import {
   garageArea,
@@ -827,5 +835,76 @@ describe('the next step', () => {
     expect(nextStepRank({ text: 'x', tone: 'neutral' })).toBeGreaterThan(
       nextStepRank(null)
     )
+  })
+})
+
+describe('Luxury car specialists (0083)', () => {
+  const luxury = (over: Partial<NonNullable<Row['luxury']>> = {}) => ({
+    status: 'review' as const,
+    sentAt: '2026-11-20T12:42:00Z',
+    timesSent: 1,
+    onApplicationsList: true,
+    approvedAt: null,
+    shown: false,
+    ...over,
+  })
+  const waiting = garage({ luxury: luxury() })
+  const askedMore = garage({ luxury: luxury({ status: 'more', sentAt: '2026-11-18T09:00:00Z' }) })
+  const belowSilver = garage({ luxury: luxury({ onApplicationsList: false }) })
+  const approved = garage({
+    luxury: luxury({ status: 'approved', onApplicationsList: false, approvedAt: '2026-11-12T05:00:00Z', shown: true }),
+  })
+  const hidden = garage({
+    luxury: luxury({ status: 'approved', onApplicationsList: false, approvedAt: '2026-11-14T05:00:00Z', shown: false }),
+  })
+  const declined = garage({ luxury: luxury({ status: 'declined', onApplicationsList: false }) })
+  const binned = garage({ luxury: luxury(), deletedAt: '2026-11-16T05:00:00Z', live: false })
+  const never = garage({ luxury: null })
+  const older = garage()
+  const all = [waiting, askedMore, belowSilver, approved, hidden, declined, binned, never, older]
+
+  test('"Luxury applications" holds the waiting ones with Silver or Gold, never the Bin', () => {
+    expect(all.filter((v) => matchesShow(v, LUXURY_APPLICATIONS_FILTER))).toEqual([waiting, askedMore])
+  })
+
+  test('"Luxury specialists" holds every approved garage, shown or hidden below Silver', () => {
+    expect(all.filter((v) => matchesShow(v, LUXURY_SPECIALISTS_FILTER))).toEqual([approved, hidden])
+  })
+
+  test('the counts, and "to review" adds the applications to the documents', () => {
+    expect(luxuryCounts(all)).toEqual({ applications: 2, specialists: 2 })
+    const docs = garage({
+      documents: { verified: false, approvedRequired: 1, required: 4, toReview: 1, missingRequired: 2, rejected: 0 },
+    })
+    expect(moreToReviewCount([...all, docs])).toBe(3)
+    expect(moreToReviewCount([older])).toBe(0)
+  })
+
+  test('applications are a queue: oldest sent first', () => {
+    expect(oldestApplicationFirst([waiting, askedMore])).toEqual([askedMore, waiting])
+  })
+
+  test('their own links, labels and hints', () => {
+    expect(parseShow('luxury')).toBe('luxury')
+    expect(parseShow('specialists')).toBe('specialists')
+    expect(listHref(LUXURY_APPLICATIONS_FILTER)).toBe('/vendors?show=luxury')
+    expect(MORE_LABELS.luxury).toBe('Luxury applications')
+    expect(MORE_LABELS.specialists).toBe('Luxury specialists')
+    expect(showHints('luxury')[0]).toEqual({
+      term: 'Luxury applications',
+      meaning: 'garages asking for the Luxury specialist badge, oldest first',
+    })
+    expect(showHints('specialists')[0].meaning).toBe('garages showing the badge to customers')
+  })
+
+  test('the status cell and the dates in IST', () => {
+    expect(luxuryStatusCell(waiting)).toEqual({ label: 'New', tone: 'new' })
+    expect(luxuryStatusCell(askedMore)).toEqual({ label: 'Asked for more', tone: 'attention' })
+    expect(luxuryStatusCell(approved)).toEqual({ label: 'Approved', tone: 'done' })
+    expect(luxuryStatusCell(hidden)?.label).toBe('Hidden: below Silver')
+    expect(luxuryStatusCell(older)).toBeNull()
+    expect(istDayMonth('2026-11-20T12:42:00Z')).toBe('20 Nov')
+    expect(istDayMonthTime('2026-11-20T12:42:00Z')).toBe('20 Nov, 6:12 pm')
+    expect(istDayMonth('2026-11-20T19:00:00Z')).toBe('21 Nov')
   })
 })

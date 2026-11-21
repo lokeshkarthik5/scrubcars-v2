@@ -7,7 +7,9 @@ import {
   IconBell,
   IconFileCertificate,
   IconFileText,
+  IconLock,
   IconLogout,
+  IconSteeringWheel,
   IconPhoto,
   IconChevronRight,
   IconUsers,
@@ -56,6 +58,8 @@ import { getGarageDocumentsConfig } from '@repo/core/api/documents'
 import { getPushConfig } from '@repo/core/api/push'
 import { isDoorstepOnly } from '@repo/core/vendor-documents'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
+import { useGarageLuxury } from '@repo/core/api/hooks/use-luxury'
+import { luxuryRowLine } from '@repo/core/luxury-form'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { useUserStore } from '@repo/core/stores/user-store'
@@ -141,6 +145,32 @@ function LinkRow({
         />
       </ScCard>
     </Link>
+  )
+}
+
+/**
+ * Luxury car specialist (0083): where a Silver or Gold garage applies for
+ * the badge. The owner seat only, like the API. Locked (with "Reach Silver
+ * to apply") below Silver; its line follows the application after that.
+ */
+function LuxuryRow() {
+  const t = useT()
+  const vendorId = useAuthStore((s) => s.activeVendorId) ?? undefined
+  const { data } = useGarageLuxury(vendorId)
+  const { line, locked } = luxuryRowLine(data)
+  return (
+    <LinkRow
+      href="/settings/luxury"
+      icon={
+        locked ? (
+          <IconLock size={18} aria-hidden="true" />
+        ) : (
+          <IconSteeringWheel size={18} aria-hidden="true" />
+        )
+      }
+      title={t('Luxury car specialist')}
+      description={t(line)}
+    />
   )
 }
 
@@ -620,6 +650,8 @@ function VendorSettings() {
             title={t('Garage agreement')}
             description={t('Read and accept the Detlio garage agreement, for Bronze')}
           />
+
+          {isVendorAdmin && <LuxuryRow />}
         </TabsContent>
 
         <TabsContent value="location">

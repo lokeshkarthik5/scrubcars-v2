@@ -1,4 +1,6 @@
-import { msg, t } from './i18n/translate'
+import { msg, t as translate, type Translate } from './i18n/translate'
+
+const t: Translate = translate
 
 /**
  * Luxury car specialists (0083, owner-approved screens 21 Nov 2026,
@@ -203,6 +205,24 @@ export const LUXURY_SHEET_BRANDS = msg('Brands it handles')
 export const LUXURY_SHEET_FOOT = msg(
   'Any garage on Detlio can work on any car. Prices are the same for everyone, by car size: hatchback, sedan or SUV.'
 )
+
+/** The map peek's words after the count while the filter is on: "specialists near you", "specialist in Madurai". */
+export function luxuryPeekWords(
+  count: number,
+  more: boolean,
+  located: boolean,
+  cityName: string,
+  t: Translate = translate
+): string {
+  const one = count === 1 && !more
+  if (located) return one ? t('specialist near you') : t('specialists near you')
+  return one ? t('specialist in {city}', { city: cityName }) : t('specialists in {city}', { city: cityName })
+}
+
+/** The quiet line under the "Luxury specialists" heading. */
+export function luxuryCaption(nearestFirst: boolean, t: Translate = translate): string {
+  return nearestFirst ? t('Approved by Detlio for luxury cars · nearest first') : t(LUXURY_APPROVED_LINE)
+}
 
 // ─── Applying (the garage app) ───────────────────────────────────────────────
 

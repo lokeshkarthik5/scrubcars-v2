@@ -87,11 +87,27 @@ export const CERTIFIED_LABEL = 'Gold'
 export const ELIGIBLE_FILTER = 'eligible' as const
 export const ELIGIBLE_LABEL = 'Gold-eligible, not awarded'
 
+/**
+ * Luxury car specialists (0083), two more filters under More filters.
+ * "Luxury applications": garages asking for the badge, waiting for the team
+ * (under review or asked for more) and holding Silver or Gold (the server's
+ * `onApplicationsList`), oldest first; also counted in "to review".
+ * "Luxury specialists": garages the team approved (whether customers see
+ * the badge now depends on the garage holding Silver or Gold). Neither
+ * holds a garage in the Bin.
+ */
+export const LUXURY_APPLICATIONS_FILTER = 'luxury' as const
+export const LUXURY_APPLICATIONS_LABEL = 'Luxury applications'
+export const LUXURY_SPECIALISTS_FILTER = 'specialists' as const
+export const LUXURY_SPECIALISTS_LABEL = 'Luxury specialists'
+
 /** The filters behind "More filters", in order. */
 export const MORE_FILTERS = [
   REVIEW_FILTER,
   CERTIFIED_FILTER,
   ELIGIBLE_FILTER,
+  LUXURY_APPLICATIONS_FILTER,
+  LUXURY_SPECIALISTS_FILTER,
 ] as const
 export type MoreFilter = (typeof MORE_FILTERS)[number]
 
@@ -99,6 +115,8 @@ export const MORE_LABELS: Record<MoreFilter, string> = {
   documents: REVIEW_LABEL,
   certified: CERTIFIED_LABEL,
   eligible: ELIGIBLE_LABEL,
+  luxury: LUXURY_APPLICATIONS_LABEL,
+  specialists: LUXURY_SPECIALISTS_LABEL,
 }
 
 export type ListFilter = ShowFilter | StageFilter | MoreFilter
@@ -133,7 +151,7 @@ type ListedFields = Pick<
   AdminVendor,
   'live' | 'status' | 'isVerified' | 'bookingsPausedAt' | 'deletedAt'
 > &
-  Partial<Pick<AdminVendor, 'documents' | 'certification'>>
+  Partial<Pick<AdminVendor, 'documents' | 'certification' | 'luxury'>>
 
 /** Gold (Detlio Certified) now, and not in the Bin. */
 export function isCertifiedGarage(v: ListedFields): boolean {
@@ -168,6 +186,86 @@ export function hasDocumentsToReview(v: ListedFields): boolean {
 /** How many garages the "Documents to review" chip holds. */
 export function documentsToReviewCount(vendors: ListedFields[]): number {
   return vendors.filter(hasDocumentsToReview).length
+}
+
+/** Waiting for the team's answer on the Luxury specialist badge, Silver or Gold held, not in the Bin. */
+export function isLuxuryApplication(v: ListedFields): boolean {
+  return !isInBin(v) && v.luxury?.onApplicationsList === true
+}
+
+/** Approved by the team as a Luxury specialist, not in the Bin. */
+export function isLuxurySpecialist(v: ListedFields): boolean {
+  return !isInBin(v) && v.luxury?.approvedAt != null
+}
+
+/** How many garages the two luxury chips hold. */
+export function luxuryCounts(vendors: ListedFields[]): {
+  applications: number
+  specialists: number
+} {
+  return {
+    applications: vendors.filter(isLuxuryApplication).length,
+    specialists: vendors.filter(isLuxurySpecialist).length,
+  }
+}
+
+/** More filters' "· N to review": documents waiting plus luxury applications. */
+export function moreToReviewCount(vendors: ListedFields[]): number {
+  return documentsToReviewCount(vendors) + luxuryCounts(vendors).applications
+}
+
+export function isLuxuryFilter(
+  show: ListFilter
+): show is typeof LUXURY_APPLICATIONS_FILTER | typeof LUXURY_SPECIALISTS_FILTER {
+  return show === LUXURY_APPLICATIONS_FILTER || show === LUXURY_SPECIALISTS_FILTER
+}
+
+/** "Luxury applications" oldest first (the queue's order); a stable copy. */
+export function oldestApplicationFirst<T extends ListedFields>(rows: T[]): T[] {
+  const sentAt = (v: T) => (v.luxury?.sentAt ? Date.parse(v.luxury.sentAt) : Number.POSITIVE_INFINITY)
+  return [...rows].sort((a, b) => sentAt(a) - sentAt(b))
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const IST_OFFSET_MS = 330 * 60 * 1000
+
+/** "20 Nov": an instant's IST day, for the luxury lists' Sent and Since. */
+export function istDayMonth(iso: string): string {
+  const at = new Date(Date.parse(iso) + IST_OFFSET_MS)
+  return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]}`
+}
+
+/** "20 Nov, 6:12 pm": an instant in IST, as the luxury section says when it was sent. */
+export function istDayMonthTime(iso: string): string {
+  const at = new Date(Date.parse(iso) + IST_OFFSET_MS)
+  const hour = at.getUTCHours()
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12
+  return `${istDayMonth(iso)}, ${hour12}:${String(at.getUTCMinutes()).padStart(2, '0')} ${hour < 12 ? 'am' : 'pm'}`
+}
+
+/** The luxury lists' Status cell, in the chip's words and tone. */
+export function luxuryStatusCell(
+  v: Pick<AdminVendor, 'luxury'>
+): { label: string; tone: 'new' | 'attention' | 'done' | 'late' } | null {
+  const luxury = v.luxury
+  if (!luxury) return null
+  if (luxury.approvedAt) {
+    return luxury.shown
+      ? { label: 'Approved', tone: 'done' }
+      : { label: 'Hidden: below Silver', tone: 'attention' }
+  }
+  switch (luxury.status) {
+    case 'review':
+      return { label: 'New', tone: 'new' }
+    case 'more':
+      return { label: 'Asked for more', tone: 'attention' }
+    case 'declined':
+      return { label: 'Declined', tone: 'late' }
+    case 'removed':
+      return { label: 'Removed', tone: 'late' }
+    default:
+      return null
+  }
 }
 
 /** Stopped by Detlio (suspended), or taking no new bookings for now (paused). */
@@ -211,6 +309,8 @@ export function matchesShow(v: ListedFields, show: ListFilter): boolean {
   if (show === REVIEW_FILTER) return hasDocumentsToReview(v)
   if (show === CERTIFIED_FILTER) return isCertifiedGarage(v)
   if (show === ELIGIBLE_FILTER) return isEligibleNotCertified(v)
+  if (show === LUXURY_APPLICATIONS_FILTER) return isLuxuryApplication(v)
+  if (show === LUXURY_SPECIALISTS_FILTER) return isLuxurySpecialist(v)
   if (show === 'bin') return isInBin(v)
   if (isInBin(v)) return false
   if (show === 'all') return true
@@ -295,6 +395,20 @@ export function showHints(
           term: 'Gold-eligible',
           meaning:
             'met every Gold standard last night; record a quality check, then Award Gold',
+        },
+      ]
+    case LUXURY_APPLICATIONS_FILTER:
+      return [
+        {
+          term: LUXURY_APPLICATIONS_LABEL,
+          meaning: 'garages asking for the Luxury specialist badge, oldest first',
+        },
+      ]
+    case LUXURY_SPECIALISTS_FILTER:
+      return [
+        {
+          term: LUXURY_SPECIALISTS_LABEL,
+          meaning: 'garages showing the badge to customers',
         },
       ]
     case 'notlive':

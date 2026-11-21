@@ -8,9 +8,11 @@ import {
   IconBuildingStore,
   IconCarGarage,
   IconChevronDown,
+  IconChevronRight,
   IconHome,
   IconMap,
   IconSearch,
+  IconX,
 } from '@tabler/icons-react'
 import {
   SortSheet,
@@ -41,6 +43,8 @@ import { ScButton } from '@repo/ui/sc/button'
 import { CATEGORY_LABELS } from '@repo/core/categories'
 import { SILVER_KEY_LABEL, SILVER_KEY_QUIET } from '@repo/core/tiers'
 import { useTierConfig } from '@repo/core/api/hooks/use-tiers'
+import { LUXURY_APPROVED_LINE, LUXURY_FILTER_LABEL, specialistRow } from '@repo/core/luxury'
+import { LuxuryIcon } from '@repo/ui/features/luxury-badge'
 import { BOOKING_TYPES, BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { atGarageReach, canCollectFrom, nextTabOffer } from '@repo/core/reach'
 import { cardPickupChip } from '@repo/core/pickup-fee-customer'
@@ -74,6 +78,8 @@ import { MapPeek } from './map-peek'
 import { QuickLook } from './quick-look'
 import { RollingHint } from './rolling-hint'
 import { ShowroomCard } from './showroom-card'
+import { luxuryCaption, luxuryPeekWords } from '@repo/core/luxury'
+import { useDefaultCarMake } from './use-default-car-make'
 import { PullToRefresh } from '@/components/moments/pull-to-refresh'
 import { fill, msg, useT, type Translate } from '@repo/core/i18n'
 
@@ -176,6 +182,12 @@ export function GarageList({
   const silverFilterOffered = tierConfig.data?.silverFilter === true
   const [silverChosen, setSilverChosen] = useState(false)
   const silverOnly = silverChosen && silverFilterOffered
+  // "Luxury specialists" (0083): a filter on the server like "Silver & above",
+  // so the list, its count, the map peek and the reach pieces all follow it,
+  // with every service and mode.
+  const [luxuryOn, setLuxuryOn] = useState(false)
+  // The signed-in customer's main car, for "Specialists for your <Make>".
+  const carMake = useDefaultCarMake()
   // `null` means "the customer has not chosen", which is what lets the default
   // follow whether we know where they are. Derived rather than set from an
   // effect, so a location fix cannot race a tap on the sort sheet.
@@ -220,6 +232,7 @@ export function GarageList({
     serviceMode === LANDING_LIST_PARAMS.bookingType &&
     (!withCategory || category_ === undefined) &&
     !silverOnly &&
+    !luxuryOn &&
     !origin &&
     cityParams.cityLat === undefined &&
     effectiveSort === LANDING_LIST_PARAMS.sort
@@ -242,6 +255,7 @@ export function GarageList({
       bookingType: serviceMode,
       category: category_,
       silverAndAbove: silverOnly || undefined,
+      luxury: luxuryOn || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -263,6 +277,7 @@ export function GarageList({
     {
       bookingType: serviceMode,
       silverAndAbove: silverOnly || undefined,
+      luxury: luxuryOn || undefined,
       lat: origin?.lat,
       lng: origin?.lng,
       ...cityParams,
@@ -319,6 +334,7 @@ export function GarageList({
   // 150 km (0070), as opposed to a filter that matched nothing.
   const farEmpty =
     !silverOnly &&
+    !luxuryOn &&
     serviceMode === 'dropin' &&
     category === 'all' &&
     (!!origin || cityParams.cityLat !== undefined)
@@ -437,6 +453,15 @@ export function GarageList({
     nearestFirst: effectiveSort === 'distance',
     city,
   })
+  // "Specialists for your BMW" (0083): the specialists among the garages
+  // listed, above Nearby garages, for a customer whose main car is a luxury
+  // make; not with the filter on, nor with fewer than two.
+  const specialists = isLoading || isError ? null : specialistRow(carMake, vendors, luxuryOn)
+  const turnLuxuryOn = () => {
+    setLuxuryOn(true)
+    pinRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+  }
+
   const listCount = isLoading || small ? null : garagesCount(t, vendors.length, hasMore)
   // The same count, rolling like an odometer as the mode or the service changes.
   const listCountRolling =
@@ -485,8 +510,9 @@ export function GarageList({
               ? { count: null, words: detlioInLine(city) }
               : {
                   count: `${near.count}${near.more ? '+' : ''}`,
-                  words:
-                    near.count === 1 && !near.more
+                  words: luxuryOn
+                    ? luxuryPeekWords(near.count, near.more, !!origin, city.name, t)
+                    : near.count === 1 && !near.more
                       ? origin
                         ? t('garage near you')
                         : t('garage in {city}', { city: city.name })
@@ -549,6 +575,24 @@ export function GarageList({
             />
           )}
         </div>
+        {/* "Luxury specialists" (0083): its own short line, since the row
+            above has no room for a third button on a phone. Plain until
+            chosen; then pearl, the Service sheet's "chosen" look, with an ×. */}
+        <div className="mt-2 flex">
+          <button
+            type="button"
+            aria-pressed={luxuryOn}
+            onClick={() => setLuxuryOn((on) => !on)}
+            className={cn(
+              'fx-press inline-flex h-[34px] items-center gap-1.5 rounded-pill px-3 text-t4',
+              luxuryOn ? 'fx-pearl font-semibold' : 'fx-raised font-medium text-[#D4D4DA]'
+            )}
+          >
+            <LuxuryIcon size={15} className={luxuryOn ? undefined : 'text-[#A8A8B2]'} />
+            {t(LUXURY_FILTER_LABEL)}
+            {luxuryOn && <IconX size={14} aria-hidden="true" />}
+          </button>
+        </div>
       </div>
 
       {/* Pickup & drop, explained before its garages: who has the car, and
@@ -570,6 +614,35 @@ export function GarageList({
           at the bottom instead, so a screen shows it once. */}
       {serviceMode !== 'pickup' && <FreeWashPiece placement="top" />}
 
+      {specialists && (
+        <section className="flex flex-col gap-3" aria-label={t('Specialists for your {make}', { make: specialists.make })}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-t2 font-semibold text-text-primary">
+                {t('Specialists for your {make}', { make: specialists.make })}
+              </h2>
+              <p className="mt-0.5 text-t5 font-medium text-[#9A9AA3]">{t(LUXURY_APPROVED_LINE)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={turnLuxuryOn}
+              className="fx-raised fx-press flex h-10 shrink-0 items-center gap-1 rounded-[12px] px-3.5 text-t4 font-medium text-[#C8C8D0]"
+            >
+              {t('See all {count}', { count: specialists.garages.length })}
+              <IconChevronRight size={15} aria-hidden="true" className="text-[#8E8E98]" />
+            </button>
+          </div>
+          {/* Sideways, the same cards as the list: the next one peeks in. */}
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {specialists.garages.map((vendor) => (
+              <div key={vendor.id} data-garage-card="" className="w-[86%] max-w-[420px] shrink-0 snap-start">
+                {card(vendor)}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="flex flex-col gap-3">
         <div>
           <div className="flex items-center justify-between gap-3">
@@ -577,7 +650,9 @@ export function GarageList({
                 not whitespace-nowrap, so at 360px the heading wraps rather than
                 pushing the page sideways. */}
             <h2 className="min-w-0 text-t2 font-semibold text-text-primary">
-              {serviceMode === 'dropin' && atGarage.skipTheDrive
+              {luxuryOn
+                ? t(LUXURY_FILTER_LABEL)
+                : serviceMode === 'dropin' && atGarage.skipTheDrive
                 ? t('Or drive to')
                 : small
                   ? inCityHeading(city)
@@ -609,7 +684,13 @@ export function GarageList({
           {/* Where the distances are measured from, said once above the list.
               Every garage is listed (0062: no cut-off), so this is the only
               bound worth saying. */}
-          {origin && location && vendors.length > 0 && sort === 'distance' && (
+          {/* With "Luxury specialists" on: who approved them (and the order). */}
+          {luxuryOn && vendors.length > 0 && (
+            <p className="mt-1 text-t5 font-medium text-[#9A9AA3]">
+              {luxuryCaption(!!origin && sort === 'distance', t)}
+            </p>
+          )}
+          {!luxuryOn && origin && location && vendors.length > 0 && sort === 'distance' && (
             <p className="mt-1 text-t5 font-medium text-[#9A9AA3]">
               {t('Nearest first from {label}', { label: location.label })}
               {approximate && ` ${t('(distances from the area’s centre)')}`}
@@ -658,7 +739,9 @@ export function GarageList({
             // Never a dead end (F14): what was not found, and a way on.
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <p className="text-t3 text-text-secondary">
-                {silverOnly
+                {luxuryOn
+                  ? t('No luxury specialists here yet. Turn off “{label}” to see every garage.', { label: t(LUXURY_FILTER_LABEL) })
+                  : silverOnly
                   ? t('No Silver or Gold garages here yet. Turn off “{label}” to see every garage.', { label: t(SILVER_KEY_LABEL) })
                   : serviceMode === 'pickup'
                     ? t('No garage collects from your area yet.')
@@ -676,7 +759,12 @@ export function GarageList({
                     {t('Choose a city')}
                   </ScButton>
                 )}
-                {silverOnly && (
+                {luxuryOn && (
+                  <ScButton variant="outline" fullWidth={false} onClick={() => setLuxuryOn(false)}>
+                    {t('Show every garage')}
+                  </ScButton>
+                )}
+                {!luxuryOn && silverOnly && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
@@ -685,7 +773,7 @@ export function GarageList({
                     {t('Show every garage')}
                   </ScButton>
                 )}
-                {!silverOnly && category !== 'all' && (
+                {!silverOnly && !luxuryOn && category !== 'all' && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
@@ -694,7 +782,7 @@ export function GarageList({
                     {t('Show all services')}
                   </ScButton>
                 )}
-                {!silverOnly && origin && serviceMode !== 'dropin' && (
+                {!silverOnly && !luxuryOn && origin && serviceMode !== 'dropin' && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
@@ -703,7 +791,7 @@ export function GarageList({
                     {t('Show all of {city}', { city: city.name })}
                   </ScButton>
                 )}
-                {!silverOnly && serviceMode !== 'dropin' && (
+                {!silverOnly && !luxuryOn && serviceMode !== 'dropin' && (
                   <ScButton
                     variant="outline"
                     fullWidth={false}
