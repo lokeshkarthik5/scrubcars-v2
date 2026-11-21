@@ -51,6 +51,7 @@ import {
   type SortState,
 } from '@/components/table'
 import { BulkColourButton, ColourChips } from '@/components/garages/colour-tags'
+import { GarageBackupHeader } from '@/components/garages/garage-backup'
 import { TargetCounter } from '@/components/garages/target-counter'
 import { AddMarkButton } from '@/components/marks/add-mark-button'
 import { AskWhatsAppButton } from '@/components/marks/ask-whatsapp-button'
@@ -484,10 +485,13 @@ function VendorsList() {
           ) : undefined
         }
         // The page's one red: adding a garage is what it is for.
+        // The owner's Download backup sits beside it, in the quiet style.
         actions={
-          <ScButtonLink href="/vendors/new">
-            <IconPlus size={16} aria-hidden="true" /> Add garage
-          </ScButtonLink>
+          <GarageBackupHeader>
+            <ScButtonLink href="/vendors/new">
+              <IconPlus size={16} aria-hidden="true" /> Add garage
+            </ScButtonLink>
+          </GarageBackupHeader>
         }
       />
 

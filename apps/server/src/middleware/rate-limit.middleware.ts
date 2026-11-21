@@ -118,6 +118,15 @@ export const telegramTestRateLimiter = createRateLimiter(
   bySignedInAdmin
 )
 
+// Back up all garages (owner only), per signed-in admin per hour: the
+// manifest, the start and every page of every sheet count. BACKUP_RATE_LIMIT,
+// default 2000; read on each request, so a test can lower it.
+export const backupRateLimiter = createRateLimiter(
+  () => env.backupRateLimit,
+  60 * 60 * 1000,
+  bySignedInAdmin
+)
+
 // Gift codes (0049): looking one up or redeeming it, per IP per minute, on
 // its own count (never the login limiter's). A burst backstop in front of
 // the wrong-code limit the gifts service keeps in the database, which is
