@@ -108,17 +108,33 @@ export function zoneFor<Z extends Point>(
 }
 
 /**
- * The slugs of the zones with at least one live listed garage in them, from
- * those garages' pins: what `GET /zones` says per zone.
+ * How close a listed garage must be to a zone's centre for the zone to count
+ * as served, in straight-line km: 10 km is the cards' "~30 min" drive
+ * (packages/core drive-time.ts, round(4 + 10 × 2.6) = 30), the same reach as
+ * the garage list's "5 garages within ~30 min" (owner, 20 Nov 2026).
+ *
+ * Before, a zone needed a garage whose pin belonged to it (zoneFor: nearest
+ * centre within 6 km). Chennai's zone centres are 2-4 km apart, so a garage
+ * 2.9 km from Adyar's centre counted for a neighbour, and nine central areas
+ * (Adyar, T Nagar, Nungambakkam…) read "No garage in your area yet" with
+ * garages 8-14 minutes away.
+ */
+export const SERVED_WITHIN_KM = 10
+
+/**
+ * The slugs of the zones with at least one live listed garage within
+ * SERVED_WITHIN_KM of their centre: what `GET /zones` says per zone
+ * (`hasGarage`), what refuses a free-wash sign-up (AREA_LIVE) and what
+ * launches a zone. Unpinned garages count nowhere.
  */
 export function zonesWithGarages<Z extends Point & { slug: string }>(
   zones: readonly Z[],
   garagePins: ReadonlyArray<{ lat: number | null; lng: number | null }>
 ): Set<string> {
+  const pins = garagePins.filter(isPoint)
   const live = new Set<string>()
-  for (const pin of garagePins) {
-    const zone = zoneFor(pin, zones)
-    if (zone) live.add(zone.slug)
+  for (const zone of zones) {
+    if (pins.some((pin) => straightLineKm(zone, pin) <= SERVED_WITHIN_KM)) live.add(zone.slug)
   }
   return live
 }
