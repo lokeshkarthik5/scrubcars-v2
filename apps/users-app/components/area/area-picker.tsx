@@ -1,4 +1,7 @@
+import { createGeoSessionToken } from '@repo/core/api/geo';
+import { useAreaPlaces } from '@repo/core/api/hooks/use-area-places';
 import { useZones } from '@repo/core/api/hooks/use-zones';
+import type { AreaPlace } from '@repo/core/area-place';
 import { msg, useT } from '@repo/core/i18n';
 import { CITY_SWITCH_MAX, cityGaragesLine, zoneInCity, type CustomerCity } from '@repo/core/customer-city';
 import { searchZones, type Zone } from '@repo/core/zones';
@@ -80,52 +83,107 @@ function CityChoice({
   );
 }
 
+/**
+ * The city's zones, filtered by the search, and under them any place in the city that matches
+ * (useAreaPlaces, 22 Nov 2026): "Other places in Chennai". The web's AreaList.
+ */
 function AreaList({
   query,
   city,
   cities,
   chosen,
   onChoose,
+  onChoosePlace,
 }: {
   query: string;
   city: CustomerCity;
   cities: readonly CustomerCity[];
   chosen?: string;
   onChoose: (zone: Zone) => void;
+  onChoosePlace: (place: AreaPlace) => void;
 }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
+  const [sessionToken] = useState(createGeoSessionToken);
   const inCity = useZones().filter((zone) => zoneInCity(zone, city, cities));
   const found = searchZones(inCity, query);
-  // A city with no areas drawn yet lists none: "All of <City>" right below is the choice.
-  if (inCity.length === 0) return null;
+  const { places, searching } = useAreaPlaces({
+    query,
+    city,
+    cities,
+    zoneNames: found.map((zone) => zone.name),
+    sessionToken,
+  });
+  const typed = query.trim();
+  const nothing = typed.length > 0 && found.length === 0 && places.length === 0 && !searching;
+  // A city with no areas drawn yet lists none: its places still come up when typed, and
+  // "All of <City>" right below is the choice.
   return (
-    <View accessibilityLabel={t('Areas')}>
-      {found.map((zone) => {
-        const on = chosen === zone.slug;
-        return (
-          <Pressable
-            key={zone.slug}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            onPress={() => {
-              track('area_pick', { area: zone.slug });
-              onChoose(zone);
-            }}
-            style={styles.areaRow}
-          >
-            <IconMapPin size={16} color={colors.textSecondary} />
-            <T size={15} weight={on ? 500 : 400} style={styles.flex}>
-              {zone.name}
-            </T>
-            {on ? <IconCheck size={16} /> : null}
-          </Pressable>
-        );
-      })}
-      {found.length === 0 ? (
+    <View>
+      {found.length > 0 ? (
+        <View accessibilityLabel={t('Areas')}>
+          {found.map((zone) => {
+            const on = chosen === zone.slug;
+            return (
+              <Pressable
+                key={zone.slug}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                onPress={() => {
+                  track('area_pick', { area: zone.slug });
+                  onChoose(zone);
+                }}
+                style={styles.areaRow}
+              >
+                <IconMapPin size={16} color={colors.textSecondary} />
+                <T size={15} weight={on ? 500 : 400} style={styles.flex}>
+                  {zone.name}
+                </T>
+                {on ? <IconCheck size={16} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+      {places.length > 0 ? (
+        <View accessibilityLabel={t('Other places in {city}', { city: city.name })}>
+          <T size={12} color={colors.textSecondary} style={styles.placesHead}>
+            {t('Other places in {city}', { city: city.name })}
+          </T>
+          {places.map((place) => (
+            <Pressable
+              key={place.id}
+              accessibilityRole="button"
+              onPress={() => {
+                track('area_pick', { area: 'place' });
+                onChoosePlace(place);
+              }}
+              style={[styles.areaRow, styles.placeRow]}
+            >
+              <IconSearch size={16} color={colors.textSecondary} />
+              <View style={styles.flex}>
+                <T size={15} numberOfLines={1}>
+                  {place.name}
+                </T>
+                {place.detail ? (
+                  <T size={12} color={colors.textSecondary} numberOfLines={1}>
+                    {place.detail}
+                  </T>
+                ) : null}
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {searching && found.length === 0 && places.length === 0 ? (
+        <T accessibilityLiveRegion="polite" size={13} color={colors.textSecondary} style={styles.none}>
+          {t('Searching {city}…', { city: city.name })}
+        </T>
+      ) : null}
+      {nothing ? (
         <T size={13} color={colors.textSecondary} style={styles.none}>
-          {t('No area called “{trim}” yet. Try a nearby one, or All of {city}.', { trim: query.trim(), city: city.name })}
+          {t('Nothing called “{query}” in {city}. Try a nearby area, or All of {city}.', { query: typed, city: city.name })}
         </T>
       ) : null}
     </View>
@@ -144,6 +202,7 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
   const location = useLocationStore((s) => s.location);
   const selectCity = useLocationStore((s) => s.selectCity);
   const setArea = useLocationStore((s) => s.setArea);
+  const setPlace = useLocationStore((s) => s.setPlace);
   const { city: customerCity, cities } = useCustomerPlace();
   // The city whose areas are listed: the customer's own until another is picked in the row.
   const [viewedId, setViewedId] = useState<string | null>(null);
@@ -239,6 +298,10 @@ export function AreaPicker({ open, onClose }: { open: boolean; onClose: () => vo
               setArea(zone);
               close();
             }}
+            onChoosePlace={(place) => {
+              setPlace(place);
+              close();
+            }}
           />
           <Pressable
             accessibilityRole="button"
@@ -286,6 +349,8 @@ const useStyles = createStyles((c) => ({
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 12, fontFamily: font(400), fontSize: 16, color: c.textPrimary },
   areaRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: c.line, paddingHorizontal: 4 },
   none: { paddingVertical: 16 },
+  placesHead: { paddingHorizontal: 4, paddingTop: 12, paddingBottom: 4 },
+  placeRow: { paddingVertical: 8 },
   city: { minHeight: 44, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   underline: { textDecorationLine: 'underline' },
 }));

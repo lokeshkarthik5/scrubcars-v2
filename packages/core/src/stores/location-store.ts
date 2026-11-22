@@ -67,6 +67,11 @@ interface LocationState {
    */
   setArea: (zone: { slug: string; name: string; lat: number; lng: number }) => void
   /**
+   * Any place in the city found by the sheet's search (22 Nov 2026): kept as
+   * an area with no zone, so it reads and measures like one (placeLocation).
+   */
+  setPlace: (place: { name: string; lat: number; lng: number }) => void
+  /**
    * Browse a whole city: its centre, named for it, with its id (0070). Not a
    * pin, so lists are not sorted from downtown; only the far-garage limit is
    * measured from the centre.
@@ -97,6 +102,16 @@ export function cityLocation(city: { id: string; name: string; centre: { lat: nu
   }
 }
 
+/**
+ * A searched place as a stored location: an `area` (its point, with no
+ * permission asked, so distances say "~") with no zone, since it is not one
+ * of the drawn zones and no chip is chosen for it. The web and the native
+ * store both make it here.
+ */
+export function placeLocation(place: { name: string; lat: number; lng: number }): ActiveLocation {
+  return { lat: place.lat, lng: place.lng, label: place.name, source: 'area', updatedAt: Date.now() }
+}
+
 /** A fix older than this is worth refreshing opportunistically. */
 const STALE_AFTER_MS = 5 * 60 * 1000
 
@@ -122,6 +137,7 @@ export const useLocationStore = create<LocationState>()(
             updatedAt: Date.now(),
           },
         }),
+      setPlace: (place) => set({ location: placeLocation(place) }),
       selectCity: (city) => set({ location: cityLocation(city) }),
       clearLocation: () => set({ location: null }),
       setPermission: (permission) => set({ permission }),
