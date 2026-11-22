@@ -2,14 +2,15 @@ import type { MediaConfig } from '@repo/core/api/service-media';
 import { SERVICE_CATEGORY_OPTIONS, groupByCategory, showCategoryHeadings } from '@repo/core/categories';
 import { withMedia } from '@repo/core/service-media';
 import type { Service, ServiceMedia } from '@repo/core/types';
-import { type Dispatch, type SetStateAction, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { type Dispatch, type SetStateAction, useCallback, useState } from 'react';
+import { View } from 'react-native';
 
+import { HubBack, HubPill, HubTile, TileRow } from '@/components/hub/parts';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
-import { IconPlus, IconTool } from '@repo/native-ui/icons';
+import { IconCheck, IconPhoto, IconPlus, IconTool } from '@repo/native-ui/icons';
 import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
-import { EmptyState, ScCard } from '@repo/native-ui/primitives';
+import { EmptyState, HubCard } from '@repo/native-ui/primitives';
 import {
   canSubmitService,
   emptyServiceForm,
@@ -24,17 +25,20 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { AddOnsSection } from './add-ons-section';
 import { CategoryHeading } from './category-heading';
-import { CatalogueCard } from './catalogue-card';
+import { CatalogueCard, CatalogueTools, hasMedia } from './catalogue-card';
 import { DeleteSheet } from './delete-sheet';
 import { ChipRow, PricingBlock } from './pricing-block';
-import { FieldLabel, SectionTitle } from './section-title';
+import { FieldLabel } from './section-title';
 import { useSaver } from './use-saver';
 import { useT } from '@repo/core/i18n';
 
 /**
- * The Services tab (apps/vendors/app/services/page.tsx): the add / edit form, then
- * "Your services" with their photos, video and actions. The list and the form live in
- * the screen, as the web's do, so they survive a visit to the Packages tab.
+ * The Services tab (apps/vendors/app/services/page.tsx) in the Home look (mockup
+ * garage-hub 3): two tiles (how many are on the listing, how many have photos), one compact
+ * card per service and "Add a service". A card opens its edit view: the same form, and
+ * under it the photo and video uploads and Disable / Delete that used to sit on every card.
+ * The list and the form live in the screen, as the web's do, so they survive a visit to
+ * the Packages tab.
  */
 export function ServicesTab({
   services,
@@ -44,6 +48,8 @@ export function ServicesTab({
   editingId,
   setEditingId,
   mediaConfig,
+  formOpen,
+  setFormOpen,
   onEditStarted,
 }: {
   services: Service[];
@@ -53,7 +59,10 @@ export function ServicesTab({
   editingId: string | null;
   setEditingId: (id: string | null) => void;
   mediaConfig: MediaConfig | null;
-  /** The form is above the list; bring it into view when Edit fills it. */
+  /** The add / edit view is showing in place of the list. */
+  formOpen: boolean;
+  setFormOpen: (open: boolean) => void;
+  /** Bring the top of the view into sight when it changes. */
   onEditStarted: () => void;
 }) {
   const t = useT();
@@ -63,14 +72,17 @@ export function ServicesTab({
   const serviceGroups = groupByCategory(services, (svc) => svc.category);
   const { saving, run } = useSaver();
   const [deleting, setDeleting] = useState<Service | null>(null);
-  // Bumped by the heading's "Add add-on": the section opens its sheet.
-  const [addOnRequest, setAddOnRequest] = useState(0);
   const change = (patch: Partial<ServiceForm>) => setForm((current) => ({ ...current, ...patch }));
+  const editing = editingId ? (services.find((svc) => svc.id === editingId) ?? null) : null;
+  const activeCount = services.filter((svc) => svc.isActive).length;
+  const withPhotos = services.filter(hasMedia).length;
 
-  const reset = () => {
+  const close = useCallback(() => {
     setEditingId(null);
     setForm(emptyServiceForm);
-  };
+    setFormOpen(false);
+    onEditStarted();
+  }, [setEditingId, setForm, setFormOpen, onEditStarted]);
 
   const submit = () =>
     run('service', async () => {
@@ -82,12 +94,20 @@ export function ServicesTab({
         const created = await createService(payload);
         setServices((current) => [...current, created]);
       }
-      reset();
+      close();
     });
+
+  const startAdd = () => {
+    setEditingId(null);
+    setForm(emptyServiceForm);
+    setFormOpen(true);
+    onEditStarted();
+  };
 
   const startEdit = (svc: Service) => {
     setEditingId(svc.id);
     setForm(formFromService(svc));
+    setFormOpen(true);
     onEditStarted();
   };
 
@@ -104,31 +124,14 @@ export function ServicesTab({
     run(`service-delete-${id}`, async () => {
       await deleteService(id);
       setServices((current) => current.filter((svc) => svc.id !== id));
+      if (editingId === id) close();
     });
 
-  return (
-    <View style={styles.column}>
-      <View style={styles.section}>
-        <SectionTitle
-          title={editingId ? t('Edit service') : t('Add a service')}
-          onCancel={editingId ? reset : undefined}
-          // The real tab has no "add service" button, only this form, so "Add add-on" sits in the
-          // heading's slot. A quiet link: the screen's one red is Add service.
-          action={
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setAddOnRequest((n) => n + 1)}
-              hitSlop={6}
-              style={styles.addOn}
-            >
-              <IconPlus size={15} color={colors.textSecondary} />
-              <T size={13} weight={500} color={colors.textSecondary}>
-                {t('Add add-on')}
-              </T>
-            </Pressable>
-          }
-        />
-        <ScCard style={styles.form}>
+  if (formOpen) {
+    return (
+      <View style={styles.column}>
+        <HubBack title={editingId ? t('Edit service') : t('Add a service')} onBack={close} />
+        <HubCard style={styles.form}>
           <ScInput label={t('Service name')} value={form.name} onChangeText={(name) => change({ name })} />
           <ScTextarea
             label={t('Description (optional)')}
@@ -172,11 +175,37 @@ export function ServicesTab({
           >
             {saving === 'service' ? t('Saving...') : editingId ? t('Update service') : t('Add service')}
           </ScButton>
-        </ScCard>
+        </HubCard>
+
+        {editing ? (
+          <CatalogueTools
+            item={editing}
+            mediaConfig={mediaConfig}
+            onMediaChange={(media) => setMedia(editing.id, media)}
+            onToggle={() => void setActive(editing.id, !editing.isActive)}
+            onDelete={() => setDeleting(editing)}
+            busy={saving !== null}
+          />
+        ) : null}
+
+        <DeleteSheet target={deleting} noun="service" onClose={() => setDeleting(null)} onConfirm={remove} />
       </View>
+    );
+  }
+
+  return (
+    <View style={styles.column}>
+      <TileRow>
+        <HubTile label={t('Active')} icon={IconCheck} value={String(activeCount)} line={t('On your listing')} />
+        <HubTile
+          label={t('Photos & video')}
+          icon={IconPhoto}
+          value={`${withPhotos} / ${services.length}`}
+          line={t('Services with photos')}
+        />
+      </TileRow>
 
       <View style={styles.section}>
-        <SectionTitle title={t('Your services')} count={services.length} />
         {services.length === 0 ? (
           <EmptyState
             icon={<IconTool size={28} stroke={1.5} color={colors.textMuted} />}
@@ -186,43 +215,37 @@ export function ServicesTab({
         ) : (
           // Under small category headings when the garage sells two or more kinds of
           // work (16 Nov 2026), as the portal; one run otherwise.
-          <View style={styles.groups}>
+          <View accessibilityLabel={t('Your services')} style={styles.groups}>
             {(showCategoryHeadings(serviceGroups) ? serviceGroups : [{ category: null, items: services }]).map(
               (group) => (
                 <View key={group.category ?? 'all'} style={styles.list}>
                   {group.category && <CategoryHeading category={group.category} count={group.items.length} />}
                   {group.items.map((svc) => (
-                    <CatalogueCard
-                      key={svc.id}
-                      item={svc}
-                      mediaConfig={mediaConfig}
-                      onMediaChange={(media) => setMedia(svc.id, media)}
-                      onEdit={() => startEdit(svc)}
-                      onToggle={() => void setActive(svc.id, !svc.isActive)}
-                      onDelete={() => setDeleting(svc)}
-                      busy={saving !== null}
-                    />
+                    <CatalogueCard key={svc.id} item={svc} onOpen={() => startEdit(svc)} />
                   ))}
                 </View>
               )
             )}
           </View>
         )}
+        <HubPill onPress={startAdd}>
+          <IconPlus size={16} stroke={1.6} />
+          <T size={14} weight={500}>
+            {t('Add a service')}
+          </T>
+        </HubPill>
       </View>
 
-      <AddOnsSection addRequest={addOnRequest} />
-
-      <DeleteSheet target={deleting} noun="service" onClose={() => setDeleting(null)} onConfirm={remove} />
+      <AddOnsSection addRequest={0} />
     </View>
   );
 }
 
-const useStyles = createStyles((colors) => ({
-  column: { gap: 20 },
+const useStyles = createStyles(() => ({
+  column: { gap: 16 },
   section: { gap: 12 },
-  form: { gap: 12 },
+  form: { gap: 12, padding: 20 },
   group: { gap: 8 },
-  list: { gap: 8 },
+  list: { gap: 12 },
   groups: { gap: 12 },
-  addOn: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 4, marginVertical: -10 },
 }));

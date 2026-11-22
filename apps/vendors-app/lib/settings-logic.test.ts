@@ -10,11 +10,14 @@ import {
   decimalOnly,
   digitsOnly,
   formatDay,
+  hoursSummary,
   initialTab,
   mapWorkingHours,
   normalizeTimeForApi,
   normalizeTimeForInput,
   profilePayload,
+  settingsSection,
+  shortClock,
   sortClosures,
   todayKey,
   workingHoursPayload,
@@ -135,5 +138,36 @@ describe('holiday window', () => {
   test('the bookings sentence is singular or plural', () => {
     expect(bookingsSentence(1)).toBe('You have 1 booking that day — reschedule or cancel it with the customer.');
     expect(bookingsSentence(3)).toBe('You have 3 bookings that day — reschedule or cancel them with the customers.');
+  });
+});
+
+describe('settingsSection', () => {
+  test('opens the section a link names, old tab names included', () => {
+    expect(settingsSection('location')).toBe('location');
+    expect(settingsSection('time-off')).toBe('time-off');
+    expect(settingsSection(['capacity'])).toBe('capacity');
+  });
+  test('the menu otherwise, Account (the old last tab) included', () => {
+    expect(settingsSection('account')).toBeNull();
+    expect(settingsSection(undefined)).toBeNull();
+    expect(settingsSection('nope')).toBeNull();
+  });
+});
+
+describe('hoursSummary', () => {
+  const day = (openTime: string, closeTime: string, isClosed = false) => ({ openTime, closeTime, isClosed });
+  test('the hours every open day keeps, or Varies by day', () => {
+    expect(hoursSummary([day('09:00:00', '20:00:00'), day('09:00', '20:00'), day('10:00:00', '18:00:00', true)])).toBe(
+      '9 am – 8 pm'
+    );
+    expect(hoursSummary([day('09:00:00', '20:00:00'), day('10:00:00', '14:30:00')])).toBe('Varies by day');
+  });
+  test('half hours and noon', () => {
+    expect(shortClock('12:30:00')).toBe('12:30 pm');
+    expect(shortClock('00:00')).toBe('12 am');
+    expect(shortClock('08:15')).toBe('8:15 am');
+  });
+  test('closed every day', () => {
+    expect(hoursSummary([day('09:00', '18:00', true)])).toBe('Closed');
   });
 });

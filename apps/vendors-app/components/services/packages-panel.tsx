@@ -4,11 +4,12 @@ import type { Service, ServiceMedia, ServicePackage } from '@repo/core/types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { HubBack, HubPill } from '@/components/hub/parts';
 import { ScButton } from '@repo/native-ui/button';
 import { Chip } from '@repo/native-ui/chip';
-import { IconPackage } from '@repo/native-ui/icons';
+import { IconPackage, IconPlus } from '@repo/native-ui/icons';
 import { ScInput, ScTextarea } from '@repo/native-ui/inputs';
-import { EmptyState, LoadError, ScCard, SkeletonList } from '@repo/native-ui/primitives';
+import { EmptyState, HubCard, LoadError, SkeletonList } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import {
@@ -25,7 +26,7 @@ import {
 import { createPackage, deletePackage, getMyPackages, toggleServiceActive, updatePackage } from '@/lib/services-api';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
-import { CatalogueCard } from './catalogue-card';
+import { CatalogueCard, CatalogueTools } from './catalogue-card';
 import { DeleteSheet } from './delete-sheet';
 import { Num } from './figures';
 import { ChipRow, PricingBlock } from './pricing-block';
@@ -34,19 +35,25 @@ import { useSaver } from './use-saver';
 import { fill, useT } from '@repo/core/i18n';
 
 /**
- * The Packages tab (apps/vendors/app/services/packages-panel.tsx): the builder, then
- * "Your packages". Mounted only while the tab is open, so it loads its packages when it
- * is opened.
+ * The Packages tab (apps/vendors/app/services/packages-panel.tsx) in the Home look:
+ * "Your packages" as compact cards and "Build a package"; a card or the pill opens the
+ * builder, with a package's photos and video and Disable / Delete under it. Mounted only
+ * while the tab is open, so it loads its packages when it is opened.
  */
 export function PackagesPanel({
   services,
   mediaConfig,
+  formOpen,
+  setFormOpen,
   onEditStarted,
 }: {
   services: Service[];
   /** The photo-and-video block's config, fetched once by the screen. */
   mediaConfig: MediaConfig | null;
-  /** The builder is above the list; bring it into view when Edit fills it. */
+  /** The builder is showing in place of the list. */
+  formOpen: boolean;
+  setFormOpen: (open: boolean) => void;
+  /** Bring the top of the view into sight when it changes. */
   onEditStarted: () => void;
 }) {
   const t = useT();
@@ -79,9 +86,18 @@ export function PackagesPanel({
 
   const change = (patch: Partial<PackageForm>) => setForm((current) => ({ ...current, ...patch }));
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setEditingId(null);
     setForm(emptyPackageForm);
+    setFormOpen(false);
+    onEditStarted();
+  }, [setFormOpen, onEditStarted]);
+
+  const startBuild = () => {
+    setEditingId(null);
+    setForm(emptyPackageForm);
+    setFormOpen(true);
+    onEditStarted();
   };
 
   const submit = () =>
@@ -100,6 +116,7 @@ export function PackagesPanel({
   const startEdit = (pkg: ServicePackage) => {
     setEditingId(pkg.id);
     setForm(formFromPackage(pkg));
+    setFormOpen(true);
     onEditStarted();
   };
 
@@ -133,11 +150,67 @@ export function PackagesPanel({
     );
   }
 
+  const editing = editingId ? (packages.find((p) => p.id === editingId) ?? null) : null;
+
+  if (!formOpen) {
+    return (
+      <View style={styles.column}>
+        <View style={styles.section}>
+          <SectionTitle title={t('Your packages')} count={packages.length} />
+          {packages.length === 0 ? (
+            <EmptyState
+              icon={<IconPackage size={28} stroke={1.5} color={colors.textMuted} />}
+              title={t('No packages yet')}
+              subtitle={t('Bundle 2 or more services to create one.')}
+            />
+          ) : (
+            <View style={styles.list}>
+              {packages.map((pkg) => (
+                <CatalogueCard
+                  key={pkg.id}
+                  item={pkg}
+                  onOpen={() => startEdit(pkg)}
+                  details={
+                    <>
+                      <T size={12} lh={17} color={colors.dim} style={styles.included}>
+                        {pkg.items.map((item) => item.name).join(' + ')}
+                      </T>
+                      {pkg.savings !== null ? (
+                        <T size={12} lh={17} weight={500} color={colors.success} style={styles.included}>
+                          {fill(t('Saves {amount} vs {total} separately'), {
+                            amount: <Num weight={500}>₹{pkg.savings}</Num>,
+                            total: <Num weight={500}>₹{pkg.itemsTotal}</Num>,
+                          })}
+                        </T>
+                      ) : null}
+                      {/* Amber: a problem to fix, not a button. */}
+                      {pkg.hasInactiveItems ? (
+                        <T size={12} lh={17} color={colors.warning} style={styles.included}>
+                          {t('Contains a disabled service — customers still see it listed.')}
+                        </T>
+                      ) : null}
+                    </>
+                  }
+                />
+              ))}
+            </View>
+          )}
+          <HubPill onPress={startBuild}>
+            <IconPlus size={16} stroke={1.6} />
+            <T size={14} weight={500}>
+              {t('Build a package')}
+            </T>
+          </HubPill>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.column}>
       <View style={styles.section}>
-        <SectionTitle title={editingId ? t('Edit package') : t('Build a package')} onCancel={editingId ? reset : undefined} />
-        <ScCard style={styles.form}>
+        <HubBack title={editingId ? t('Edit package') : t('Build a package')} onBack={reset} />
+        <HubCard style={styles.form}>
           <ScInput label={t('Package name')} value={form.name} onChangeText={(name) => change({ name })} />
           <ScTextarea
             label={t('Description (optional)')}
@@ -219,55 +292,19 @@ export function PackagesPanel({
           >
             {saving === 'package' ? t('Saving...') : editingId ? t('Update package') : t('Create package')}
           </ScButton>
-        </ScCard>
+        </HubCard>
       </View>
 
-      <View style={styles.section}>
-        <SectionTitle title={t('Your packages')} count={packages.length} />
-        {packages.length === 0 ? (
-          <EmptyState
-            icon={<IconPackage size={28} stroke={1.5} color={colors.textMuted} />}
-            title={t('No packages yet')}
-            subtitle={t('Bundle 2 or more services to create one.')}
-          />
-        ) : (
-          <View style={styles.list}>
-            {packages.map((pkg) => (
-              <CatalogueCard
-                key={pkg.id}
-                item={pkg}
-                mediaConfig={mediaConfig}
-                onMediaChange={(media) => setMedia(pkg.id, media)}
-                onEdit={() => startEdit(pkg)}
-                onToggle={() => void setActive(pkg.id, !pkg.isActive)}
-                onDelete={() => setDeleting(pkg)}
-                busy={saving !== null}
-                details={
-                  <>
-                    <T size={11} lh={16} color={colors.textMuted} style={styles.included}>
-                      {pkg.items.map((item) => item.name).join(' + ')}
-                    </T>
-                    {pkg.savings !== null ? (
-                      <T size={11} lh={16} weight={500} color={colors.success} style={styles.included}>
-                        {fill(t('Saves {amount} vs {total} separately'), {
-                          amount: <Num weight={500}>₹{pkg.savings}</Num>,
-                          total: <Num weight={500}>₹{pkg.itemsTotal}</Num>,
-                        })}
-                      </T>
-                    ) : null}
-                    {/* Amber: a problem to fix, not a button. */}
-                    {pkg.hasInactiveItems ? (
-                      <T size={11} lh={16} color={colors.warning} style={styles.included}>
-                        {t('Contains a disabled service — customers still see it listed.')}
-                      </T>
-                    ) : null}
-                  </>
-                }
-              />
-            ))}
-          </View>
-        )}
-      </View>
+      {editing ? (
+        <CatalogueTools
+          item={editing}
+          mediaConfig={mediaConfig}
+          onMediaChange={(media) => setMedia(editing.id, media)}
+          onToggle={() => void setActive(editing.id, !editing.isActive)}
+          onDelete={() => setDeleting(editing)}
+          busy={saving !== null}
+        />
+      ) : null}
 
       <DeleteSheet target={deleting} noun="package" onClose={() => setDeleting(null)} onConfirm={remove} />
     </View>
@@ -275,11 +312,11 @@ export function PackagesPanel({
 }
 
 const useStyles = createStyles((colors) => ({
-  column: { gap: 20 },
+  column: { gap: 16 },
   section: { gap: 12 },
-  form: { gap: 12 },
+  form: { gap: 12, padding: 20 },
   group: { gap: 8 },
-  list: { gap: 8 },
+  list: { gap: 12 },
   included: { marginTop: 4 },
   suggest: { minHeight: 44, justifyContent: 'center', marginTop: 4 },
   underline: { textDecorationLine: 'underline' },

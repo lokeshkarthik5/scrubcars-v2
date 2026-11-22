@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react'
 import { useT } from '@repo/core/i18n'
 import { ScButton } from '@repo/ui/sc/button'
+import { NumberPlate } from '@repo/ui/finish/number-plate'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { formatWhen } from '@repo/core/format'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
@@ -87,7 +88,7 @@ export function NewBookingCard({
     <article
       id={`job-${b.id}`}
       aria-label={t('New booking from {who}', { who })}
-      className="scroll-mt-4 rounded-[20px] border border-border bg-surface"
+      className="hub-card scroll-mt-4 overflow-hidden"
     >
       {b.responseDeadline && !waitingOnCustomer && (!passed || lost) && (
         <AnswerDeadline deadline={b.responseDeadline} />
@@ -101,7 +102,7 @@ export function NewBookingCard({
             aria-label={t('Details of the booking for {who}', { who })}
             className="press -m-2 flex flex-col gap-1 rounded-[14px] p-2"
           >
-            <p className="font-numeric text-[24px] font-bold leading-tight tracking-tight text-text-primary">
+            <p className="font-numeric text-[22px] font-normal leading-tight tracking-[-0.01em] text-text-primary">
               {formatWhen(b.scheduledAtIso, now)}
             </p>
             <p className="text-[17px] font-medium text-text-primary">
@@ -109,11 +110,11 @@ export function NewBookingCard({
             </p>
             <JobAddOnLines items={b.items} className="text-[15px] text-text-secondary" />
             {b.vehicle && (
-              <p className="text-[16px] text-text-secondary">
-                {b.vehicle.make} {b.vehicle.model} ·{' '}
-                <span className="font-numeric tracking-wide text-text-primary">
-                  {b.vehicle.plate}
+              <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[14px] text-text-secondary">
+                <span className="min-w-0 truncate">
+                  {b.vehicle.make} {b.vehicle.model} ·
                 </span>
+                <NumberPlate plate={b.vehicle.plate} size="sm" />
               </p>
             )}
             <p className="flex min-w-0 items-center gap-2 text-[16px] text-text-secondary">
@@ -137,7 +138,7 @@ export function NewBookingCard({
         <div
           className={cn(
             'flex items-end justify-between gap-3',
-            !onPage && 'border-t border-border pt-4'
+            !onPage && 'border-t border-line pt-4'
           )}
         >
           <p className="flex min-w-0 items-start gap-1.5 text-[15px] text-text-secondary">
@@ -180,7 +181,7 @@ export function NewBookingCard({
               className={cn(
                 'shrink-0 leading-none text-text-primary',
                 // A no-fee inspection's words (0073) sit smaller than a figure.
-                price.words ? 'max-w-[45%] text-right text-[15px] font-semibold leading-snug' : 'font-numeric text-[24px] font-bold tracking-tight'
+                price.words ? 'max-w-[45%] text-right text-[15px] font-semibold leading-snug' : 'font-numeric text-[26px] font-light tracking-[-0.02em]'
               )}
             >
               {price.text}

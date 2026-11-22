@@ -7,6 +7,7 @@ import { msg } from '@repo/core/i18n/translate'
 import { ScButton } from '@repo/ui/sc/button'
 import { ScButtonLink } from '@repo/ui/sc/button-link'
 import { StatusChip } from '@repo/ui/sc/status-chip'
+import { NumberPlate } from '@repo/ui/finish/number-plate'
 import { BOOKING_TYPE_LABELS } from '@repo/core/booking-types'
 import { formatClock, formatRelative } from '@repo/core/format'
 import { bookingStatusTone } from '@repo/core/status-tone'
@@ -55,71 +56,69 @@ export function JobRow({
       id={`job-${b.id}`}
       aria-label={t('Job for {who}', { who })}
       className={cn(
-        'relative scroll-mt-4 rounded-[20px] border bg-surface p-4',
-        emphasis
-          ? 'border-tone-progress-dot/60 shadow-[inset_4px_0_0_var(--color-tone-progress-dot)]'
-          : 'border-border'
+        'hub-card relative scroll-mt-4 px-5 pt-4 pb-5',
+        // The job under way keeps its blue edge (garage mockup 02).
+        emphasis &&
+          'border-tone-progress-dot/60 shadow-[inset_3px_0_0_var(--color-tone-progress-dot)]'
       )}
     >
-      <div className="flex gap-4">
-        <p className="w-16 shrink-0 font-numeric leading-none text-text-primary">
-          <span className="block text-[24px] font-bold tracking-tight">
+      <div className="flex items-start justify-between gap-3">
+        {/* The time, large and light, with am/pm small beside it. */}
+        <p className="flex min-w-0 items-baseline gap-1 font-numeric text-text-primary">
+          <span className="text-[38px] leading-none font-light tracking-[-0.035em]">
             {clock}
           </span>
-          <span className="mt-1 block text-[14px] text-text-secondary">
-            {meridiem}
-          </span>
+          <span className="text-[14px] text-dim">{meridiem}</span>
         </p>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            {/* The name is the row's link: the whole row is its target. */}
-            <Link
-              href={`/bookings/${b.id}`}
-              className="min-w-0 truncate text-[17px] font-semibold text-text-primary after:absolute after:inset-0 after:rounded-[20px] after:content-['']"
-            >
-              {shortName(b.customerName)}
-            </Link>
-            <RowChip
-              booking={b}
-              now={now}
-              startsIn={startsIn}
-              deferred={deferred}
-            />
-          </div>
-          {b.vehicle && (
-            <p className="truncate text-[15px] text-text-secondary">
-              {b.vehicle.make} {b.vehicle.model} ·{' '}
-              <span className="font-numeric tracking-wide">
-                {b.vehicle.plate}
-              </span>
-            </p>
-          )}
-          <p className="truncate text-[15px] text-text-secondary">
-            {servicesLine(b)} · {t(BOOKING_TYPE_LABELS[b.bookingType])}
-          </p>
-          {dayOff && b.status !== 'completed' && (
-            <p className="mt-1 text-[14px] text-text-secondary">
-              {t(cancelledLabel(b))}
-            </p>
-          )}
-        </div>
-        {!step && (
-          <IconChevronRight
-            size={20}
-            aria-hidden="true"
-            className="mt-1 shrink-0 self-center text-text-muted"
+        <span className="relative z-10 mt-1 flex shrink-0 items-center gap-2">
+          <RowChip
+            booking={b}
+            now={now}
+            startsIn={startsIn}
+            deferred={deferred}
           />
-        )}
+          {!step && (
+            <IconChevronRight
+              size={16}
+              aria-hidden="true"
+              className="shrink-0 text-text-muted"
+            />
+          )}
+        </span>
       </div>
+      {/* The name is the card's link: the whole card is its target. */}
+      <Link
+        href={`/bookings/${b.id}`}
+        className="mt-2.5 block min-w-0 truncate text-[18px] text-text-primary after:absolute after:inset-0 after:rounded-[28px] after:content-['']"
+      >
+        {shortName(b.customerName)}
+      </Link>
+      {b.vehicle && (
+        <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-t4 text-text-secondary">
+          <span className="min-w-0 truncate">
+            {b.vehicle.make} {b.vehicle.model} ·
+          </span>
+          <NumberPlate plate={b.vehicle.plate} size="sm" />
+        </p>
+      )}
+      <p className="mt-1 truncate text-t4 text-dim">
+        {servicesLine(b)} · {t(BOOKING_TYPE_LABELS[b.bookingType])}
+      </p>
+      {dayOff && b.status !== 'completed' && (
+        <p className="mt-1 text-t4 text-text-secondary">
+          {t(cancelledLabel(b))}
+        </p>
+      )}
 
       {step && (
-        // Above the row's link, so a tap on the button is the button's.
-        <div className="relative z-10 mt-3">
+        // Above the card's link, so a tap on the button is the button's.
+        <div className="relative z-10 mt-3.5">
           {step.kind === 'start' || step.kind === 'complete' ? (
             <ScButton
               variant={emphasis ? 'main' : 'outline'}
-              size={emphasis ? 'lg' : 'md'}
+              size="md"
               fullWidth
+              className={cn('rounded-full', !emphasis && 'border-line bg-white/[0.04]')}
               aria-label={t('{action} for {who}', { action: nextStepLabel(step), who })}
               onClick={() =>
                 changeStatusWithUndo(
@@ -131,13 +130,14 @@ export function JobRow({
               {nextStepLabel(step)}
             </ScButton>
           ) : step.kind === 'wait' ? (
-            <p className="text-[14px] text-text-secondary">{step.text}</p>
+            <p className="text-t4 text-text-secondary">{step.text}</p>
           ) : (
             <ScButtonLink
               href={`/bookings/${b.id}`}
               variant={emphasis ? 'main' : 'outline'}
-              size={emphasis ? 'lg' : 'md'}
+              size="md"
               fullWidth
+              className={cn('rounded-full', !emphasis && 'border-line bg-white/[0.04]')}
               aria-label={t('{action} for {who}', { action: nextStepLabel(step), who })}
             >
               {step.kind === 'photos' && (
@@ -187,7 +187,7 @@ function RowChip({
   // An accepted job about to start says when, the way a garage plans its next hour.
   if (startsIn !== null && startsIn > 0 && startsIn <= 3 * 60 * 60 * 1000) {
     return (
-      <span className="shrink-0 rounded-full border border-white/25 px-2.5 py-0.5 font-numeric text-[13px] font-medium text-text-primary">
+      <span className="shrink-0 rounded-full border border-line px-2.5 py-1 font-numeric text-[12px] leading-none text-[#E4E4E7]">
         {formatRelative(b.scheduledAtIso, now)}
       </span>
     )

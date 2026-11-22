@@ -193,3 +193,40 @@ export function bookingsSentence(count: number) {
 /** The closures list in date order, as the web keeps it after an add. */
 export const sortClosures = <C extends { date: string }>(closures: C[]) =>
   [...closures].sort((a, b) => a.date.localeCompare(b.date));
+
+/**
+ * Settings as a menu (mockup garage-hub 5, 22 Nov 2026): each row opens one part of the old
+ * tabs on its own, under `?section=`. The old `?tab=` names still open their part; Account,
+ * the last tab, is the menu itself now.
+ */
+export const SETTINGS_SECTIONS = ['profile', 'location', 'hours', 'time-off', 'capacity', 'job-types', 'pickup'] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+/** The section a link asks for, or null for the menu. */
+export function settingsSection(requested: string | string[] | undefined): SettingsSection | null {
+  const value = Array.isArray(requested) ? requested[0] : requested;
+  return SETTINGS_SECTIONS.includes(value as SettingsSection) ? (value as SettingsSection) : null;
+}
+
+/** `09:00:00` as "9 am", `20:30` as "8:30 pm": the menu's short hours. */
+export function shortClock(time: string): string {
+  const [h = '0', m = '00'] = time.split(':');
+  const hours = Number(h);
+  const minutes = m.slice(0, 2);
+  const clock = hours % 12 || 12;
+  return `${clock}${minutes === '00' ? '' : `:${minutes}`} ${hours < 12 ? 'am' : 'pm'}`;
+}
+
+/**
+ * The Hours row's value, as the website's: "9 am – 8 pm" when every open day keeps the same
+ * hours, "Varies by day" when they differ, "Closed" when no day is open.
+ */
+export function hoursSummary(hours: Pick<ApiWorkingHours, 'openTime' | 'closeTime' | 'isClosed'>[]): string {
+  const open = hours.filter((day) => !day.isClosed);
+  if (open.length === 0) return t('Closed');
+  const first = open[0]!;
+  const same = open.every(
+    (day) => day.openTime.slice(0, 5) === first.openTime.slice(0, 5) && day.closeTime.slice(0, 5) === first.closeTime.slice(0, 5)
+  );
+  return same ? `${shortClock(first.openTime)} – ${shortClock(first.closeTime)}` : t('Varies by day');
+}

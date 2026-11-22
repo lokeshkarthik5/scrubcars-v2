@@ -2,24 +2,29 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { IconChevronRight, IconInbox } from '@tabler/icons-react'
+import {
+  IconChevronRight,
+  IconInbox,
+  IconMessage,
+  IconStar,
+  IconUser,
+  IconWallet,
+} from '@tabler/icons-react'
 import { fill, useT, useTn } from '@repo/core/i18n'
 import { AppShell } from '@repo/ui/sc/app-shell'
 import { LoadError } from '@repo/ui/sc/load-error'
 import { Notice } from '@repo/ui/sc/notice'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import { StatTile } from '@repo/ui/sc/stat-tile'
-import { Stars } from '@repo/ui/sc/stars'
 import { apiClient } from '@repo/core/api/client'
 import { getVendorReviews } from '@repo/core/api/reviews'
 import { getMyVendor } from '@repo/core/api/vendors'
 import type { ApiVendorProfile } from '@repo/core/api/types'
-import { formatINR } from '@repo/core/format'
+import { formatClock, formatINR } from '@repo/core/format'
 import { useNow } from '@repo/core/hooks/use-now'
 import { useIsVendorAdmin } from '@repo/core/hooks/use-vendor-role'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import type { Review } from '@repo/core/types'
-import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats'
+import { formatRating, greetingFor, reviewCountLabel } from '@repo/core/vendor-stats'
 import { NEW_GARAGE_LABEL, isNewGarage } from '@repo/core/ratings'
 import { GARAGE_NON_SOLICITATION_LINE } from '@repo/core/bypass-reports'
 import { AgreementBanner } from '@/components/agreement-banner'
@@ -28,7 +33,25 @@ import { GarageStatus } from '@/components/garage-status'
 import { GuaranteeHomeCard } from '@/components/guarantee-home-card'
 import { NewBookingCard } from '@/components/new-booking-card'
 import { PushBanner } from '@/components/push-banner'
-import { sortByUrgency, todayView, waitingSummary } from '@/lib/jobs'
+import {
+  istDay,
+  servicesLine,
+  shortName,
+  sortByUrgency,
+  todayView,
+  waitingSummary,
+} from '@/lib/jobs'
+import {
+  BIG_FIGURE,
+  HubList,
+  HubPill,
+  HubRow,
+  HubTag,
+  HubTile,
+  SlimBar,
+  TileRow,
+} from '@/components/hub/parts'
+import type { Booking } from '@repo/core/types'
 import { useVendorBookings } from '@/lib/use-vendor-bookings'
 import { useGarageRequestCount } from '@repo/core/api/hooks/use-booking-requests'
 import {
@@ -67,6 +90,7 @@ async function weekEarnings(): Promise<number> {
 export default function VendorHomePage() {
   const t = useT()
   const vendor = useAuthStore((s) => s.vendor)
+  const user = useAuthStore((s) => s.user)
   const { bookings, loaded, failed, retrying, reload } = useVendorBookings()
   const now = useNow(10_000)
   const [reviews, setReviews] = useState<Review[] | null>(null)
@@ -94,6 +118,8 @@ export default function VendorHomePage() {
   )
   const waiting = useMemo(() => waitingSummary(pending, now), [pending, now])
   const today = useMemo(() => todayView(bookings, now), [bookings, now])
+  const doneToday = useMemo(() => completedTodayCount(bookings, now), [bookings, now])
+  const greetName = firstNameOf(user?.name)
   // Nothing to count from when the read failed and there is no earlier list.
   const jobsUnknown = failed && bookings.length === 0
 
@@ -135,15 +161,22 @@ export default function VendorHomePage() {
       navType="vendor"
       showBrand
       brandRight={<GarageStatus />}
-      className={cn('gap-5 py-4', book && 'finish gap-4')}
+      className={cn('gap-3 py-4', book && 'finish gap-4')}
     >
       <h1 className="sr-only">{t('Home')}</h1>
+      {/* The hello, by Chennai's hour, with the signed-in person's first
+          name; left out while no name is known. */}
+      {!book && greetName && (
+        <p className="px-1 pt-1 text-[24px] leading-[1.25] font-semibold tracking-[-0.02em] text-text-primary">
+          {`${greetingFor(new Date(now))}, ${greetName}`}
+        </p>
+      )}
 
       {/* Ordered by what actually blocks the garage. An unpinned garage cannot
           be shown to customers at all, so telling them "under review" first
           would be misleading — there is nothing to review until they act. */}
       {needsLocation ? (
-        <Notice href="/settings?tab=location" title={t('Set your garage location')}>
+        <Notice href="/settings?section=location" title={t('Set your garage location')}>
           {t(
             "Customers can't find you until your garage is on the map, and we can't show you to customers without it. Tap to pin it."
           )}
@@ -163,7 +196,7 @@ export default function VendorHomePage() {
           week later. Only an admin can resume (Settings is theirs). */}
       {paused &&
         (isVendorAdmin ? (
-          <Notice href="/settings?tab=time-off" title={t('New bookings are paused')}>
+          <Notice href="/settings?section=time-off" title={t('New bookings are paused')}>
             {t(
               "Customers can't find or book you. Bookings you already have stay as they are. Tap to resume in Settings."
             )}
@@ -187,155 +220,134 @@ export default function VendorHomePage() {
         </>
       ) : (
         <>
-      <section aria-labelledby="home-waiting" className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2
-            id="home-waiting"
-            className="flex items-center gap-2 text-[18px] font-semibold text-text-primary"
-          >
-            {t('Waiting for your answer')}
-            {waiting.count > 0 && (
-              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[13px] font-semibold leading-6 text-brand-white">
-                {waiting.count}
-              </span>
-            )}
-          </h2>
-          <Link
-            href="/bookings?tab=new"
-            className="-my-2 flex min-h-12 items-center gap-0.5 text-[15px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-          >
-            {t('See all')}
-            <IconChevronRight size={18} aria-hidden="true" />
-          </Link>
-        </div>
-
-        {!loaded && bookings.length === 0 ? (
-          <SkeletonList count={2} itemClassName="h-64" />
-        ) : jobsUnknown ? (
-          <LoadError
-            what={t('your bookings')}
-            onRetry={reload}
-            retrying={retrying}
+          <TodayCard
+            unknown={jobsUnknown}
+            loading={!loaded && bookings.length === 0}
+            working={today.working.length}
+            next={today.next}
+            doneToday={doneToday}
           />
-        ) : pending.length === 0 ? (
-          <p className="flex items-center gap-3 rounded-[20px] border border-border bg-surface px-4 py-4 text-[15px] text-text-secondary">
-            <IconInbox size={22} aria-hidden="true" className="shrink-0" />
-            {t('No new bookings. They show here the moment a customer pays.')}
-          </p>
-        ) : (
-          <>
-            {pending.slice(0, CARDS_ON_HOME).map((b) => (
-              <NewBookingCard
-                key={b.id}
-                booking={b}
-                now={now}
-                onChanged={reload}
-              />
-            ))}
-            {pending.length > CARDS_ON_HOME && (
+
+          <section aria-labelledby="home-waiting" className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 px-1 pt-1">
+              <h2
+                id="home-waiting"
+                className="flex items-center gap-2 text-[16px] font-medium text-text-primary"
+              >
+                {t('Waiting for your answer')}
+                {waiting.count > 0 && (
+                  <span className="inline-flex min-w-[22px] items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[12px] font-semibold leading-[22px] text-brand-white">
+                    {waiting.count}
+                  </span>
+                )}
+              </h2>
               <Link
                 href="/bookings?tab=new"
-                className="flex min-h-12 items-center justify-center rounded-full border border-white/20 text-[15px] font-medium text-text-primary transition-colors hover:bg-surface"
+                className="-my-2 flex min-h-12 shrink-0 items-center gap-0.5 text-t4 text-text-secondary transition-colors hover:text-text-primary"
               >
-                {fill(t('See all {count} new bookings'), {
-                  count: <span className="mx-1 font-numeric">{pending.length}</span>,
-                })}
+                {t('See all')}
+                <IconChevronRight size={16} aria-hidden="true" />
               </Link>
+            </div>
+
+            {!loaded && bookings.length === 0 ? (
+              <SkeletonList count={2} itemClassName="h-64 rounded-[28px]" />
+            ) : jobsUnknown ? (
+              <LoadError
+                what={t('your bookings')}
+                onRetry={reload}
+                retrying={retrying}
+              />
+            ) : pending.length === 0 ? (
+              <p className="hub-card flex items-center gap-3 px-5 py-4 text-t3 text-text-secondary">
+                <IconInbox size={22} aria-hidden="true" className="shrink-0" />
+                {t('No new bookings. They show here the moment a customer pays.')}
+              </p>
+            ) : (
+              <>
+                {pending.slice(0, CARDS_ON_HOME).map((b) => (
+                  <NewBookingCard
+                    key={b.id}
+                    booking={b}
+                    now={now}
+                    onChanged={reload}
+                  />
+                ))}
+                {pending.length > CARDS_ON_HOME && (
+                  <HubPill href="/bookings?tab=new">
+                    {fill(t('See all {count} new bookings'), {
+                      count: <span className="mx-1 font-numeric">{pending.length}</span>,
+                    })}
+                  </HubPill>
+                )}
+              </>
             )}
-          </>
-        )}
-      </section>
+          </section>
 
-      <RequestsHomeCard />
-
-      <div className="grid grid-cols-2 gap-2">
-        {/* Each tile opens what it counts (finding 9: Today's jobs couldn't be tapped). */}
-        <Link
-          href="/bookings?tab=today"
-          aria-label={
-            jobsUnknown
-              ? t("Today's jobs: unknown. Open Today")
-              : t("Today's jobs: {count}. Open Today", {
-                  count: today.working.length + today.next.length,
-                })
-          }
-          className="press block"
-        >
-          <StatTile
-            label={t("Today's jobs")}
-            className="h-full"
-            value={jobsUnknown ? '–' : today.working.length + today.next.length}
-            hint={
-              today.working.length > 0
-                ? t('{count} under way', { count: today.working.length })
-                : undefined
-            }
-          />
-        </Link>
-        {isVendorAdmin && (
-          <Link
-            href="/earnings"
-            className="press block"
-            aria-label={
-              week === null
-                ? t('This week: not loaded. Open Earnings')
-                : t('This week: {amount}. Open Earnings', { amount: formatINR(week) })
-            }
-          >
-            {/* A dash, never ₹0, until the figure arrives (or when it fails). */}
-            <StatTile
-              label={t('This week')}
-              className="h-full"
-              value={week === null ? '–' : formatINR(week)}
+          <TileRow>
+            {isVendorAdmin && (
+              <HubTile
+                href="/earnings"
+                label={t('This week')}
+                icon={IconWallet}
+                ariaLabel={
+                  week === null
+                    ? t('This week: not loaded. Open Earnings')
+                    : t('This week: {amount}. Open Earnings', { amount: formatINR(week) })
+                }
+                // A dash, never ₹0, until the figure arrives (or when it fails).
+                value={week === null ? '–' : formatINR(week)}
+                line={`${t('Earnings')} ›`}
+              />
+            )}
+            {/* The label carries the figure itself: an aria-label replaces the
+                tile's text, so leaving the rating out would hide what it is for. */}
+            <HubTile
+              href="/reviews"
+              label={t('Avg rating')}
+              icon={IconStar}
+              className={cn(!isVendorAdmin && 'col-span-2')}
+              ariaLabel={
+                reviews === null
+                  ? t('Average rating: not loaded. See reviews')
+                  : reviewCount === 0
+                    ? t('Average rating: no reviews yet. See reviews')
+                    : newGarage
+                      ? t('Average rating: {label}, {reviews}. See reviews', {
+                          label: t(NEW_GARAGE_LABEL),
+                          reviews: reviewCountLabel(reviewCount),
+                        })
+                      : t('Average rating {rating} from {reviews}. See reviews', {
+                          rating: formatRating(avgRating),
+                          reviews: reviewCountLabel(reviewCount),
+                        })
+              }
+              value={
+                reviews === null ? (
+                  '–'
+                ) : reviewCount > 0 && newGarage ? (
+                  <span className="text-[18px] font-normal tracking-normal">{t(NEW_GARAGE_LABEL)}</span>
+                ) : (
+                  formatRating(avgRating)
+                )
+              }
+              line={
+                reviewsFailed
+                  ? t("Couldn't load")
+                  : reviews === null
+                    ? undefined
+                    : `${reviewCountLabel(reviewCount)} ›`
+              }
             />
-          </Link>
-        )}
-        {/* The label carries the figure itself: an aria-label replaces the
-            tile's text, so leaving the rating out would hide what it is for. */}
-        <Link
-          href="/reviews"
-          aria-label={
-            reviews === null
-              ? t('Average rating: not loaded. See reviews')
-              : reviewCount === 0
-                ? t('Average rating: no reviews yet. See reviews')
-                : newGarage
-                  ? t('Average rating: {label}, {reviews}. See reviews', {
-                      label: t(NEW_GARAGE_LABEL),
-                      reviews: reviewCountLabel(reviewCount),
-                    })
-                  : t('Average rating {rating} from {reviews}. See reviews', {
-                      rating: formatRating(avgRating),
-                      reviews: reviewCountLabel(reviewCount),
-                    })
-          }
-          className="press block"
-        >
-          <StatTile
-            label={t('Avg rating')}
-            className="h-full"
-            value={
-              reviews === null ? (
-                '–'
-              ) : reviewCount > 0 && newGarage ? (
-                <span className="text-[15px]">{t(NEW_GARAGE_LABEL)}</span>
-              ) : (
-                <span className="flex items-center gap-1.5">
-                  {formatRating(avgRating)}
-                  {reviewCount > 0 && <Stars rating={avgRating} size={12} />}
-                </span>
-              )
-            }
-            hint={
-              reviewsFailed
-                ? t("Couldn't load")
-                : reviews === null
-                  ? undefined
-                  : reviewCountLabel(reviewCount)
-            }
-          />
-        </Link>
-      </div>
+          </TileRow>
+
+          {/* Requests (while any wait) and Your account, in one list card.
+              Every seat has Your account (0066): an operator has no Settings
+              tab, so this is their way there. */}
+          <HubList>
+            <RequestsHomeRow />
+            <HubRow href="/account" icon={IconUser} label={t('Your account')} />
+          </HubList>
         </>
       )}
 
@@ -348,6 +360,7 @@ export default function VendorHomePage() {
 
       {/* Every seat's account (0066): leave the garage, delete the login, log
           out. An operator has no Settings tab, so this is their way there. */}
+      {book && (
       <Link
         href="/account"
         className="press flex min-h-12 items-center justify-between rounded-[16px] border border-border bg-surface px-4 py-2 text-[15px] text-text-primary"
@@ -355,6 +368,7 @@ export default function VendorHomePage() {
         {t('Your account')}
         <IconChevronRight size={18} aria-hidden="true" className="shrink-0 text-text-muted" />
       </Link>
+      )}
 
       {/* The agreement's non-solicitation term (0052): a reminder for every seat. */}
       <p className="px-1 text-[13px] text-text-secondary">
@@ -404,5 +418,128 @@ function RequestsHomeCard() {
       </span>
       <IconChevronRight size={18} aria-hidden="true" className="shrink-0" />
     </Link>
+  )
+}
+
+/** The first word of a name, or null when there is none to greet. */
+function firstNameOf(name: string | undefined | null): string | null {
+  const first = (name ?? '').trim().split(/\s+/)[0]
+  return first ? first : null
+}
+
+/** Jobs finished today (India's calendar): the done part of the Today bar. */
+function completedTodayCount(bookings: readonly Booking[], now: number): number {
+  const today = istDay(now)
+  return bookings.filter(
+    (b) =>
+      b.status === 'completed' &&
+      b.completedAtIso != null &&
+      istDay(new Date(b.completedAtIso).getTime()) === today
+  ).length
+}
+
+/**
+ * Today, the Home's hero card (mockup garage-hub 1): the jobs still on today
+ * (under way and next) as one big light number, how many are under way, a
+ * slim bar of done against the day, and the next job. The whole card opens
+ * Bookings › Today, under the name the Today tile had.
+ */
+function TodayCard({
+  unknown,
+  loading,
+  working,
+  next,
+  doneToday,
+}: {
+  unknown: boolean
+  loading: boolean
+  working: number
+  next: Booking[]
+  doneToday: number
+}) {
+  const t = useT()
+  const tn = useTn()
+  const count = working + next.length
+  const first = next[0]
+  const total = count + doneToday
+  return (
+    <Link
+      href="/bookings?tab=today"
+      aria-label={
+        unknown
+          ? t("Today's jobs: unknown. Open Today")
+          : t("Today's jobs: {count}. Open Today", { count })
+      }
+      className="hub-card press flex flex-col gap-3 px-5 pt-4 pb-5"
+    >
+      <span className="text-t4 text-dim">{t('Today')}</span>
+      <span className="flex items-end justify-between gap-3">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className={cn(BIG_FIGURE, 'text-[56px] tracking-[-0.04em]')}>
+            {unknown || loading ? '–' : count}
+          </span>
+          {!unknown && !loading && (
+            <span className="text-[16px] text-dim">{tn(count, 'job', 'jobs')}</span>
+          )}
+        </span>
+        {working > 0 && (
+          <HubTag tone="green" dot className="mb-1">
+            {t('{count} under way', { count: working })}
+          </HubTag>
+        )}
+      </span>
+      {!unknown && !loading && total > 0 && (
+        <SlimBar value={doneToday / total} label={t('Done')} />
+      )}
+      {first && (
+        <span className="truncate text-t4 text-text-secondary">
+          {t('Next: {time} · {who} · {what}', {
+            time: formatClock(first.scheduledAtIso),
+            who: shortName(first.customerName),
+            what: servicesLine(first),
+          })}
+        </span>
+      )}
+    </Link>
+  )
+}
+
+/**
+ * Requests (0062) and repair quotes (0075) waiting for an answer, as a row of
+ * Home's list card: the count and the way in. Nothing while none wait, or
+ * when the count can't be read, as the card it replaces.
+ */
+function RequestsHomeRow() {
+  const t = useT()
+  const tn = useTn()
+  const count = useGarageRequestCount()
+  const repairOn = repairQuotesOn(useRepairQuotesConfig().data)
+  const repairCount = useGarageRepairQuoteCount(repairOn)
+  const repairs = repairOn ? (repairCount.data?.waiting ?? 0) : 0
+  const waiting = (count.data?.waiting ?? 0) + repairs
+  if (waiting <= 0) return null
+  return (
+    <HubRow
+      href="/requests"
+      icon={IconMessage}
+      label={
+        <span className="flex items-center gap-2">
+          {t('Requests')}
+          <span className="inline-flex min-w-[22px] items-center justify-center rounded-full bg-brand-red-fill px-1.5 font-numeric text-[12px] font-semibold leading-[22px] text-brand-white">
+            {waiting}
+          </span>
+        </span>
+      }
+      sub={
+        repairs > 0
+          ? tn(waiting, '{count} request waiting', '{count} requests waiting')
+          : tn(
+              waiting,
+              '{count} request waiting · answer within {hours} h',
+              '{count} requests waiting · answer within {hours} h',
+              { hours: REQUEST_RULES.respondMinutes / 60 }
+            )
+      }
+    />
   )
 }

@@ -26,10 +26,10 @@ const loadFailed = () => t('Failed to load add-ons')
  * routes, so the Services list above keeps meaning services.
  */
 export function AddOnsSection({
-  addRequest,
+  addRequest = 0,
 }: {
-  /** Bumped by the "Add add-on" beside the form's heading, to open the sheet. */
-  addRequest: number
+  /** Bumped by an "Add add-on" elsewhere on the page, to open the sheet. None today. */
+  addRequest?: number
 }) {
   const t = useT()
   const [addOns, setAddOns] = useState<AddOn[] | null>(null)

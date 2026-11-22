@@ -31,23 +31,18 @@ test.describe('language @p0', () => {
   test('Tamil from Settings shows Tamil, survives a reload, and English comes back', async ({ page, context }) => {
     await setActiveVendor(context, VENDORS.main.id)
     await page.goto('/settings?tab=account')
-    await expect(page.getByRole('tab', { name: 'Account', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    // Settings is a menu now; the old Account tab's link lands on it.
+    await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
     expect(await htmlLang(page)).toBe('en')
 
     await chooseLanguage(page, 'தமிழ் (Tamil)')
 
-    // At once, without a reload: the title, the tabs, the row and <html lang>.
+    // At once, without a reload: the title, the menu, the row and <html lang>.
     await expect(page.getByRole('heading', { name: 'அமைப்புகள்', exact: true })).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'கணக்கு', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
-    await expect(page.getByRole('tab', { name: 'சுயவிவரம்', exact: true })).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'நேரம்', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'கணக்கு', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: /^சுயவிவரம்/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: /^நேரம்/ })).toBeVisible()
     await expect(page.getByRole('button', { name: /மொழி \(Language\)/ })).toContainText('தமிழ்')
     await expect.poll(() => htmlLang(page)).toBe('ta')
 
@@ -62,13 +57,10 @@ test.describe('language @p0', () => {
 
     // And back to English, from Settings again.
     await page.goto('/settings?tab=account')
-    await expect(page.getByRole('tab', { name: 'கணக்கு', exact: true })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    await expect(page.getByRole('heading', { name: 'கணக்கு', exact: true })).toBeVisible()
     await chooseLanguage(page, 'English')
     await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Account', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Language/ })).toContainText('English')
     await expect.poll(() => htmlLang(page)).toBe('en')
 
