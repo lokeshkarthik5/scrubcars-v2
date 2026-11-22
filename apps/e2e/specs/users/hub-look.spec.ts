@@ -49,17 +49,26 @@ test.describe('the floating nav, app-wide @p0', () => {
     })
   }
 
-  // A signed-in customer's Home is the hub, so the list is not it; the + is
-  // an action, never lit (lib/hub-nav.ts). A visitor's list lights Home
-  // (garages.spec.ts).
-  for (const path of ['/garages', '/search']) {
-    test(`is on ${path}, with nothing lit`, async ({ page }) => {
-      await page.goto(path)
-      await expect(nav(page)).toBeVisible()
-      await expect(lit(page)).toHaveCount(0)
-      await expect(nav(page).getByRole('link', { name: 'Search' })).toHaveCount(0)
-    })
-  }
+  // A signed-in customer's Home is the hub, so the list is the +'s own page:
+  // the + is lit, with the tabs' ring of light round it (lib/hub-nav.ts). A
+  // visitor's list lights Home (garages.spec.ts).
+  test('is on /garages, with the + lit and its ring round it', async ({ page }) => {
+    await page.goto('/garages')
+    await expect(nav(page)).toBeVisible()
+    await expect(lit(page)).toHaveCount(1)
+    const plus = nav(page).getByRole('link', { name: 'New booking' })
+    await expect(plus).toHaveAttribute('aria-current', 'page')
+    await expect(plus.locator('.hub-orb--halo')).toHaveCount(1)
+    await expect(nav(page).getByRole('link', { name: 'Search' })).toHaveCount(0)
+  })
+
+  test('is on /search, with nothing lit', async ({ page }) => {
+    await page.goto('/search')
+    await expect(nav(page)).toBeVisible()
+    await expect(lit(page)).toHaveCount(0)
+    await expect(nav(page).locator('.hub-orb--halo')).toHaveCount(0)
+    await expect(nav(page).getByRole('link', { name: 'Search' })).toHaveCount(0)
+  })
 
   test('+ opens the list of garages', async ({ page }) => {
     await page.goto('/search')
