@@ -1544,4 +1544,23 @@ export const customerWeb: Readonly<Record<string, string>> = {
     'இன்ஸ்பெக்ஷன் கட்டணம் இல்லை. உங்கள் காரைப் பார்த்த பிறகு கேரேஜ் ஆப்பில் விலையை அனுப்பும், நீங்கள் அதை இங்கே செலுத்துவீர்கள்.',
   'Nothing to pay now. After inspecting your car the garage sends the price in the app, and you pay it here. Your booking is confirmed once the garage accepts it.':
     'இப்போது செலுத்த எதுவும் இல்லை. உங்கள் காரை இன்ஸ்பெக்ட் செய்த பிறகு கேரேஜ் ஆப்பில் விலையை அனுப்பும், நீங்கள் அதை இங்கே செலுத்துவீர்கள். கேரேஜ் ஏற்றுக்கொண்டதும் உங்கள் புக்கிங் உறுதியாகும்.',
+  // ─── Profile in the Home look (22 Nov 2026) ───
+  'Garages tried': 'முயன்ற கேரேஜ்கள்',
+  'Booking': 'புக்கிங்',
+  'Bookings': 'புக்கிங்குகள்',
+  'Car': 'கார்',
+  'Cars': 'கார்கள்',
+  'Your garage': 'உங்கள் கேரேஜ்',
+  'Add number plate': 'நம்பர் பிளேட்டைச் சேர்க்கவும்',
+  'Edit car': 'காரைத் திருத்து',
+  'Next: {when}': 'அடுத்தது: {when}',
+  'None coming up': 'வரவிருப்பது எதுவும் இல்லை',
+  '{count} saved': '{count} சேமிக்கப்பட்டது',
+  'Tap to see them': 'பார்க்கத் தட்டவும்',
+  'Tap ♡ on a garage to save it': 'ஒரு கேரேஜைச் சேமிக்க ♡ தட்டவும்',
+  'Used on your next booking': 'உங்கள் அடுத்த புக்கிங்கில் பயன்படுத்தப்படும்',
+  'Settings & help': 'அமைப்புகள் & உதவி',
+  'Bring your garage': 'உங்கள் கேரேஜைக் கொண்டு வாருங்கள்',
+  'Get {amount} credit': '{amount} கிரெடிட் பெறுங்கள்',
+  'Know a good garage? Bring it to Detlio. You get it when they join and you book them.': 'நல்ல கேரேஜ் தெரியுமா? அதை Detlio-க்குக் கொண்டு வாருங்கள். அவர்கள் சேர்ந்து, நீங்கள் அவர்களிடம் புக் செய்ததும் இது கிடைக்கும்.',
 }
