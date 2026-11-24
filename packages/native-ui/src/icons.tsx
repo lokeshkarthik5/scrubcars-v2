@@ -204,3 +204,9 @@ export const IconWand = icon([["path", {"d": "M6 21l15 -15l-3 -3l-15 15l3 3"}], 
 export const IconDots = icon([["path", {"d": "M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}], ["path", {"d": "M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}], ["path", {"d": "M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"}]]);
 export const IconChevronUp = icon([["path", {"d": "M6 15l6 -6l6 6"}]]);
 export const IconEye = icon([["path", {"d": "M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"}], ["path", {"d": "M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"}]]);
+// The garage app's hub screens (22 Nov 2026): Home's week tile, Settings' rows, Earnings.
+// IconWallet and IconFileText already come from the customer Profile icons above.
+export const IconSun = icon([["path", {"d": "M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"}], ["path", {"d": "M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"}]]);
+export const IconStack2 = icon([["path", {"d": "M12 4l-8 4l8 4l8 -4l-8 -4"}], ["path", {"d": "M4 12l8 4l8 -4"}], ["path", {"d": "M4 16l8 4l8 -4"}]]);
+export const IconTruck = icon([["path", {"d": "M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}], ["path", {"d": "M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"}], ["path", {"d": "M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5"}]]);
+export const IconMessage = icon([["path", {"d": "M8 9h8"}], ["path", {"d": "M8 13h6"}], ["path", {"d": "M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12"}]]);

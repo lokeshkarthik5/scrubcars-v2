@@ -1,21 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { IconPackage } from '@tabler/icons-react'
+import { IconPackage, IconPlus } from '@tabler/icons-react'
 import { toast } from 'react-toastify'
 import { effectiveDurationMins } from '@repo/core/service-duration'
 import { fill, useT } from '@repo/core/i18n'
 import { t } from '@repo/core/i18n/translate'
-import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
 import { ConfirmSheet } from '@repo/ui/sc/confirm-sheet'
 import { Chip } from '@repo/ui/sc/chip'
 import { EmptyState } from '@repo/ui/sc/empty-state'
-import { Figures } from '@repo/ui/sc/figures'
 import { ScInput, ScTextarea } from '@repo/ui/sc/input'
 import { Reveal } from '@repo/ui/sc/reveal'
-import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import {
   createPackage,
@@ -35,6 +31,8 @@ import type {
   ServicePackage,
 } from '@repo/core/types'
 import { RowAction } from './catalogue-row'
+import { CatalogueCard, EditHeader } from '@/components/hub/catalogue-card'
+import { HubPill, HubSectionHead } from '@/components/hub/parts'
 
 /** Said from an effect, so it reads the language in use without being one of the effect's dependencies. */
 const loadFailed = () => t('Failed to load packages')
@@ -85,6 +83,7 @@ export function PackagesPanel({
   const [packages, setPackages] = useState<ServicePackage[]>([])
   const [form, setForm] = useState<PackageForm>(emptyPackageForm)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
@@ -142,7 +141,15 @@ export function PackagesPanel({
 
   const resetForm = () => {
     setEditingId(null)
+    setAdding(false)
     setForm(emptyPackageForm)
+  }
+
+  const openForm = () => {
+    setEditingId(null)
+    setForm(emptyPackageForm)
+    setAdding(true)
+    window.scrollTo({ top: 0 })
   }
 
   const toggleItem = (serviceId: string) =>
@@ -182,7 +189,9 @@ export function PackagesPanel({
     })
 
   const startEdit = (pkg: ServicePackage) => {
+    setAdding(false)
     setEditingId(pkg.id)
+    window.scrollTo({ top: 0 })
     setForm({
       name: pkg.name,
       description: pkg.description ?? '',
@@ -247,294 +256,276 @@ export function PackagesPanel({
     hasValidPricing(form) &&
     Number(form.durationMins) > 0
 
-  return (
-    <div className="flex flex-col gap-5">
-      <section className="flex flex-col gap-3">
-        <SectionHeader
-          title={editingId ? t('Edit package') : t('Build a package')}
-          action={
-            editingId ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="-my-2 min-h-11 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
-              >
-                {t('Cancel edit')}
-              </button>
-            ) : undefined
+  const editing = editingId ? (packages.find((p) => p.id === editingId) ?? null) : null
+  const formOpen = !editing && (adding || packages.length === 0)
+
+  // The one package form: Build a package's, and the edit view's.
+  const formCard = (
+    <div className="hub-card flex flex-col gap-3 px-5 py-5">
+      <ScInput
+        label={t('Package name')}
+        value={form.name}
+        onChange={(e) => setForm({ ...form, name: e.target.value })}
+      />
+      <ScTextarea
+        label={t('Description (optional)')}
+        rows={2}
+        value={form.description}
+        onChange={(e) => setForm({ ...form, description: e.target.value })}
+      />
+
+      <div>
+        <p className="mb-2 text-[11px] font-medium text-text-secondary">
+          {fill(t('Services included ({count} selected · minimum {min})'), {
+            count: <span className="font-numeric">{form.serviceIds.length}</span>,
+            min: <span className="font-numeric">2</span>,
+          })}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {selectableServices.map((svc) => (
+            <Chip
+              key={svc.id}
+              label={`${svc.name} · ₹${svc.price}`}
+              selected={form.serviceIds.includes(svc.id)}
+              onClick={() => toggleItem(svc.id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="mb-2 text-[11px] font-medium text-text-secondary">
+          {t('Pricing')}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {PRICING_TYPES.map((pt) => (
+            <Chip
+              key={pt.value}
+              label={t(pt.label)}
+              selected={form.pricingType === pt.value}
+              onClick={() => setForm({ ...form, pricingType: pt.value })}
+            />
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-text-muted">
+          {t(pricingHint(form.pricingType, true))}
+        </p>
+      </div>
+
+      {(form.pricingType === 'flat' ||
+        form.pricingType === 'on_inspection') && (
+        <ScInput
+          label={
+            form.pricingType === 'on_inspection'
+              ? t('Inspection fee (₹)')
+              : t('Package price (₹)')
+          }
+          type="number"
+          className="font-numeric"
+          value={form.price}
+          onChange={(e) => setForm({ ...form, price: e.target.value })}
+        />
+      )}
+
+      {form.pricingType === 'per_vehicle' && (
+        <div className="grid grid-cols-3 gap-2">
+          <ScInput
+            label={t('Hatchback (₹)')}
+            type="number"
+            className="font-numeric"
+            value={form.priceHatchback}
+            onChange={(e) =>
+              setForm({ ...form, priceHatchback: e.target.value })
+            }
+          />
+          <ScInput
+            label={t('Sedan (₹)')}
+            type="number"
+            className="font-numeric"
+            value={form.priceSedan}
+            onChange={(e) =>
+              setForm({ ...form, priceSedan: e.target.value })
+            }
+          />
+          <ScInput
+            label={t('SUV (₹)')}
+            type="number"
+            className="font-numeric"
+            value={form.priceSuv}
+            onChange={(e) => setForm({ ...form, priceSuv: e.target.value })}
+          />
+        </div>
+      )}
+
+      <div>
+        <ScInput
+          label={t('Duration (mins)')}
+          type="number"
+          className="font-numeric"
+          value={form.durationMins}
+          onChange={(e) =>
+            setForm({ ...form, durationMins: e.target.value })
           }
         />
-        <ScCard className="flex flex-col gap-3">
-          <ScInput
-            label={t('Package name')}
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <ScTextarea
-            label={t('Description (optional)')}
-            rows={2}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
+        {suggestedDuration > 0 &&
+          Number(form.durationMins) !== suggestedDuration && (
+            <button
+              type="button"
+              onClick={() =>
+                setForm({
+                  ...form,
+                  durationMins: String(suggestedDuration),
+                })
+              }
+              className="mt-1 min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
+            >
+              {fill(t('Services add up to {mins} min — use that'), {
+                mins: <span className="font-numeric">{suggestedDuration}</span>,
+              })}
+            </button>
+          )}
+      </div>
 
-          <div>
-            <p className="mb-2 text-[11px] font-medium text-text-secondary">
-              {fill(t('Services included ({count} selected · minimum {min})'), {
-                count: <span className="font-numeric">{form.serviceIds.length}</span>,
-                min: <span className="font-numeric">2</span>,
+      {selected.length > 0 && (
+        // Raised onto graphite: it is a preview of what the customer sees,
+        // not part of the form. Savings in green, as the customer's own
+        // discount line is.
+        <div className="rounded-[16px] bg-white/[0.05] p-3">
+          <p className="text-[11px] text-text-secondary">
+            {fill(t('Bought separately: {amount}'), {
+              amount: <span className="font-numeric">₹{itemsTotal}</span>,
+            })}
+          </p>
+          {previewSavings > 0 ? (
+            <p className="text-[12px] font-medium text-success">
+              {fill(t('Customers save {amount}'), {
+                amount: <span className="font-numeric">₹{previewSavings}</span>,
               })}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {selectableServices.map((svc) => (
-                <Chip
-                  key={svc.id}
-                  label={`${svc.name} · ₹${svc.price}`}
-                  selected={form.serviceIds.includes(svc.id)}
-                  onClick={() => toggleItem(svc.id)}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[11px] font-medium text-text-secondary">
-              {t('Pricing')}
+          ) : (
+            <p className="text-[11px] text-text-muted">
+              {fill(t('Price the package below {amount} to show a savings badge.'), {
+                amount: <span className="font-numeric">₹{itemsTotal}</span>,
+              })}
             </p>
-            <div className="flex flex-wrap gap-2">
-              {PRICING_TYPES.map((pt) => (
-                <Chip
-                  key={pt.value}
-                  label={t(pt.label)}
-                  selected={form.pricingType === pt.value}
-                  onClick={() => setForm({ ...form, pricingType: pt.value })}
-                />
-              ))}
-            </div>
-            <p className="mt-1.5 text-[11px] text-text-muted">
-              {t(pricingHint(form.pricingType, true))}
-            </p>
-          </div>
-
-          {(form.pricingType === 'flat' ||
-            form.pricingType === 'on_inspection') && (
-            <ScInput
-              label={
-                form.pricingType === 'on_inspection'
-                  ? t('Inspection fee (₹)')
-                  : t('Package price (₹)')
-              }
-              type="number"
-              className="font-numeric"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-            />
           )}
+        </div>
+      )}
 
-          {form.pricingType === 'per_vehicle' && (
-            <div className="grid grid-cols-3 gap-2">
-              <ScInput
-                label={t('Hatchback (₹)')}
-                type="number"
-                className="font-numeric"
-                value={form.priceHatchback}
-                onChange={(e) =>
-                  setForm({ ...form, priceHatchback: e.target.value })
+      <ScButton
+        variant="main"
+        size="lg"
+        disabled={!canSubmit || saving === 'package'}
+        onClick={submit}
+      >
+        {saving === 'package'
+          ? t('Saving...')
+          : editingId
+            ? t('Update package')
+            : t('Create package')}
+      </ScButton>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-3">
+      {editing ? (
+        // A package's edit view, as a service's (mockup garage-hub 3): the
+        // form, then its photos and video, then Disable and Delete.
+        <>
+          <EditHeader title={t('Edit package')} onBack={resetForm} backLabel={t('Cancel edit')} />
+          {formCard}
+          {/* Photos and video — shown to customers in the package details
+              sheet, the same block as a service's. */}
+          <div className="hub-card px-5 py-5">
+            <ServiceMediaEditor
+              serviceId={editing.id}
+              serviceName={editing.name}
+              media={editing.media}
+              onMediaChange={(media) => setPackageMedia(editing.id, media)}
+              api={garageMediaApi}
+              config={mediaConfig}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <RowAction onClick={() => setPackageActive(editing.id, !editing.isActive)}>
+              {editing.isActive ? t('Disable') : t('Enable')}
+            </RowAction>
+            <RowAction onClick={() => setDeleting(editing)}>{t('Delete')}</RowAction>
+          </div>
+        </>
+      ) : (
+        <>
+          {formOpen && (
+            <section className="flex flex-col gap-3">
+              <HubSectionHead
+                title={t('Build a package')}
+                action={
+                  packages.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="-my-2 min-h-11 px-1 text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                    >
+                      {t('Cancel')}
+                    </button>
+                  ) : undefined
                 }
               />
-              <ScInput
-                label={t('Sedan (₹)')}
-                type="number"
-                className="font-numeric"
-                value={form.priceSedan}
-                onChange={(e) =>
-                  setForm({ ...form, priceSedan: e.target.value })
-                }
-              />
-              <ScInput
-                label={t('SUV (₹)')}
-                type="number"
-                className="font-numeric"
-                value={form.priceSuv}
-                onChange={(e) => setForm({ ...form, priceSuv: e.target.value })}
-              />
-            </div>
+              {formCard}
+            </section>
           )}
 
-          <div>
-            <ScInput
-              label={t('Duration (mins)')}
-              type="number"
-              className="font-numeric"
-              value={form.durationMins}
-              onChange={(e) =>
-                setForm({ ...form, durationMins: e.target.value })
-              }
+          {packages.length === 0 ? (
+            <EmptyState
+              icon={<IconPackage size={28} stroke={1.5} />}
+              title={t('No packages yet')}
+              subtitle={t('Bundle 2 or more services to create one.')}
             />
-            {suggestedDuration > 0 &&
-              Number(form.durationMins) !== suggestedDuration && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      durationMins: String(suggestedDuration),
-                    })
-                  }
-                  className="mt-1 min-h-11 text-[12px] font-medium text-text-primary underline underline-offset-2"
-                >
-                  {fill(t('Services add up to {mins} min — use that'), {
-                    mins: <span className="font-numeric">{suggestedDuration}</span>,
-                  })}
-                </button>
-              )}
-          </div>
-
-          {selected.length > 0 && (
-            // Raised onto graphite: it is a preview of what the customer sees,
-            // not part of the form. Savings in green, as the customer's own
-            // discount line is.
-            <div className="rounded-[12px] bg-surface-elevated p-3">
-              <p className="text-[11px] text-text-secondary">
-                {fill(t('Bought separately: {amount}'), {
-                  amount: <span className="font-numeric">₹{itemsTotal}</span>,
-                })}
-              </p>
-              {previewSavings > 0 ? (
-                <p className="text-[12px] font-medium text-success">
-                  {fill(t('Customers save {amount}'), {
-                    amount: <span className="font-numeric">₹{previewSavings}</span>,
-                  })}
-                </p>
-              ) : (
-                <p className="text-[11px] text-text-muted">
-                  {fill(t('Price the package below {amount} to show a savings badge.'), {
-                    amount: <span className="font-numeric">₹{itemsTotal}</span>,
-                  })}
-                </p>
-              )}
-            </div>
+          ) : (
+            <section aria-label={t('Your packages')} className="flex flex-col gap-3">
+              {packages.map((pkg, i) => (
+                <Reveal key={pkg.id} index={i}>
+                  <CatalogueCard
+                    name={pkg.name}
+                    description={pkg.description}
+                    priceText={formatServicePrice(pkg)}
+                    minutes={pkg.durationMins}
+                    active={pkg.isActive}
+                    media={pkg.media}
+                    onOpen={() => startEdit(pkg)}
+                  >
+                    <span className="mt-1 block text-t5 text-dim">
+                      {pkg.items.map((item) => item.name).join(' + ')}
+                    </span>
+                    {pkg.savings !== null && (
+                      <span className="mt-1 block text-t5 font-medium text-success">
+                        {fill(t('Saves {amount} vs {total} separately'), {
+                          amount: <span className="font-numeric">₹{pkg.savings}</span>,
+                          total: <span className="font-numeric">₹{pkg.itemsTotal}</span>,
+                        })}
+                      </span>
+                    )}
+                    {/* Amber: a problem to fix, not a button. */}
+                    {pkg.hasInactiveItems && (
+                      <span className="mt-1 block text-t5 text-warning">
+                        {t('Contains a disabled service — customers still see it listed.')}
+                      </span>
+                    )}
+                  </CatalogueCard>
+                </Reveal>
+              ))}
+            </section>
           )}
 
-          <ScButton
-            variant="main"
-            size="lg"
-            disabled={!canSubmit || saving === 'package'}
-            onClick={submit}
-          >
-            {saving === 'package'
-              ? t('Saving...')
-              : editingId
-                ? t('Update package')
-                : t('Create package')}
-          </ScButton>
-        </ScCard>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <SectionHeader
-          title={t('Your packages')}
-          action={
-            packages.length > 0 ? (
-              <span className="font-numeric text-[12px] text-text-muted">
-                {packages.length}
-              </span>
-            ) : undefined
-          }
-        />
-        {packages.length === 0 ? (
-          <EmptyState
-            icon={<IconPackage size={28} stroke={1.5} />}
-            title={t('No packages yet')}
-            subtitle={t('Bundle 2 or more services to create one.')}
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {packages.map((pkg, i) => (
-              <Reveal key={pkg.id} index={i}>
-                <ScCard className="flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-text-primary">
-                        {pkg.name}
-                      </p>
-                      {pkg.description && (
-                        <p className="line-clamp-2 text-[11px] text-text-muted">
-                          {pkg.description}
-                        </p>
-                      )}
-                      <p className="mt-0.5 text-[12px] text-text-secondary">
-                        <Figures text={formatServicePrice(pkg)} />
-                        {pkg.durationMins != null && (
-                          <>
-                            {' '}
-                            ·{' '}
-                            <span className="font-numeric">
-                              {pkg.durationMins}
-                            </span>{' '}
-                            min
-                          </>
-                        )}
-                      </p>
-                      <p className="mt-1 text-[11px] text-text-muted">
-                        {pkg.items.map((item) => item.name).join(' + ')}
-                      </p>
-                      {pkg.savings !== null && (
-                        <p className="mt-1 text-[11px] font-medium text-success">
-                          {fill(t('Saves {amount} vs {total} separately'), {
-                            amount: <span className="font-numeric">₹{pkg.savings}</span>,
-                            total: (
-                              <span className="font-numeric">
-                                ₹{pkg.itemsTotal}
-                              </span>
-                            ),
-                          })}
-                        </p>
-                      )}
-                      {/* Amber: a problem to fix, not a button. */}
-                      {pkg.hasInactiveItems && (
-                        <p className="mt-1 text-[11px] text-warning">
-                          {t('Contains a disabled service — customers still see it listed.')}
-                        </p>
-                      )}
-                    </div>
-                    <ScBadge
-                      variant={pkg.isActive ? 'success' : 'muted'}
-                      className="shrink-0"
-                    >
-                      {pkg.isActive ? t('Active') : t('Inactive')}
-                    </ScBadge>
-                  </div>
-
-                  {/* Photos and video — shown to customers in the package
-                      details sheet, the same block as a service's. */}
-                  <div className="border-t border-border pt-3">
-                    <ServiceMediaEditor
-                      serviceId={pkg.id}
-                      serviceName={pkg.name}
-                      media={pkg.media}
-                      onMediaChange={(media) => setPackageMedia(pkg.id, media)}
-                      api={garageMediaApi}
-                      config={mediaConfig}
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                    <RowAction onClick={() => startEdit(pkg)}>{t('Edit')}</RowAction>
-                    <RowAction
-                      onClick={() => setPackageActive(pkg.id, !pkg.isActive)}
-                    >
-                      {pkg.isActive ? t('Disable') : t('Enable')}
-                    </RowAction>
-                    <RowAction onClick={() => setDeleting(pkg)}>
-                      {t('Delete')}
-                    </RowAction>
-                  </div>
-                </ScCard>
-              </Reveal>
-            ))}
-          </div>
-        )}
-      </section>
+          {!formOpen && (
+            <HubPill onClick={openForm}>
+              <IconPlus size={16} aria-hidden="true" />
+              {t('Build a package')}
+            </HubPill>
+          )}
+        </>
+      )}
 
       <ConfirmSheet
         open={deleting !== null}

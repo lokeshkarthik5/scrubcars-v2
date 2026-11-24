@@ -39,6 +39,8 @@ test.describe('service photos and video', () => {
   }) => {
     const name = SERVICES.mediaPhoto.name
     await page.goto('/services')
+    // The photo-and-video block lives in the service's edit view: tap its card.
+    await page.getByRole('button', { name: `Edit ${name}` }).click()
     const media = block(page, name)
 
     // Nothing can be added before the tick.
@@ -87,6 +89,8 @@ test.describe('service photos and video', () => {
   }) => {
     const name = SERVICES.mediaVideo.name
     await page.goto('/services')
+    // The photo-and-video block lives in the service's edit view: tap its card.
+    await page.getByRole('button', { name: `Edit ${name}` }).click()
     const media = block(page, name)
 
     // The tick is a styled box over a visually hidden input: tap its label, as a person does.
@@ -191,6 +195,8 @@ test.describe('service photos and video', () => {
   }) => {
     const name = SERVICES.mediaRefused.name
     await page.goto('/services')
+    // The photo-and-video block lives in the service's edit view: tap its card.
+    await page.getByRole('button', { name: `Edit ${name}` }).click()
     const media = block(page, name)
 
     // The tick is a styled box over a visually hidden input: tap its label, as a person does.

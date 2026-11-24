@@ -4,17 +4,17 @@ import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'rea
 import { type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
+import { GarageStatus } from '@/components/garage-status';
+import { HubTitle } from '@/components/hub/parts';
 import { GraphiteSwitch } from '@repo/native-ui/finish';
 import { LoadError, SkeletonList } from '@repo/native-ui/primitives';
-import { TopBar } from '@/components/rows';
 import { PackagesPanel } from '@/components/services/packages-panel';
 import { ServicesTab } from '@/components/services/services-tab';
-import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
-import { isSignedOut, useAuth, useIsVendorAdmin } from '@/lib/auth';
+import { isSignedOut, useIsVendorAdmin } from '@/lib/auth';
 import { emptyServiceForm, type ServiceForm } from '@/lib/service-form';
 import { getMediaConfig, getMyServices } from '@/lib/services-api';
-import { createStyles, useColors } from '@repo/native-ui/theme';
+import { createStyles } from '@repo/native-ui/theme';
 import { msg, useT } from '@repo/core/i18n';
 
 type Tab = 'services' | 'packages';
@@ -22,22 +22,6 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'services', label: msg('Services') },
   { value: 'packages', label: msg('Packages') },
 ];
-
-/**
- * ActiveGarage (apps/vendors/components/active-garage.tsx): which garage this is, beside the
- * wordmark. Left out for someone with two or more: the company switcher already says.
- */
-function ActiveGarage() {
-  const colors = useColors();
-  const name = useAuth((s) => s.vendor?.businessName);
-  const vendorCount = useAuth((s) => s.vendors.length);
-  if (!name || vendorCount > 1) return null;
-  return (
-    <T size={13} weight={500} color={colors.textSecondary} numberOfLines={1}>
-      {name}
-    </T>
-  );
-}
 
 /**
  * Services and Packages (apps/vendors/app/services/page.tsx). Owner and admin only: the
@@ -51,6 +35,8 @@ function ServicesScreen() {
   const [services, setServices] = useState<Service[]>([]);
   const [serviceForm, setServiceForm] = useState<ServiceForm>(emptyServiceForm);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  // A service's (or package's) edit view is showing in place of the list (mockup garage-hub 3).
+  const [formOpen, setFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   // What the photo-and-video block may offer (video only once Stream is set up on the
@@ -80,36 +66,49 @@ function ServicesScreen() {
   }, [isVendorAdmin]);
   useEffect(load, [load]);
 
-  // The form is at the top; Edit on a card lower down brings it into view.
-  const showForm = () => scroll.current?.scrollTo({ y: 0, animated: true });
+  // Opening or closing an edit view starts it at the top.
+  const showForm = useCallback(() => scroll.current?.scrollTo({ y: 0, animated: false }), []);
+  const pickTab = (next: Tab) => {
+    setFormOpen(false);
+    setTab(next);
+  };
 
   if (loading || failed) {
     return (
-      <AppShell showBrand brandRight={<ActiveGarage />}>
-        <TopBar title={t('Services')} />
+      <AppShell showBrand brandRight={<GarageStatus />} gap={12}>
+        <HubTitle>{t('Services')}</HubTitle>
         {failed ? <LoadError what={t('your services')} onRetry={load} /> : <SkeletonList count={3} height={112} />}
       </AppShell>
     );
   }
 
   return (
-    <AppShell showBrand brandRight={<ActiveGarage />} scrollRef={scroll}>
-      <TopBar title={t('Services')} />
+    <AppShell showBrand brandRight={<GarageStatus />} scrollRef={scroll} gap={12}>
+      {!formOpen ? <HubTitle>{t('Services')}</HubTitle> : null}
 
       {/* Tabs root: gap-4 between the tab list and the open panel. */}
       <View style={styles.tabsRoot}>
-        <GraphiteSwitch
-          role="tab"
-          pinned
-          accessibilityLabel={t('Services')}
-          options={TABS.map((option) => ({ ...option, label: t(option.label) }))}
-          value={tab}
-          onChange={setTab}
-          style={styles.tabs}
-        />
+        {/* An edit view has its own Back in place of the tabs. */}
+        {!formOpen ? (
+          <GraphiteSwitch
+            role="tab"
+            pinned
+            accessibilityLabel={t('Services')}
+            options={TABS.map((option) => ({ ...option, label: t(option.label) }))}
+            value={tab}
+            onChange={pickTab}
+            style={styles.tabs}
+          />
+        ) : null}
 
         {tab === 'packages' ? (
-          <PackagesPanel services={services} mediaConfig={mediaConfig} onEditStarted={showForm} />
+          <PackagesPanel
+            services={services}
+            mediaConfig={mediaConfig}
+            formOpen={formOpen}
+            setFormOpen={setFormOpen}
+            onEditStarted={showForm}
+          />
         ) : (
           <ServicesTab
             services={services}
@@ -119,6 +118,8 @@ function ServicesScreen() {
             editingId={editingServiceId}
             setEditingId={setEditingServiceId}
             mediaConfig={mediaConfig}
+            formOpen={formOpen}
+            setFormOpen={setFormOpen}
             onEditStarted={showForm}
           />
         )}
@@ -127,7 +128,7 @@ function ServicesScreen() {
   );
 }
 
-const useStyles = createStyles((colors) => ({
+const useStyles = createStyles(() => ({
   tabsRoot: { gap: 16 },
   // The web's graphite tab strip: a 44-point key inside a 52-point track.
   tabs: { height: 52 },

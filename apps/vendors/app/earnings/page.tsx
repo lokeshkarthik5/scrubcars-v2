@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { IconDownload, IconReceipt } from '@tabler/icons-react'
+import { IconDownload, IconReceipt, IconSparkles, IconWallet } from '@tabler/icons-react'
 import { fill, useT } from '@repo/core/i18n'
 import { msg } from '@repo/core/i18n/translate'
 import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
@@ -10,13 +10,9 @@ import { AppShell } from '@repo/ui/sc/app-shell'
 import { ScBadge } from '@repo/ui/sc/badge'
 import { StatusChip } from '@repo/ui/sc/status-chip'
 import type { StatusTone } from '@repo/core/status-tone'
-import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@repo/ui/sc/card'
 import { EmptyState, ErrorState } from '@repo/ui/sc/empty-state'
 import { ScInput } from '@repo/ui/sc/input'
-import { SectionHeader } from '@repo/ui/sc/section-header'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
-import { StatTile } from '@repo/ui/sc/stat-tile'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import type { PayoutLine } from '@repo/core/api/admin'
 import type { GarageStatementLine } from '@repo/core/api/earnings'
@@ -41,6 +37,7 @@ import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
 import { earningsFeeLabel } from '@repo/core/pickup-fee-garage'
 import { ActiveGarage } from '@/components/active-garage'
+import { HubPill, HubSectionHead, HubTile, TileRow } from '@/components/hub/parts'
 
 type Preset = EarningsRangePreset | 'custom'
 
@@ -109,17 +106,17 @@ function LineCard({ line }: { line: GarageStatementLine }) {
   const t = useT()
   const kind = lineKindLabel(line.kind)
   return (
-    <ScCard
+    <div
       role="group"
       aria-label={t('Booking #{reference}', { reference: line.reference })}
-      className="flex flex-col gap-2.5"
+      className="flex flex-col gap-2.5 px-5 py-4"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-medium text-text-primary">
+          <p className="truncate text-t3 text-text-primary">
             {line.services.join(' + ') || t('Booking')}
           </p>
-          <p className="text-[11px] text-text-secondary">
+          <p className="text-t5 text-dim">
             {line.customerFirstName} ·{' '}
             <span className="font-numeric">
               {istDateLabel(line.payableFrom)}
@@ -133,14 +130,14 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <p className="font-numeric text-[14px] font-bold text-text-primary">
+          <p className="font-numeric text-[17px] font-light tracking-[-0.01em] text-text-primary">
             {rupeesLabel(line.share)}
           </p>
           <StatusBadge line={line} />
         </div>
       </div>
 
-      <dl className="flex flex-col gap-1 border-t border-border pt-2">
+      <dl className="flex flex-col gap-1 rounded-[14px] bg-white/[0.03] px-3 py-2.5">
         <Figure label={t('Price')} value={rupeesLabel(line.price)} />
         {(line.travelFee ?? 0) > 0 && (
           // An accepted request's travel fee (0062): part of the price, the
@@ -243,7 +240,7 @@ function LineCard({ line }: { line: GarageStatementLine }) {
           })}
         </p>
       )}
-    </ScCard>
+    </div>
   )
 }
 
@@ -315,6 +312,8 @@ export default function VendorEarningsPage() {
 
   const summary = statement?.summary
   const owesDetlio = (summary?.balanceDue ?? 0) < 0
+  // The first bookings free of commission, while some are left (as the line had it).
+  const freeOn = summary ? summary.freeBookings.used < summary.freeBookings.of : false
 
   return (
     <AppShell
@@ -322,49 +321,78 @@ export default function VendorEarningsPage() {
       navType="vendor"
       showBrand
       brandRight={<ActiveGarage />}
-      className="gap-5 py-4"
+      className="gap-3 py-4"
     >
-      <TopBar title={t('Earnings')} />
+      <TopBar title={t('Earnings')} large />
 
       {!statement && loading ? (
-        <SkeletonList
-          count={2}
-          itemClassName="h-[76px]"
-          className="grid grid-cols-2"
-        />
+        <SkeletonList count={1} itemClassName="h-[200px] rounded-[28px]" />
       ) : !statement && error ? (
         <ErrorState
           message={t("Couldn't load your earnings.")}
           onRetry={() => setAttempt((n) => n + 1)}
         />
       ) : summary ? (
-        <section aria-label={t('Your balance')} className="flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            <StatTile
-              label={owesDetlio ? t('You owe Detlio') : t('Due now')}
-              // Money owed to the garage is never amber (finding 7): amber
-              // is for a problem, and this is good news.
-              value={rupeesLabel(Math.abs(summary.balanceDue))}
-              hint={
-                owesDetlio
-                  ? t('Comes off your next payout')
-                  : summary.oldestUnpaidAt
-                    ? t('Oldest from {date}', { date: istDateLabel(summary.oldestUnpaidAt) })
-                    : t('Paid within {hours} hours', { hours: statement.cycleHours })
-              }
-            />
-            <StatTile
-              label={t('Paid this month')}
-              tone="success"
-              value={rupeesLabel(summary.paidThisMonth)}
-            />
+        <section aria-label={t('Your balance')} className="flex flex-col gap-3">
+          {/* The money owed to the garage as the big number (mockup
+              garage-hub 4). Never amber (finding 7): it is good news. */}
+          <div className="hub-card flex flex-col px-5 pt-4 pb-5">
+            <p className="text-t4 text-dim">
+              {owesDetlio ? t('You owe Detlio') : t('Due now')}
+            </p>
+            <p className="mt-1 flex min-w-0 items-start font-numeric font-light text-text-primary">
+              <span className="mt-1 text-[30px] leading-none">₹</span>
+              <span className="min-w-0 text-[clamp(40px,14vw,56px)] leading-none tracking-[-0.04em] break-all">
+                {rupeesLabel(Math.abs(summary.balanceDue)).replace(/^[−-]?₹/, '')}
+              </span>
+            </p>
+            <p className="mt-2.5 text-t4 text-text-secondary">
+              {owesDetlio
+                ? t('Comes off your next payout')
+                : [
+                    summary.oldestUnpaidAt
+                      ? t('Oldest from {date}', { date: istDateLabel(summary.oldestUnpaidAt) })
+                      : null,
+                    t('Paid within {hours} hours', { hours: statement.cycleHours }),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+            </p>
+            <HubPill
+              onClick={download}
+              disabled={!statement || statement.lines.length === 0}
+              className="mt-4 min-h-12"
+            >
+              <IconDownload size={16} aria-hidden="true" />
+              {t('Download CSV')}
+            </HubPill>
           </div>
-          <p className="text-[11px] text-text-secondary">
+
+          <TileRow>
+            <HubTile
+              label={t('Paid this month')}
+              icon={IconWallet}
+              value={rupeesLabel(summary.paidThisMonth)}
+              line={statement.payouts.length > 0 ? `${t('Payouts')} ›` : undefined}
+              href={statement.payouts.length > 0 ? '#payouts' : undefined}
+              className={cn(!freeOn && 'col-span-2')}
+            />
+            {freeOn && (
+              <HubTile
+                label={t('Free bookings')}
+                icon={IconSparkles}
+                value={`${summary.freeBookings.used} / ${summary.freeBookings.of}`}
+                line={t('No commission on these')}
+              />
+            )}
+          </TileRow>
+
+          <p className="px-1 text-[12px] leading-snug text-dim">
             {t(
               'Detlio pays your share within {hours} hours of each job, by bank transfer or UPI. Commission is 8% on washes, packages and others, 5% on detailing, coating, scratch removal, general service, repairs and dent & paint.',
               { hours: statement.cycleHours }
             )}
-            {summary.freeBookings.used < summary.freeBookings.of
+            {freeOn
               ? ` ${t('Your first {count} bookings are free: {used} used so far.', {
                   count: summary.freeBookings.of,
                   used: summary.freeBookings.used,
@@ -375,20 +403,7 @@ export default function VendorEarningsPage() {
       ) : null}
 
       <section className="flex flex-col gap-3" aria-label={t('Bookings')}>
-        <SectionHeader
-          title={t('Bookings')}
-          action={
-            <ScButton
-              variant="outline"
-              size="md"
-              onClick={download}
-              disabled={!statement || statement.lines.length === 0}
-              className="flex min-h-12 items-center gap-1.5 px-4 text-[14px]"
-            >
-              <IconDownload size={15} aria-hidden="true" /> CSV
-            </ScButton>
-          }
-        />
+        <HubSectionHead title={t('Bookings')} />
         <GraphiteSwitch
           aria-label={t('Period')}
           value={preset}
@@ -435,10 +450,11 @@ export default function VendorEarningsPage() {
             )}
           />
         ) : statement ? (
+          // One list card, a row per booking with its whole breakdown.
           <div
             aria-busy={loading || undefined}
             className={cn(
-              'flex flex-col gap-2 transition-opacity duration-200 motion-reduce:transition-none',
+              'hub-card flex flex-col divide-y divide-line overflow-hidden transition-opacity duration-200 motion-reduce:transition-none',
               loading && 'opacity-60'
             )}
           >
@@ -450,22 +466,22 @@ export default function VendorEarningsPage() {
       </section>
 
       {statement && statement.payouts.length > 0 && (
-        <section className="flex flex-col gap-3" aria-label={t('Payouts')}>
-          <SectionHeader title={t('Payouts')} />
-          <div className="flex flex-col gap-2">
+        <section id="payouts" className="flex scroll-mt-4 flex-col gap-3" aria-label={t('Payouts')}>
+          <HubSectionHead title={t('Payouts')} />
+          <div className="hub-card flex flex-col divide-y divide-line overflow-hidden">
             {statement.payouts.map((payout) => (
-              <ScCard
+              <div
                 key={payout.id}
-                className="flex items-center justify-between gap-3"
+                className="flex items-center justify-between gap-3 px-5 py-3.5"
               >
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-text-primary">
+                  <p className="text-t3 text-text-primary">
                     {t(PAYOUT_METHOD_LABEL[payout.method])} ·{' '}
                     <span className="font-numeric">
                       {istDateLabel(payout.paidAt)}
                     </span>
                   </p>
-                  <p className="truncate text-[11px] text-text-secondary">
+                  <p className="truncate text-t5 text-dim">
                     {fill(t('Ref {reference}'), {
                       reference: (
                         <span className="font-numeric text-text-primary">
@@ -475,10 +491,10 @@ export default function VendorEarningsPage() {
                     })}
                   </p>
                 </div>
-                <p className="font-numeric text-[14px] font-bold text-success">
+                <p className="shrink-0 font-numeric text-[17px] font-light text-success">
                   {rupeesLabel(payout.amount)}
                 </p>
-              </ScCard>
+              </div>
             ))}
           </div>
         </section>

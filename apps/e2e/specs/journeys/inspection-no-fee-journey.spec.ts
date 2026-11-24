@@ -45,6 +45,8 @@ test.describe('on inspection with no fee @p0', () => {
     const { vendor, close } = await openActors(browser, 'customer-inspection', I.garage.id, 'vendor-inspection')
     await vendor.setViewportSize({ width: 390, height: 844 })
     await vendor.goto('/services')
+    // The add form opens from its pill (the garage has services already).
+    await vendor.getByRole('button', { name: 'Add a service' }).click()
 
     await vendor.getByLabel('Service name').fill(I.added.name)
     await vendor.getByRole('button', { name: 'On inspection', exact: true }).click()

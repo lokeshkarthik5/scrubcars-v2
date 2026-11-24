@@ -40,7 +40,7 @@ test.describe('time off in the garage portal @p0', () => {
   }) => {
     await setActiveVendor(context, VENDORS.timeOff.id)
     await page.goto('/settings')
-    await page.getByRole('tab', { name: 'Time off' }).click()
+    await page.getByRole('link', { name: /^Time off/ }).click()
 
     const date = istDate(10)
     await page.getByLabel('Date', { exact: true }).fill(date)
@@ -71,7 +71,7 @@ test.describe('time off in the garage portal @p0', () => {
   test('new bookings can be paused and resumed', async ({ page, context }) => {
     await setActiveVendor(context, VENDORS.timeOff.id)
     await page.goto('/settings')
-    await page.getByRole('tab', { name: 'Time off' }).click()
+    await page.getByRole('link', { name: /^Time off/ }).click()
 
     const pause = page.getByRole('switch', { name: 'Pause new bookings' })
     await expect(pause).toHaveAttribute('aria-checked', 'false')
@@ -103,13 +103,10 @@ test.describe('time off in the garage portal @p0', () => {
     await expect(pause).toHaveAttribute('aria-checked', 'true')
 
     // Home keeps saying so for as long as it lasts, and its link opens
-    // Settings on the tab with the switch.
+    // Settings on the section with the switch.
     await page.goto('/home')
     await page.getByText('New bookings are paused').click()
-    await expect(page.getByRole('tab', { name: 'Time off' })).toHaveAttribute(
-      'aria-selected',
-      'true'
-    )
+    await expect(page.getByRole('heading', { name: 'Time off', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Resume bookings' }).click()
     await expect.poll(state).toEqual({ paused: false, reason: null })
     await expect(
@@ -123,7 +120,7 @@ test.describe('time off in the garage portal @p0', () => {
   }) => {
     await setActiveVendor(context, VENDORS.timeOff.id)
     await page.goto('/settings')
-    await page.getByRole('tab', { name: 'Hours' }).click()
+    await page.getByRole('link', { name: /^Capacity/ }).click()
 
     await page
       .getByLabel('How many cars can you work on at the same time?')
@@ -170,6 +167,10 @@ test.describe('a booked service @p0', () => {
     await expect(
       page.getByText(SERVICES.capacityWash.name).first()
     ).toBeVisible()
+    // Delete is in the service's edit view: tap its card first.
+    await page
+      .getByRole('button', { name: `Edit ${SERVICES.capacityWash.name}` })
+      .click()
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
     // Delete asks first.
     const sheet = page.getByRole('dialog', {

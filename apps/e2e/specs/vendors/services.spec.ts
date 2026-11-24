@@ -33,8 +33,10 @@ test.describe('vendor services', () => {
 
     await page.goto('/services')
 
-    // The form is always on the page rather than behind a trigger, and the
-    // submit stays disabled until a name and a valid price exist.
+    // The form opens from the "Add a service" pill (it is simply open while
+    // a garage has no services yet), and the submit stays disabled until a
+    // name and a valid price exist.
+    await page.getByRole('button', { name: 'Add a service' }).click()
     const add = page.getByRole('button', { name: 'Add service' })
     await expect(add).toBeDisabled()
 

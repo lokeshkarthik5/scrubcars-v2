@@ -192,9 +192,11 @@ function VendorBookings() {
       navType="vendor"
       showBrand
       brandRight={<GarageStatus />}
-      className="gap-4 py-4"
+      className="gap-3 py-4"
     >
-      <h1 className="sr-only">{t('Bookings')}</h1>
+      <h1 className="px-1 pt-1 text-[24px] leading-[1.25] font-semibold tracking-[-0.02em] text-text-primary">
+        {t('Bookings')}
+      </h1>
       <PushBanner />
 
       <GraphiteSwitch<BookingsTab>
@@ -224,14 +226,14 @@ function VendorBookings() {
         <button
           type="button"
           onClick={() => pickTab('new')}
-          className="press flex min-h-14 items-center gap-3 rounded-[20px] border border-brand-red/40 bg-brand-red/10 px-4 py-3 text-left"
+          className="hub-card press flex min-h-14 items-center gap-3 border-brand-red/35 bg-[linear-gradient(135deg,#2a0710,#160609_60%,#141416)] px-5 py-3.5 text-left"
         >
           <IconAlarm
-            size={22}
+            size={20}
             aria-hidden="true"
-            className="shrink-0 text-brand-red"
+            className="shrink-0 text-[#FF8A95]"
           />
-          <span className="min-w-0 flex-1 text-[16px] leading-snug text-text-primary">
+          <span className="min-w-0 flex-1 text-[14px] leading-snug text-text-primary">
             {tn(waiting.count, '{count} booking to answer', '{count} bookings to answer')}
             {waiting.soonestMs !== null && (
               <>
@@ -240,7 +242,7 @@ function VendorBookings() {
                   waiting.count > 1 ? t('{time} left on one') : t('{time} left'),
                   {
                     time: (
-                      <span className="font-numeric font-semibold text-warning">
+                      <span className="font-numeric font-medium text-warning">
                         {Math.max(1, Math.ceil(waiting.soonestMs / 60_000))} min
                       </span>
                     ),
@@ -250,16 +252,16 @@ function VendorBookings() {
             )}
           </span>
           <IconChevronRight
-            size={20}
+            size={16}
             aria-hidden="true"
-            className="shrink-0 text-text-secondary"
+            className="shrink-0 text-text-muted"
           />
         </button>
       )}
 
       <div className="flex flex-col gap-3">
         {!loaded && bookings.length === 0 ? (
-          <SkeletonList count={3} itemClassName="h-28" />
+          <SkeletonList count={3} itemClassName="h-40 rounded-[28px]" />
         ) : unknown ? (
           <LoadError what={t('your bookings')} onRetry={reload} />
         ) : tab === 'calendar' ? (
@@ -285,14 +287,14 @@ function VendorBookings() {
                 aria-labelledby="today-now"
                 className="flex flex-col gap-3"
               >
-                <div className="flex items-baseline justify-between">
+                <div className="flex items-baseline justify-between px-1 pt-1">
                   <h2
                     id="today-now"
-                    className="text-[17px] font-semibold text-text-primary"
+                    className="text-[16px] font-medium text-text-primary"
                   >
                     {t('Now')}
                   </h2>
-                  <p className="font-numeric text-[14px] text-text-secondary">
+                  <p className="font-numeric text-t4 text-dim">
                     {calendarDate(now)}
                   </p>
                 </div>
@@ -308,7 +310,7 @@ function VendorBookings() {
               >
                 <h2
                   id="today-next"
-                  className="text-[17px] font-semibold text-text-primary"
+                  className="px-1 pt-1 text-[16px] font-medium text-text-primary"
                 >
                   {t('Next')}
                 </h2>
@@ -340,7 +342,7 @@ function VendorBookings() {
               aria-label={t(group.day)}
               className="flex flex-col gap-3"
             >
-              <h2 className="text-[17px] font-semibold text-text-primary">
+              <h2 className="px-1 pt-1 text-[16px] font-medium text-text-primary">
                 {t(group.day)}
               </h2>
               {group.jobs.map((b) => (
@@ -363,7 +365,7 @@ function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="press flex min-h-14 items-center justify-between rounded-[20px] border border-border bg-surface px-4 py-3 text-left text-[17px] text-text-primary"
+      className="hub-card press flex min-h-14 items-center justify-between px-5 py-3.5 text-left text-t3 text-text-primary"
     >
       <span>
         {fill(count === 1 ? t('Tomorrow · {count} job') : t('Tomorrow · {count} jobs'), {
@@ -371,9 +373,9 @@ function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
         })}
       </span>
       <IconChevronRight
-        size={20}
+        size={16}
         aria-hidden="true"
-        className="text-text-secondary"
+        className="text-text-muted"
       />
     </button>
   )

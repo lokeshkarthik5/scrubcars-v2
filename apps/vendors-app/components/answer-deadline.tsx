@@ -8,6 +8,7 @@ import { Animated, View } from 'react-native';
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { IconAlarm } from '@repo/native-ui/icons';
+import { Disc } from '@repo/native-ui/primitives';
 import { T } from '@repo/native-ui/text';
 import { useT } from '@repo/core/i18n';
 
@@ -55,25 +56,27 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
         <View style={styles.words}>
           {state.kind === 'closed' ? (
             <>
-              <T num size={28} weight={700} lh={28} tracking={-0.025} color={tint}>
+              <T num size={28} weight={300} lh={30} tracking={-0.03} color={tint}>
                 {state.label}
               </T>
-              <T size={16} weight={500} lh={20} color={tint}>
+              <T size={14} lh={20} color={urgent ? tint : colors.textSecondary}>
                 {t('to answer')}
               </T>
             </>
           ) : (
             <>
-              <T num size={40} weight={700} lh={42} tracking={-0.025} color={tint}>
+              <T num size={34} weight={300} lh={38} tracking={-0.03} color={tint}>
                 {state.label}
               </T>
-              <T size={16} weight={500} lh={20} color={tint}>
+              <T size={14} lh={20} color={urgent ? tint : colors.textSecondary}>
                 {t('left to answer')}
               </T>
             </>
           )}
         </View>
-        <IconAlarm size={26} color={urgent ? colors.warning : colors.textSecondary} />
+        <Disc>
+          <IconAlarm size={20} stroke={1.5} color={urgent ? colors.warning : colors.textPrimary} />
+        </Disc>
       </View>
       {state.kind !== 'closed' ? (
         <View style={styles.track}>
@@ -95,17 +98,15 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
 const useStyles = createStyles((colors) => ({
   box: {
     overflow: 'hidden',
-    borderTopLeftRadius: 19,
-    borderTopRightRadius: 19,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderTopLeftRadius: 27,
+    borderTopRightRadius: 27,
   },
   urgent: { backgroundColor: colors.warningSoft },
   missed: {
-    borderTopLeftRadius: 19,
-    borderTopRightRadius: 19,
+    borderTopLeftRadius: 27,
+    borderTopRightRadius: 27,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.line,
     backgroundColor: colors.surfaceElevated,
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -116,10 +117,10 @@ const useStyles = createStyles((colors) => ({
     justifyContent: 'space-between',
     gap: 12,
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 18,
     paddingBottom: 12,
   },
   words: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexShrink: 1 },
-  track: { height: 6, backgroundColor: colors.border },
+  track: { height: 4, backgroundColor: colors.discStrong },
   fill: { height: '100%', borderTopRightRadius: 3, borderBottomRightRadius: 3 },
 }));

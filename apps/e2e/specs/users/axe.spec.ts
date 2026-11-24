@@ -150,7 +150,7 @@ test.describe('axe, browsing customer @p0', () => {
     {
       name: 'Profile',
       path: '/profile',
-      ready: (page) => page.getByRole('heading', { name: 'Vehicles' }),
+      ready: (page) => page.getByRole('region', { name: 'Vehicles' }),
     },
   ])
 })

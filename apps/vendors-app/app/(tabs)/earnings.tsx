@@ -1,23 +1,17 @@
 import { type EarningsStatement, type GarageStatementLine, getEarningsStatement } from '@repo/core/api/earnings';
 import { istDateLabel, LINE_STATUS_LABEL, PAYOUT_METHOD_LABEL, rupeesLabel } from '@repo/core/payouts';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { type ComponentRef, useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, type ScrollView, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
-import { ScButton } from '@repo/native-ui/button';
-import { ScBadge, DateField } from '@/components/form-controls';
+import { GarageStatus } from '@/components/garage-status';
+import { BigFigure, Dim, HubList, HubPill, HubTag, HubTile, HubTitle, TileRow } from '@/components/hub/parts';
+import { DateField } from '@/components/form-controls';
 import { GraphiteSwitch } from '@repo/native-ui/finish';
-import { IconDownload, IconReceipt } from '@repo/native-ui/icons';
-import {
-  EmptyState,
-  LoadError,
-  ScCard,
-  Skeleton,
-  SkeletonList,
-  StatusChip,
-} from '@repo/native-ui/primitives';
-import { SectionHeader, TopBar } from '@/components/rows';
+import { IconChevronDown, IconChevronUp, IconDownload, IconReceipt, IconSparkles, IconWallet } from '@repo/native-ui/icons';
+import { EmptyState, HubCard, LoadError, Skeleton, SkeletonList } from '@repo/native-ui/primitives';
+import { SectionHeader } from '@/components/rows';
 import { T } from '@repo/native-ui/text';
 import { toast } from '@repo/native-ui/toast';
 import { useAuth, useIsVendorAdmin } from '@/lib/auth';
@@ -93,61 +87,104 @@ function Figure({ row }: { row: FigureRow }) {
   );
 }
 
-function LineCard({ line }: { line: GarageStatementLine }) {
+const TAG_TONE: Record<string, 'green' | 'blue' | 'amber'> = { done: 'green', progress: 'blue', attention: 'amber' };
+
+/**
+ * One booking in the Bookings list card (mockup garage-hub 4): what and for whom, the
+ * garage's share and how it stands. A tap opens its breakdown (price, promo, commission,
+ * your share), its payouts and what is still owed, as the card showed before.
+ */
+function LineRow({ line, first }: { line: GarageStatementLine; first: boolean }) {
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
+  const [open, setOpen] = useState(false);
   const kind = lineKindBadge(line);
   const balanceNote = lineBalanceNote(line);
+  const tone = TAG_TONE[LINE_TONE[line.status] ?? ''];
   return (
-    <ScCard style={styles.lineCard}>
-      <View style={styles.lineHead}>
+    <View style={[styles.lineRow, !first && styles.rowLine]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((v) => !v)}
+        style={styles.lineHead}
+      >
         <View style={styles.flex}>
-          <T size={13} weight={500} numberOfLines={1}>
+          <T size={15} lh={20} numberOfLines={1}>
             {lineTitle(line)}
           </T>
-          <Words segments={lineMeta(line)} size={11} />
+          <Words segments={lineMeta(line)} size={12} />
           {kind ? (
             <View style={styles.kind}>
-              <ScBadge variant="muted">{t(kind)}</ScBadge>
+              <HubTag small>{t(kind)}</HubTag>
             </View>
           ) : null}
         </View>
         <View style={styles.lineAmount}>
-          <T num size={14} weight={700}>
+          <T num size={17} weight={300} lh={22}>
             {rupeesLabel(line.share)}
           </T>
-          <StatusChip tone={LINE_TONE[line.status] ?? 'closed'}>{t(LINE_STATUS_LABEL[line.status])}</StatusChip>
+          <HubTag small tone={tone ?? 'quiet'}>
+            {t(LINE_STATUS_LABEL[line.status])}
+          </HubTag>
         </View>
-      </View>
+        <View style={styles.lineChevron}>
+          {open ? (
+            <IconChevronUp size={16} color={colors.textMuted} />
+          ) : (
+            <IconChevronDown size={16} color={colors.textMuted} />
+          )}
+        </View>
+      </Pressable>
 
-      <View style={styles.figures}>
-        {lineFigureRows(line).map((row) => (
-          <Figure key={row.key} row={row} />
-        ))}
-      </View>
+      {open ? (
+        <View style={styles.breakdown}>
+          <View style={styles.figures}>
+            {lineFigureRows(line).map((row) => (
+              <Figure key={row.key} row={row} />
+            ))}
+          </View>
 
-      {line.payouts.length > 0 ? (
-        <T size={11} color={colors.textSecondary}>
-          {line.payouts.map((payout, i) => (
-            <T key={payout.payoutId} size={11} color={colors.textSecondary}>
-              {i > 0 ? ' · ' : ''}
-              {payoutNote(payout).map((segment, j) => (
-                <T
-                  key={j}
-                  size={11}
-                  num={segment.num}
-                  color={segment.strong ? colors.textPrimary : colors.textSecondary}
-                >
-                  {segment.text}
+          {line.payouts.length > 0 ? (
+            <T size={11} color={colors.textSecondary}>
+              {line.payouts.map((payout, i) => (
+                <T key={payout.payoutId} size={11} color={colors.textSecondary}>
+                  {i > 0 ? ' · ' : ''}
+                  {payoutNote(payout).map((segment, k) => (
+                    <T
+                      key={k}
+                      size={11}
+                      num={segment.num}
+                      color={segment.strong ? colors.textPrimary : colors.textSecondary}
+                    >
+                      {segment.text}
+                    </T>
+                  ))}
                 </T>
               ))}
             </T>
-          ))}
+          ) : null}
+          {balanceNote ? <Words segments={balanceNote} size={11} /> : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The hero's figure: "₹" small and high, the amount large and light. */
+function Money({ value }: { value: string }) {
+  const styles = useStyles();
+  const rupee = value.startsWith('₹');
+  return (
+    <View style={styles.money}>
+      {rupee ? (
+        <T num size={30} weight={300} lh={36} style={styles.rupee}>
+          ₹
         </T>
       ) : null}
-      {balanceNote ? <Words segments={balanceNote} size={11} /> : null}
-    </ScCard>
+      <BigFigure size={56}>{rupee ? value.slice(1) : value}</BigFigure>
+    </View>
   );
 }
 
@@ -157,7 +194,6 @@ function EarningsScreen() {
   const colors = useColors();
   const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
-  const vendorCount = useAuth((s) => s.vendors.length);
   const isVendorAdmin = useIsVendorAdmin();
   const [preset, setPreset] = useState<Preset>('last30');
   const [range, setRange] = useState<DateRange>(() => rangeForPreset('last30', { from: '', to: '' }, new Date()));
@@ -166,6 +202,8 @@ function EarningsScreen() {
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
   const [sharing, setSharing] = useState(false);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const payoutsTop = useRef(0);
   const quiet = useRef(false);
   const seen = useRef(false);
 
@@ -240,29 +278,40 @@ function EarningsScreen() {
   };
 
   const tiles = statement ? balanceTiles(statement) : null;
+  const summary = statement?.summary;
+  const free = summary && summary.freeBookings.used < summary.freeBookings.of ? summary.freeBookings : null;
+  const noLines = !statement || statement.lines.length === 0;
+  // "Oldest from 14 Oct · Paid within 24 hours", or what happens to a balance owed to Detlio.
+  const heroLine =
+    statement && tiles
+      ? tiles.owesDetlio
+        ? tiles.due.hint
+        : [
+            statement.summary.oldestUnpaidAt
+              ? t('Oldest from {date}', { date: istDateLabel(statement.summary.oldestUnpaidAt) })
+              : null,
+            t('Paid within {hours} hours', { hours: statement.cycleHours }),
+          ]
+            .filter(Boolean)
+            .join(' · ')
+      : '';
 
   return (
-    <AppShell
-      showBrand
-      brandRight={
-        vendorCount > 1 ? undefined : (
-          <T size={13} weight={500} color={colors.textSecondary} numberOfLines={1}>
-            {vendor?.businessName}
-          </T>
-        )
-      }
-    >
-      <TopBar title={t('Earnings')} />
+    <AppShell showBrand brandRight={<GarageStatus />} gap={12} scrollRef={scroll}>
+      <HubTitle>{t('Earnings')}</HubTitle>
 
       {!statement && loading ? (
-        <View style={styles.tiles}>
-          <View style={styles.flex}>
-            <Skeleton height={76} />
+        <>
+          <Skeleton height={190} radius={28} />
+          <View style={styles.tiles}>
+            <View style={styles.flex}>
+              <Skeleton height={150} radius={28} />
+            </View>
+            <View style={styles.flex}>
+              <Skeleton height={150} radius={28} />
+            </View>
           </View>
-          <View style={styles.flex}>
-            <Skeleton height={76} />
-          </View>
-        </View>
+        </>
       ) : !statement && error ? (
         <LoadError what={t('your earnings')} onRetry={() => {
           setLoading(true);
@@ -270,49 +319,49 @@ function EarningsScreen() {
         }} />
       ) : statement && tiles ? (
         <View accessibilityLabel={t('Your balance')} style={styles.balance}>
-          <View style={styles.tiles}>
-            <View style={styles.tile}>
-              <T size={11} weight={500} color={colors.textSecondary}>
-                {tiles.due.label}
+          <HubCard style={styles.hero}>
+            <Dim>{tiles.due.label}</Dim>
+            <Money value={tiles.due.value} />
+            <T size={13} lh={18} color={colors.textSecondary} style={styles.heroLine}>
+              {heroLine}
+            </T>
+            <HubPill
+              disabled={noLines || sharing}
+              onPress={() => void download()}
+              accessibilityLabel={t('Download as CSV')}
+              style={styles.csv}
+            >
+              <IconDownload size={16} stroke={1.6} color={noLines ? colors.textMuted : colors.textPrimary} />
+              <T size={15} lh={20} color={noLines ? colors.textMuted : colors.textPrimary}>
+                {t('Download CSV')}
               </T>
-              <T num size={22} weight={700} lh={28} tracking={-0.025} style={styles.tileValue}>
-                {tiles.due.value}
-              </T>
-              <T size={11} color={colors.textSecondary} style={styles.tileHint}>
-                {tiles.due.hint}
-              </T>
-            </View>
-            <View style={styles.tile}>
-              <T size={11} weight={500} color={colors.textSecondary}>
-                {tiles.paid.label}
-              </T>
-              <T num size={22} weight={700} lh={28} tracking={-0.025} color={colors.success} style={styles.tileValue}>
-                {tiles.paid.value}
-              </T>
-            </View>
-          </View>
-          <T size={11} color={colors.textSecondary}>
+            </HubPill>
+          </HubCard>
+
+          <TileRow>
+            <HubTile
+              label={tiles.paid.label}
+              icon={IconWallet}
+              value={tiles.paid.value}
+              line={statement.payouts.length > 0 ? `${t('Payouts')} ›` : undefined}
+              onPress={statement.payouts.length > 0 ? () => scroll.current?.scrollTo({ y: payoutsTop.current, animated: true }) : undefined}
+            />
+            {free ? (
+              <HubTile
+                label={t('Free bookings')}
+                icon={IconSparkles}
+                value={`${free.used} / ${free.of}`}
+                line={t('No commission on these')}
+              />
+            ) : null}
+          </TileRow>
+          <Dim size={11} style={styles.footnote}>
             {balanceFootnote(statement)}
-          </T>
+          </Dim>
         </View>
       ) : null}
 
       <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <SectionHeader title={t('Bookings')} />
-          <ScButton
-            variant="outline"
-            fullWidth={false}
-            disabled={!statement || statement.lines.length === 0 || sharing}
-            onPress={() => void download()}
-            accessibilityLabel={t('Download as CSV')}
-          >
-            <IconDownload size={15} color={!statement || statement.lines.length === 0 ? colors.textMuted : colors.textPrimary} />
-            <T size={15} weight={600} lh={20} color={!statement || statement.lines.length === 0 ? colors.textMuted : colors.textPrimary}>
-              CSV
-            </T>
-          </ScButton>
-        </View>
         <GraphiteSwitch
           accessibilityLabel={t('Period')}
           value={preset}
@@ -335,8 +384,9 @@ function EarningsScreen() {
             {datesFailedLine(statement.range)}
           </T>
         ) : null}
+        <SectionHeader title={t('Bookings')} />
         {!statement && loading ? (
-          <SkeletonList count={3} height={140} />
+          <SkeletonList count={3} height={72} />
         ) : statement && statement.lines.length === 0 ? (
           <EmptyState
             icon={<IconReceipt size={28} stroke={1.5} color={colors.textSecondary} />}
@@ -344,46 +394,50 @@ function EarningsScreen() {
             subtitle={t("Each job you complete shows up here with Detlio's commission, your share and its payout.")}
           />
         ) : statement ? (
-          <View
-            accessibilityState={{ busy: loading }}
-            style={[styles.lines, loading && styles.dimmed]}
-          >
-            {statement.lines.map((line) => (
-              <LineCard key={line.bookingId} line={line} />
-            ))}
+          <View accessibilityState={{ busy: loading }} style={loading && styles.dimmed}>
+            <HubList>
+              {statement.lines.map((line, i) => (
+                <LineRow key={line.bookingId} line={line} first={i === 0} />
+              ))}
+            </HubList>
           </View>
         ) : null}
       </View>
 
       {statement && statement.payouts.length > 0 ? (
-        <View style={styles.section}>
+        <View
+          style={styles.section}
+          onLayout={(event) => {
+            payoutsTop.current = event.nativeEvent.layout.y;
+          }}
+        >
           <SectionHeader title={t('Payouts')} />
-          <View style={styles.lines}>
-            {statement.payouts.map((payout) => (
-              <ScCard key={payout.id} style={styles.payout}>
+          <HubList>
+            {statement.payouts.map((payout, i) => (
+              <View key={payout.id} style={[styles.payout, i > 0 && styles.rowLine]}>
                 <View style={styles.flex}>
-                  <T size={13} weight={500}>
+                  <T size={15} lh={20}>
                     {`${t(PAYOUT_METHOD_LABEL[payout.method])} · `}
-                    <T num size={13} weight={500}>
+                    <T num size={15} lh={20}>
                       {istDateLabel(payout.paidAt)}
                     </T>
                   </T>
-                  <T size={11} color={colors.textSecondary} numberOfLines={1}>
+                  <T size={12} color={colors.dim} numberOfLines={1}>
                     {fill(t('Ref {ref}'), {
                       ref: (
-                        <T num size={11}>
+                        <T num size={12} color={colors.dim}>
                           {payout.reference}
                         </T>
                       ),
                     })}
                   </T>
                 </View>
-                <T num size={14} weight={700} color={colors.success}>
+                <T num size={17} weight={300} color={colors.success}>
                   {rupeesLabel(payout.amount)}
                 </T>
-              </ScCard>
+              </View>
             ))}
-          </View>
+          </HubList>
         </View>
       ) : null}
     </AppShell>
@@ -394,32 +448,27 @@ export default garageScreen(EarningsScreen);
 
 const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
-  tiles: { flexDirection: 'row', gap: 8 },
-  balance: { gap: 8 },
-  tile: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  tileValue: { marginTop: 2 },
-  tileHint: { marginTop: 2 },
-  section: { gap: 12 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  tiles: { flexDirection: 'row', gap: 12 },
+  balance: { gap: 12 },
+  hero: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 },
+  money: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 4 },
+  rupee: { marginRight: 2, marginTop: 2 },
+  heroLine: { marginTop: 8 },
+  csv: { marginTop: 16 },
+  footnote: { paddingHorizontal: 4 },
+  section: { gap: 12, marginTop: 4 },
   dates: { flexDirection: 'row', gap: 8 },
-  lines: { gap: 8 },
   dimmed: { opacity: 0.6 },
-  lineCard: { gap: 10 },
-  lineHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  rowLine: { borderTopWidth: 1, borderTopColor: colors.line },
+  lineRow: { paddingHorizontal: 18, paddingVertical: 12 },
+  lineHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  lineChevron: { alignSelf: 'center' },
   kind: { marginTop: 4, alignSelf: 'flex-start' },
   lineAmount: { alignItems: 'flex-end', gap: 4, flexShrink: 0 },
-  figures: { gap: 4, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
+  breakdown: { gap: 8, marginTop: 10 },
+  figures: { gap: 4, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 8 },
   figure: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 },
   figureLabel: { flexShrink: 1 },
   figureValue: { flexShrink: 1 },
-  payout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  payout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 18, paddingVertical: 12 },
 }));

@@ -345,4 +345,8 @@ export const garageApp: Readonly<Record<string, string>> = {
   'Your poster': 'உங்கள் போஸ்டர்',
   'Not clear: {what}': 'தெளிவாக இல்லை: {what}',
   'Nothing to add': 'சேர்க்க எதுவும் இல்லை',
+  // ─── The hub look of the five tabs (22 Nov 2026) ───
+  // The rest of the new words are the website's too, so their Tamil is in garage-web.ts.
+  '{count} request waiting': '{count} கோரிக்கை காத்திருக்கிறது',
+  '{count} requests waiting': '{count} கோரிக்கைகள் காத்திருக்கின்றன',
 }

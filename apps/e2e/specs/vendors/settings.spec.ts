@@ -39,6 +39,7 @@ test.describe('vendor settings', () => {
   test('the profile can be edited and is persisted', async ({ page, context }) => {
     await setActiveVendor(context, VENDORS.main.id)
     await page.goto('/settings')
+    await page.getByRole('link', { name: /^Profile/ }).click()
 
     // These bind only because the inputs were given ids; the label prop alone
     // leaves them decorative.
@@ -64,9 +65,8 @@ test.describe('vendor settings', () => {
     await setActiveVendor(context, VENDORS.second.id)
     await page.goto('/settings')
 
-    // Real tabs here — these panels exist, unlike the radiogroup filters
-    // elsewhere in the app.
-    await page.getByRole('tab', { name: 'Hours' }).click()
+    // Settings is a menu: each row opens its section.
+    await page.getByRole('link', { name: /^Hours/ }).click()
 
     // Close the whole week at noon. Every day, so the assertion below holds
     // whichever day "tomorrow" happens to be.
@@ -101,7 +101,7 @@ test.describe('vendor settings', () => {
   test('a day marked closed offers no slots at all', async ({ page, context }) => {
     await setActiveVendor(context, VENDORS.second.id)
     await page.goto('/settings')
-    await page.getByRole('tab', { name: 'Hours' }).click()
+    await page.getByRole('link', { name: /^Hours/ }).click()
 
     for (const day of ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) {
       const toggle = page.getByRole('button', { name: `${day} closed all day` })
@@ -141,7 +141,7 @@ test.describe('vendor settings', () => {
   }) => {
     await setActiveVendor(context, VENDORS.second.id)
     await page.goto('/settings')
-    await page.getByRole('tab', { name: 'Hours' }).click()
+    await page.getByRole('link', { name: /^Pickup & drop/ }).click()
 
     const pickupSwitch = page.getByRole('switch', { name: 'Pickup & drop' })
     await expect(pickupSwitch).toHaveAttribute('aria-checked', 'false')
