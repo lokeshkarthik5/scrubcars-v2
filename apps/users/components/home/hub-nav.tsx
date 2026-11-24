@@ -42,7 +42,7 @@ const TABS = [
  *
  * Search is not a tab any more (owner decision D9): it stays at /search, a
  * tap away from the garage list that + opens. Which item is lit, and why
- * /garages lights Home for a visitor and nothing for a customer, is
+ * /garages lights the + for a customer and Home for a visitor, is
  * lib/hub-nav.ts. Every item is a 44pt target, and the lit one says so with
  * aria-current, since the light alone says nothing to a screen reader.
  */
