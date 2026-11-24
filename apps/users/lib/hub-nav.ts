@@ -17,15 +17,15 @@ const under = (pathname: string, route: string) =>
  * Which item of the floating nav is lit on a path, or null for none.
  *
  * Each tab lights on its own route and the screens under it (a booking lights
- * Bookings). The + never lights: it is an action, a white button that starts
- * a booking, and the approved nav has no lit state for it.
+ * Bookings).
  *
- * /garages, the list, is the one place that depends on who is looking (the
- * spec's "none or Home"). A signed-in customer's Home is the hub, so a lit
- * Home on the list would point a screen reader at the wrong page, and the
- * list lights nothing. A visitor has no hub: /home sends them straight here,
- * so the list is their Home, and Home lights — otherwise the tab they just
- * tapped would light nowhere. `guest` is false until the session has been
+ * /garages, the list the + opens, is the one place that depends on who is
+ * looking. A signed-in customer's Home is the hub, so the list is the +'s own
+ * page and the + lights: the same red ring as a tab, round the pearl (owner,
+ * 22 Nov 2026; before that the list lit nothing and you lost your place). A
+ * visitor has no hub: /home sends them straight here, so the list is their
+ * Home, and Home lights — otherwise the tab they just tapped would light
+ * nowhere. Either way one item at most is lit. `guest` is false until the session has been
  * checked, so a signed-in customer never sees Home flash lit on the list.
  *
  * /search lights nothing. It is a step off the list rather than a place of its
@@ -38,7 +38,7 @@ export function hubNavCurrent(
   if (!pathname) return null
   if (under(pathname, HUB_NAV_HREF.home)) return 'home'
   if (under(pathname, HUB_NAV_HREF.map)) return 'map'
-  if (pathname === HUB_NAV_HREF.new) return guest ? 'home' : null
+  if (pathname === HUB_NAV_HREF.new) return guest ? 'home' : 'new'
   if (under(pathname, HUB_NAV_HREF.bookings)) return 'bookings'
   if (under(pathname, HUB_NAV_HREF.profile)) return 'profile'
   return null

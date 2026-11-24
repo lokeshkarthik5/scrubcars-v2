@@ -1,5 +1,5 @@
 import { useT } from '@repo/core/i18n';
-import { Glass, NavOrb, Pearl, usePearlInk } from '@repo/native-ui/finish';
+import { Glass, NavHalo, NavOrb, Pearl, usePearlInk } from '@repo/native-ui/finish';
 import { IconCalendar, IconHome, IconMap2, IconPlus, IconUser, type IconProps } from '@repo/native-ui/icons';
 import { PressScale } from '@repo/native-ui/motion';
 import { T } from '@repo/native-ui/text';
@@ -16,6 +16,9 @@ import { HUB_NAV_HREF, hubNavCurrent, type HubNavItem } from '@/lib/hub-nav';
 const NAV_HEIGHT = 64;
 const NAV_GAP = 20;
 const ORB = 30;
+const PLUS = 48;
+/** The ring round the + on its list: 5 points outside the pearl, as the web's `.hub-orb--halo`. */
+const PLUS_RING = PLUS + 10;
 
 /** How much a scrolling screen leaves clear at its end (FLOATING_NAV_CLEARANCE). */
 export function useNavClearance() {
@@ -42,6 +45,7 @@ const useStyles = createStyles((c) => ({
   tab: { minHeight: 48, minWidth: 52, maxWidth: 76, alignItems: 'center', justifyContent: 'center', gap: 2 },
   // Where the 21-point silver icon sits, so an orb and an icon line up across the bar.
   icon: { height: ORB, alignItems: 'center', justifyContent: 'center' },
+  plusRing: { position: 'absolute', left: -5, top: -5 },
 }));
 
 function Tab({
@@ -89,7 +93,8 @@ function Tab({
 /**
  * HubNav (apps/users/components/home/hub-nav.tsx): the floating glass pill, F + H silver
  * (customer UI round, Nov 2026): the tab you are on in a graphite orb with a ring of light,
- * the others brushed silver, the + pearl and never shining. Labels in T5.
+ * the others brushed silver, the + pearl. On the list of garages the + opens, the same ring
+ * turns round the pearl (owner, 22 Nov 2026), so you can see where you are. Labels in T5.
  */
 export function HubNav() {
   const t = useT();
@@ -112,9 +117,16 @@ export function HubNav() {
         <View style={styles.row}>
           <Tab item="home" label={t('Home')} icon={IconHome} current={current} />
           <Tab item="map" label={t('Map')} icon={IconMap2} current={current} />
-          {/* Where every booking starts. Pearl, not red: a screen's one red is its own main action. */}
-          <PressScale accessibilityRole="button" accessibilityLabel={t('New booking')} onPress={() => router.navigate(HUB_NAV_HREF.new as Href)}>
-            <Pearl size={48}>
+          {/* Where every booking starts. Pearl, not red: a screen's one red is its own main action.
+              On that list it is the item you are on, so the tabs' ring of light turns round it. */}
+          <PressScale
+            accessibilityRole="button"
+            accessibilityLabel={t('New booking')}
+            accessibilityState={{ selected: current === 'new' }}
+            onPress={() => router.navigate(HUB_NAV_HREF.new as Href)}
+          >
+            {current === 'new' ? <NavHalo size={PLUS_RING} style={styles.plusRing} /> : null}
+            <Pearl size={PLUS}>
               <IconPlus size={20} color={ink} />
             </Pearl>
           </PressScale>

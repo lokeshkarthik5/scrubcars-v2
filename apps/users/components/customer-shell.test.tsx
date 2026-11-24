@@ -105,13 +105,15 @@ describe('CustomerShell with the Home hub on', () => {
     expect(litItems(shellAt('/search', 'on'))).toEqual([])
   })
 
-  test('the list lights nothing for a customer, and Home for a visitor', () => {
-    // A session not yet checked, then a customer: the hub is Home, not the list.
+  test('the list lights the + for a customer, and Home for a visitor', () => {
+    // A session not yet checked, then a customer: their Home is the hub, so
+    // the list is the +'s page. Until the session is checked nobody is a
+    // visitor, so Home never flashes lit.
     for (const user of [null, { id: 'customer' }]) {
       session = { isSessionReady: user !== null, user }
-      expect(litItems(shellAt('/garages', 'on'))).toEqual([])
-      expect(shellAt('/garages', 'on')).not.toMatch(
-        /aria-label="New booking"[^>]*aria-current/
+      expect(litItems(shellAt('/garages', 'on'))).toEqual(['New booking'])
+      expect(shellAt('/garages', 'on')).toMatch(
+        /aria-label="New booking" aria-current="page"/
       )
     }
 

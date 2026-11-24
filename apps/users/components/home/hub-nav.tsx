@@ -11,7 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { useAuthStore } from '@repo/core/stores/auth-store'
 import { cn } from '@repo/core/utils'
-import { LitOrb, MetalGradient } from '@repo/ui/finish/lit-orb'
+import { LitHalo, LitOrb, MetalGradient } from '@repo/ui/finish/lit-orb'
 import { HUB_NAV_HREF, hubNavCurrent, type HubNavItem } from '@/lib/hub-nav'
 import { msg, useT } from '@repo/core/i18n'
 
@@ -36,12 +36,13 @@ const TABS = [
  * the tab you are on sits in a graphite orb with a ring of light, the other
  * icons are brushed silver, the + is pearl, all on a glass bar. The orb
  * pops in when the tab is reached and its ring of light turns while the tab
- * is lit, the one loop the finish allows (still under reduced motion); the +
- * never shines.
+ * is lit, the one loop the finish allows (still under reduced motion). On the
+ * list of garages the + opens, the same ring turns round the pearl (owner,
+ * 22 Nov 2026), so you can see where you are; one item at most is lit.
  *
  * Search is not a tab any more (owner decision D9): it stays at /search, a
  * tap away from the garage list that + opens. Which item is lit, and why
- * /garages lights Home for a visitor and nothing for a customer, is
+ * /garages lights the + for a customer and Home for a visitor, is
  * lib/hub-nav.ts. Every item is a 44pt target, and the lit one says so with
  * aria-current, since the light alone says nothing to a screen reader.
  */
@@ -119,13 +120,15 @@ export function HubNav({
         {tab(home)}
         {tab(map)}
         {/* The list of garages, where every booking starts. Pearl, not red:
-            the screen's one red is its own main action. An action, not a
-            place, so it is never lit. */}
+            the screen's one red is its own main action. On that list it is
+            the item you are on, so the tabs' ring of light turns round it. */}
         <Link
           href={HUB_NAV_HREF.new}
           aria-label={t('New booking')}
-          className="fx-pearl fx-press grid size-12 place-items-center rounded-full"
+          aria-current={current === 'new' ? 'page' : undefined}
+          className="fx-pearl fx-press relative grid size-12 place-items-center rounded-full"
         >
+          {current === 'new' && <LitHalo />}
           <IconPlus size={20} aria-hidden />
         </Link>
         {tab(bookings)}

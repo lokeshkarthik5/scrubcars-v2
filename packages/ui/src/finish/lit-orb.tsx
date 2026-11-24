@@ -31,6 +31,32 @@ export function LitOrb({ icon: Icon }: { icon: ComponentType<{ size?: number; cl
   )
 }
 
+/**
+ * The same ring of light, drawn round something else: the pearl + of the customer's bar
+ * on the list of garages it opens (owner, 22 Nov 2026). No graphite well and no icon,
+ * just the two lights, their blooms and glints, a few pixels outside the button
+ * (`.hub-orb--halo`). It pops in and turns exactly as a tab's orb does, still under
+ * reduced motion, and only the lit item draws one, so one ring at most is ever turning.
+ */
+export function LitHalo() {
+  return (
+    <span aria-hidden="true" className="hub-orb hub-orb--halo fx-pop">
+      <span className="hub-orb__bloom hub-orb__bloom--far">
+        <i className="hub-orb__spec" />
+        <i className="hub-orb__hot" />
+      </span>
+      <span className="hub-orb__bloom">
+        <i className="hub-orb__spec" />
+        <i className="hub-orb__hot" />
+      </span>
+      <span className="hub-orb__ring hub-orb__spec" />
+      <span className="hub-orb__ring hub-orb__hot" />
+      <span className="hub-orb__glare" />
+      <span className="hub-orb__glare hub-orb__glare--two" />
+    </span>
+  )
+}
+
 /** The brushed metal every silver tab icon is stroked with (`.hub-tab svg`). Once per page. */
 export function MetalGradient() {
   return (
