@@ -32,6 +32,7 @@ export function DetailsTab({
 }) {
   const {
     set,
+    saving,
     resetCount,
     logoUrl,
     photos,
@@ -103,11 +104,14 @@ export function DetailsTab({
 
         <ScSection title="Onboarding">
           {/* Keyed so Discard puts the select back too: it remembers that
-              "Someone else…" was picked while the name is still empty. */}
+              "Someone else…" was picked while the name is still empty.
+              Locked while saving: the reload that follows replaces the
+              draft, and a choice made during it would be wiped. */}
           <OnboardedByField
             key={resetCount}
             value={draft.form.onboardedByName}
             onChange={set('onboardedByName')}
+            disabled={saving}
           />
           <ScTextarea
             label="Notes (optional)"
