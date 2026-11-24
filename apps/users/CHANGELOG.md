@@ -15,6 +15,12 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- **The + lights on the garage list.** The list the + opens now draws the
+  tabs' turning ring of light round the pearl + for a signed-in customer, and
+  marks it `aria-current`, so the bar shows where you are (before, nothing was
+  lit there). A visitor's list still lights Home. Same in the customer app
+  (`NavHalo`, the native orb now drawn at any size).
+
 - **Delete your account, on the web** (`/delete-account`). A public, static,
   indexable page the app stores link to: how a customer deletes their
   account in the app, what is deleted and kept, what to finish first, how to

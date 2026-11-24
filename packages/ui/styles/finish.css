@@ -414,6 +414,16 @@
     inset 0 1px 0 rgb(255 255 255 / 0.09),
     inset 0 -4px 8px rgb(0 0 0 / 0.55);
 }
+/* The ring round the pearl + on the list it opens (LitHalo): the orb's lights
+   only, 5px outside the 48px button, with the ring and blooms at their 30px
+   widths so the light is as fine as a tab's. Its parent places it. */
+.hub-orb.hub-orb--halo {
+  position: absolute;
+  inset: -5px;
+  width: auto;
+  height: auto;
+  pointer-events: none;
+}
 /* The red spectrum: a crimson base with two hot spots, warm and pink at
    their edges, and near-black gaps between them. */
 .hub-orb__spec {

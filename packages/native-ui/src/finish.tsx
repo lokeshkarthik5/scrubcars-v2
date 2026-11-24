@@ -370,24 +370,51 @@ export function TopGlow() {
 const ORB = 30;
 /** Room round the orb for the wide bloom's blur. */
 const ORB_PAD = 18;
-const ORB_ART = ORB + ORB_PAD * 2;
-const ORB_C = ORB_ART / 2;
 
 // The web's mask bands and blurs at 30px (finish.css `.hub-orb__ring`, `.hub-orb__bloom`).
-const RING = { r: ORB / 2 - 0.7, width: 1.4 };
-const BLOOM_NEAR = { r: 14, width: 3, blur: 2.1, opacity: 0.8 };
-const BLOOM_FAR = { r: 14.4, width: 3.4, blur: 7.8, opacity: 0.76 };
+// The bands keep these widths at any size, as the web's masks do: a bigger ring is as fine.
+const RING = { inset: 0.7, width: 1.4 };
+const BLOOM_NEAR = { inset: 1, width: 3, blur: 2.1, opacity: 0.8 };
+const BLOOM_FAR = { inset: 0.6, width: 3.4, blur: 7.8, opacity: 0.76 };
 // brightness(1.5) saturate(1.2), the near bloom's, as one matrix: 1.5 × the saturate matrix.
 const NEAR_TONE = '1.7361 -0.2145 -0.0216 0 0 -0.0639 1.5855 -0.0216 0 0 -0.0639 -0.2145 1.7784 0 0 0 0 0 1 0';
 // brightness(1.6), the wide bloom's.
 const FAR_TONE = '1.6 0 0 0 0 0 1.6 0 0 0 0 0 1.6 0 0 0 0 0 1 0';
 
-const SPEC_RING = lightArcs(SPECTRUM, ORB_C, RING.r);
-const SPEC_NEAR = lightArcs(SPECTRUM, ORB_C, BLOOM_NEAR.r);
-const SPEC_FAR = lightArcs(SPECTRUM, ORB_C, BLOOM_FAR.r);
-const HOT_RING = WHITE_LIGHT.flatMap((spot) => lightArcs(spot, ORB_C, RING.r, 60, 0));
-const HOT_NEAR = WHITE_LIGHT.flatMap((spot) => lightArcs(spot, ORB_C, BLOOM_NEAR.r, 60, 0));
-const HOT_FAR = WHITE_LIGHT.flatMap((spot) => lightArcs(spot, ORB_C, BLOOM_FAR.r, 60, 0));
+/** Everything drawn for an orb of one size: the canvas (with room for the blur) and each light's arcs. */
+type OrbArt = {
+  size: number;
+  art: number;
+  c: number;
+  spec: { ring: LightArc[]; near: LightArc[]; far: LightArc[] };
+  hot: { ring: LightArc[]; near: LightArc[]; far: LightArc[] };
+};
+const orbArts = new Map<number, OrbArt>();
+/** The arcs for an orb of `size`, worked out once per size (30 for a tab, 58 round the +). */
+function orbArt(size: number): OrbArt {
+  const known = orbArts.get(size);
+  if (known) return known;
+  const art = size + ORB_PAD * 2;
+  const c = art / 2;
+  const r = size / 2;
+  const made: OrbArt = {
+    size,
+    art,
+    c,
+    spec: {
+      ring: lightArcs(SPECTRUM, c, r - RING.inset),
+      near: lightArcs(SPECTRUM, c, r - BLOOM_NEAR.inset),
+      far: lightArcs(SPECTRUM, c, r - BLOOM_FAR.inset),
+    },
+    hot: {
+      ring: WHITE_LIGHT.flatMap((spot) => lightArcs(spot, c, r - RING.inset, 60, 0)),
+      near: WHITE_LIGHT.flatMap((spot) => lightArcs(spot, c, r - BLOOM_NEAR.inset, 60, 0)),
+      far: WHITE_LIGHT.flatMap((spot) => lightArcs(spot, c, r - BLOOM_FAR.inset, 60, 0)),
+    },
+  };
+  orbArts.set(size, made);
+  return made;
+}
 
 // The mockup's calm speeds (--d1, --d2) and its `.still` angles for Reduce Motion.
 const SPEC_TURN_MS = 7000;
@@ -425,10 +452,12 @@ function LightRing({ id, arcs, width }: { id: string; arcs: LightArc[]; width: n
 
 /** One light's layer of the orb, turned as a whole on the native driver. */
 function OrbLayer({
+  art,
   turn,
   screen,
   children,
 }: {
+  art: OrbArt;
   turn: Animated.AnimatedInterpolation<string> | string;
   screen?: boolean;
   children: ReactNode;
@@ -436,9 +465,14 @@ function OrbLayer({
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.orbLayer, screen && styles.orbScreen, { transform: [{ rotate: turn }] }]}
+      style={[
+        styles.orbLayer,
+        { width: art.art, height: art.art },
+        screen && styles.orbScreen,
+        { transform: [{ rotate: turn }] },
+      ]}
     >
-      <Svg width={ORB_ART} height={ORB_ART}>
+      <Svg width={art.art} height={art.art}>
         {children}
       </Svg>
     </Animated.View>
@@ -446,15 +480,15 @@ function OrbLayer({
 }
 
 /** Both blooms of one light: the same arcs in wider bands, blurred and brightened. */
-function OrbBloom({ id, near, far }: { id: string; near: LightArc[]; far: LightArc[] }) {
+function OrbBloom({ id, art, near, far }: { id: string; art: OrbArt; near: LightArc[]; far: LightArc[] }) {
   return (
     <>
       <Defs>
-        <Filter id={`${id}-far`} filterUnits="userSpaceOnUse" x={0} y={0} width={ORB_ART} height={ORB_ART}>
+        <Filter id={`${id}-far`} filterUnits="userSpaceOnUse" x={0} y={0} width={art.art} height={art.art}>
           <FeGaussianBlur stdDeviation={BLOOM_FAR.blur} />
           <FeColorMatrix type="matrix" values={FAR_TONE} />
         </Filter>
-        <Filter id={`${id}-near`} filterUnits="userSpaceOnUse" x={0} y={0} width={ORB_ART} height={ORB_ART}>
+        <Filter id={`${id}-near`} filterUnits="userSpaceOnUse" x={0} y={0} width={art.art} height={art.art}>
           <FeGaussianBlur stdDeviation={BLOOM_NEAR.blur} />
           <FeColorMatrix type="matrix" values={NEAR_TONE} />
         </Filter>
@@ -482,6 +516,27 @@ function OrbBloom({ id, near, far }: { id: string; near: LightArc[]; far: LightA
  * HubNav and the garage's two bars.
  */
 export function NavOrb({ children }: { children: ReactNode }) {
+  return <OrbLights size={ORB} well>{children}</OrbLights>;
+}
+
+/**
+ * The same ring of light round something else: the pearl + of the customer's bar, on the
+ * list of garages it opens (owner, 22 Nov 2026; the web's LitHalo and `.hub-orb--halo`).
+ * No well, just the turning lights, `size` across, centred on where it is placed; draw it
+ * before the pearl so the pearl covers the blooms' inner edge and the ring shows round it.
+ * It pops in and turns exactly as a tab's orb does, still under Reduce Motion, and only
+ * the lit item draws a ring, so one at most is ever turning.
+ */
+export function NavHalo({ size, style }: { size: number; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View pointerEvents="none" style={[{ width: size, height: size }, style]}>
+      <OrbLights size={size} />
+    </View>
+  );
+}
+
+/** The turning lights of NavOrb and NavHalo, at any size, with or without the graphite well. */
+function OrbLights({ size, well, children }: { size: number; well?: boolean; children?: ReactNode }) {
   const reduce = useReduceMotion();
   const spec = useRef(new Animated.Value(0)).current;
   const hot = useRef(new Animated.Value(0)).current;
@@ -504,41 +559,46 @@ export function NavOrb({ children }: { children: ReactNode }) {
     return () => loops.forEach((loop) => loop.stop());
   }, [reduce, spec, hot]);
 
+  const art = orbArt(size);
+  const c = art.c;
   const specTurn = reduce ? SPEC_STILL : turns.spec;
   const hotTurn = reduce ? HOT_STILL : turns.hot;
-  const r = ORB / 2;
+  const r = size / 2;
+  const id = `orb${size}`;
   return (
-    <Pop style={styles.orb}>
-      <OrbLayer turn={specTurn}>
-        <OrbBloom id="orb-spec" near={SPEC_NEAR} far={SPEC_FAR} />
+    <Pop style={[styles.orb, { width: size, height: size }]}>
+      <OrbLayer art={art} turn={specTurn}>
+        <OrbBloom id={`${id}-spec`} art={art} near={art.spec.near} far={art.spec.far} />
       </OrbLayer>
-      <OrbLayer turn={hotTurn} screen>
-        <OrbBloom id="orb-hot" near={HOT_NEAR} far={HOT_FAR} />
+      <OrbLayer art={art} turn={hotTurn} screen>
+        <OrbBloom id={`${id}-hot`} art={art} near={art.hot.near} far={art.hot.far} />
       </OrbLayer>
-      <Svg width={ORB} height={ORB} style={StyleSheet.absoluteFill}>
-        <Defs>
-          <RadialGradient id="orb-well" cx="50%" cy="30%" rx="60%" ry="60%" fx="50%" fy="30%">
-            <Stop offset="0" stopColor="#2C2C31" />
-            <Stop offset="0.55" stopColor="#19191C" />
-            <Stop offset="1" stopColor="#0E0E10" />
-          </RadialGradient>
-        </Defs>
-        <Circle cx={r} cy={r} r={r} fill="url(#orb-well)" />
-      </Svg>
+      {well ? (
+        <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+          <Defs>
+            <RadialGradient id={`${id}-well`} cx="50%" cy="30%" rx="60%" ry="60%" fx="50%" fy="30%">
+              <Stop offset="0" stopColor="#2C2C31" />
+              <Stop offset="0.55" stopColor="#19191C" />
+              <Stop offset="1" stopColor="#0E0E10" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={r} cy={r} r={r} fill={`url(#${id}-well)`} />
+        </Svg>
+      ) : null}
       {children}
-      <OrbLayer turn={specTurn}>
-        <LightRing id="orb-ring" arcs={SPEC_RING} width={RING.width} />
+      <OrbLayer art={art} turn={specTurn}>
+        <LightRing id={`${id}-ring`} arcs={art.spec.ring} width={RING.width} />
       </OrbLayer>
-      <OrbLayer turn={hotTurn} screen>
+      <OrbLayer art={art} turn={hotTurn} screen>
         <Defs>
-          <RadialGradient id="orb-glare" cx="50%" cy="50%" r="50%">
+          <RadialGradient id={`${id}-glare`} cx="50%" cy="50%" r="50%">
             <Stop offset="0" stopColor="#FFFFFF" />
             <Stop offset="0.35" stopColor="#FFE1E6" stopOpacity={0.85} />
             <Stop offset="0.65" stopColor="#FF506E" stopOpacity={0.35} />
             <Stop offset="1" stopColor="#FF506E" stopOpacity={0} />
           </RadialGradient>
         </Defs>
-        <LightRing id="orb-hot-ring" arcs={HOT_RING} width={RING.width} />
+        <LightRing id={`${id}-hot-ring`} arcs={art.hot.ring} width={RING.width} />
         {/* The glints, where the white light's two spots are (finish.css .hub-orb__glare). */}
         {[
           { at: 100, opacity: 0.87 },
@@ -546,13 +606,13 @@ export function NavOrb({ children }: { children: ReactNode }) {
         ].map((glint) => (
           <Ellipse
             key={glint.at}
-            cx={ORB_C}
-            cy={ORB_C - r + 0.5}
-            rx={ORB * 0.23}
-            ry={ORB * 0.08}
-            fill="url(#orb-glare)"
+            cx={c}
+            cy={c - r + 0.5}
+            rx={size * 0.23}
+            ry={size * 0.08}
+            fill={`url(#${id}-glare)`}
             opacity={glint.opacity}
-            transform={`rotate(${glint.at} ${ORB_C} ${ORB_C})`}
+            transform={`rotate(${glint.at} ${c} ${c})`}
           />
         ))}
       </OrbLayer>
@@ -1130,8 +1190,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
   glow: { position: 'absolute', top: 0, left: 0 },
-  orb: { width: ORB, height: ORB, alignItems: 'center', justifyContent: 'center' },
-  orbLayer: { position: 'absolute', left: -ORB_PAD, top: -ORB_PAD, width: ORB_ART, height: ORB_ART },
+  orb: { alignItems: 'center', justifyContent: 'center' },
+  orbLayer: { position: 'absolute', left: -ORB_PAD, top: -ORB_PAD },
   orbScreen: { mixBlendMode: 'screen' },
   switchRow: { flexDirection: 'row', padding: 4 },
   key: {

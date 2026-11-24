@@ -37,25 +37,27 @@ async function expectGarageList(page: Page) {
   await expect(
     page.getByRole('heading', { name: VENDORS.main.name }).first()
   ).toBeVisible()
-  // Home is the hub now, so the Home tab goes back to the hub. The + is an
-  // action, never lit (lib/hub-nav.ts). Whether Home is lit here depends on
-  // who is looking: see expectHomeLit.
+  // Home is the hub now, so the Home tab goes back to the hub. Whether Home
+  // or the + is lit here depends on who is looking: see expectHomeLit.
   const home = page.getByRole('link', { name: 'Home', exact: true })
   await expect(home).toHaveAttribute('href', '/home')
-  await expect(page.getByRole('link', { name: 'New booking' })).not.toHaveAttribute(
-    'aria-current',
-    'page'
-  )
 }
 
 /**
  * The list lights Home for a visitor, whom /home sends here, so it is their
- * Home; and nothing for a signed-in customer, whose Home is the hub.
+ * Home; and the + for a signed-in customer, whose Home is the hub: the list
+ * is the +'s own page (lib/hub-nav.ts). One or the other, never both.
  */
 async function expectHomeLit(page: Page, lit: boolean) {
   const home = page.getByRole('link', { name: 'Home', exact: true })
-  if (lit) await expect(home).toHaveAttribute('aria-current', 'page')
-  else await expect(home).not.toHaveAttribute('aria-current', 'page')
+  const plus = page.getByRole('link', { name: 'New booking' })
+  if (lit) {
+    await expect(home).toHaveAttribute('aria-current', 'page')
+    await expect(plus).not.toHaveAttribute('aria-current', 'page')
+  } else {
+    await expect(home).not.toHaveAttribute('aria-current', 'page')
+    await expect(plus).toHaveAttribute('aria-current', 'page')
+  }
 }
 
 test.describe('garage list @p0', () => {

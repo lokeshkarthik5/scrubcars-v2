@@ -14,9 +14,9 @@ describe('hubNavCurrent', () => {
     expect(hubNavCurrent('/bookings/0b0c6f1e-0000-4000-8000-000000000001/receipt')).toBe('bookings')
   })
 
-  test('the list of garages lights nothing for a customer: their Home is the hub', () => {
-    expect(hubNavCurrent('/garages')).toBeNull()
-    expect(hubNavCurrent('/garages', { guest: false })).toBeNull()
+  test('the list of garages lights the + for a customer: it is the +\'s page, their Home is the hub', () => {
+    expect(hubNavCurrent('/garages')).toBe('new')
+    expect(hubNavCurrent('/garages', { guest: false })).toBe('new')
   })
 
   test("and Home for a visitor, whom /home sends to the list: it is their Home", () => {
@@ -26,12 +26,13 @@ describe('hubNavCurrent', () => {
     expect(hubNavCurrent('/search', { guest: true })).toBeNull()
   })
 
-  test('the + is never lit: it is an action, and it opens the list', () => {
+  test('the + lights only on the list it opens, and only for a customer', () => {
     for (const guest of [false, true]) {
-      for (const path of ['/garages', '/home', '/map', '/bookings', '/profile', '/search']) {
+      for (const path of ['/home', '/map', '/bookings', '/profile', '/search', '/garages/extra', '/garage/abc']) {
         expect(hubNavCurrent(path, { guest })).not.toBe('new')
       }
     }
+    expect(hubNavCurrent('/garages', { guest: true })).not.toBe('new')
     expect(HUB_NAV_HREF.new).toBe('/garages')
   })
 
