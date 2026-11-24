@@ -45,7 +45,7 @@ async function openGarage(browser: Browser, phone: string, vendorId: string): Pr
 
 async function openPickupFee(page: Page) {
   await page.goto('/settings')
-  await page.getByRole('tab', { name: 'Hours' }).click()
+  await page.getByRole('link', { name: /^Pickup & drop/ }).click()
   const part = page.getByRole('group', { name: 'Pickup fee' })
   await expect(part).toBeVisible()
   return part

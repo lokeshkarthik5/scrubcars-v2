@@ -8,26 +8,18 @@ import { formatINR } from '@repo/core/format';
 import { useNow } from '@repo/core/hooks/use-now';
 import { isNewGarage, NEW_GARAGE_LABEL } from '@repo/core/ratings';
 import type { Review } from '@repo/core/types';
-import { formatRating, reviewCountLabel } from '@repo/core/vendor-stats';
+import { formatRating, greetingFor, reviewCountLabel } from '@repo/core/vendor-stats';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { AppShell, garageScreen } from '@/components/app-shell';
 import { GarageStatus } from '@/components/garage-status';
-import { IconChevronRight, IconInbox, IconShieldCheck } from '@repo/native-ui/icons';
+import { IconInbox, IconMessage, IconShieldCheck, IconStar, IconUser, IconWallet } from '@repo/native-ui/icons';
 import { NewBookingCard } from '@/components/new-booking-card';
-import {
-  CountBadge,
-  LoadError,
-  Notice,
-  PressRow,
-  ScCard,
-  SkeletonList,
-  Stars,
-  StatTile,
-  TileFigure,
-} from '@repo/native-ui/primitives';
+import { CountBadge, HubCard, LoadError, Notice, SkeletonList, Stars } from '@repo/native-ui/primitives';
+import { BigFigure, HubHeading, HubList, HubRow, HubTile, HubTitle, SeeAll, TileRow } from '@/components/hub/parts';
+import { completedToday, TodayCard } from '@/components/hub/today-card';
 import { PushBanner } from '@/components/push-banner';
 import { T } from '@repo/native-ui/text';
 import { TierCard } from '@/components/tier-card';
@@ -59,6 +51,7 @@ function HomeScreen() {
   const colors = useColors();
   const styles = useStyles();
   const vendor = useAuth((s) => s.vendor);
+  const user = useAuth((s) => s.user);
   const { bookings, loaded, failed, retrying, reload } = useVendorBookings();
   const now = useNow(10_000);
   const [reviews, setReviews] = useState<Review[] | null>(null);
@@ -117,11 +110,14 @@ function HomeScreen() {
   const reviewCount = reviews?.length ?? 0;
   const newGarage = isNewGarage(reviewCount);
   const avgRating = reviewCount > 0 ? reviews!.reduce((sum, r) => sum + r.rating, 0) / reviewCount : 0;
+  const doneToday = useMemo(() => completedToday(bookings, now), [bookings, now]);
+  // The signed-in person's first name; no name, no greeting (never "Good morning, ").
+  const first = (user?.name ?? '').trim().split(/\s+/)[0] ?? '';
 
   return (
-    <AppShell showBrand brandRight={<GarageStatus />} gap={book ? 16 : 20}>
+    <AppShell showBrand brandRight={<GarageStatus />} gap={book ? 16 : 12}>
       {needsLocation ? (
-        <Notice title={t('Set your garage location')} onPress={() => go('/settings?tab=location')}>
+        <Notice title={t('Set your garage location')} onPress={() => go('/settings?section=location')}>
           {t(
             "Customers can't find you until your garage is on the map, and we can't show you to customers without it. Tap to pin it."
           )}
@@ -136,7 +132,7 @@ function HomeScreen() {
 
       {paused ? (
         isVendorAdmin ? (
-          <Notice title={t('New bookings are paused')} onPress={() => go('/settings?tab=time-off')}>
+          <Notice title={t('New bookings are paused')} onPress={() => go('/settings?section=time-off')}>
             {t("Customers can't find or book you. Bookings you already have stay as they are. Tap to resume in Settings.")}
           </Notice>
         ) : (
@@ -151,146 +147,120 @@ function HomeScreen() {
       {book ? (
         <>
           <BookHome pending={pending} now={now} onChanged={reload} />
-          <RequestsHomeCard />
+          <HomeList isVendorAdmin={isVendorAdmin} />
         </>
       ) : (
         <>
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <View style={styles.titleRow}>
-            <T accessibilityRole="header" size={18} weight={600}>
-              {t('Waiting for your answer')}
-            </T>
-            {waiting.count > 0 ? <CountBadge count={waiting.count} /> : null}
-          </View>
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => go('/bookings?tab=new')}
-            style={styles.seeAll}
-          >
-            <T size={15} weight={500} color={colors.textSecondary}>
-              {t('See all')}
-            </T>
-            <IconChevronRight size={18} color={colors.textSecondary} />
-          </Pressable>
-        </View>
+          {first ? <HubTitle>{`${greetingFor(new Date(now))}, ${first}`}</HubTitle> : null}
 
-        {!loaded && bookings.length === 0 ? (
-          <SkeletonList count={2} height={256} />
-        ) : jobsUnknown ? (
-          <LoadError what={t('your bookings')} onRetry={reload} retrying={retrying} />
-        ) : pending.length === 0 ? (
-          <View style={styles.noBookings}>
-            <IconInbox size={22} color={colors.textSecondary} />
-            <T size={15} color={colors.textSecondary} style={styles.flex}>
-              {t('No new bookings. They show here the moment a customer pays.')}
-            </T>
-          </View>
-        ) : (
-          <>
-            {pending.slice(0, CARDS_ON_HOME).map((b) => (
-              <NewBookingCard key={b.id} booking={b} now={now} onChanged={reload} />
-            ))}
-            {pending.length > CARDS_ON_HOME ? (
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => go('/bookings?tab=new')}
-                style={styles.seeAllRow}
-              >
-                <T size={15} weight={500}>
-                  {fill(t('See all {count} new bookings'), {
-                    count: (
-                      <T num size={15} weight={500}>
-                        {pending.length}
-                      </T>
-                    ),
-                  })}
+          <TodayCard
+            today={today}
+            done={doneToday}
+            unknown={jobsUnknown}
+            loading={!loaded && bookings.length === 0}
+            onOpen={() => go('/bookings?tab=today')}
+          />
+
+          <View style={styles.section}>
+            <HubHeading
+              title={t('Waiting for your answer')}
+              count={waiting.count}
+              right={<SeeAll label={t('See all')} onPress={() => go('/bookings?tab=new')} />}
+            />
+
+            {!loaded && bookings.length === 0 ? (
+              <SkeletonList count={2} height={256} />
+            ) : jobsUnknown ? (
+              <LoadError what={t('your bookings')} onRetry={reload} retrying={retrying} />
+            ) : pending.length === 0 ? (
+              <HubCard style={styles.noBookings}>
+                <IconInbox size={22} color={colors.textSecondary} />
+                <T size={15} color={colors.textSecondary} style={styles.flex}>
+                  {t('No new bookings. They show here the moment a customer pays.')}
                 </T>
-              </Pressable>
+              </HubCard>
+            ) : (
+              <>
+                {pending.slice(0, CARDS_ON_HOME).map((b) => (
+                  <NewBookingCard key={b.id} booking={b} now={now} onChanged={reload} />
+                ))}
+                {pending.length > CARDS_ON_HOME ? (
+                  <Pressable
+                    accessibilityRole="link"
+                    onPress={() => go('/bookings?tab=new')}
+                    style={styles.seeAllRow}
+                  >
+                    <T size={15} weight={500}>
+                      {fill(t('See all {count} new bookings'), {
+                        count: (
+                          <T num size={15} weight={500}>
+                            {pending.length}
+                          </T>
+                        ),
+                      })}
+                    </T>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
+          </View>
+
+          <TileRow>
+            {isVendorAdmin ? (
+              <HubTile
+                label={t('This week')}
+                icon={IconWallet}
+                accessibilityLabel={t('This week: {value}. Open Earnings', {
+                  value: week === null ? t('not loaded') : formatINR(week),
+                })}
+                onPress={() => go('/earnings')}
+                // A dash, never ₹0, until the figure arrives (or when it fails).
+                value={week === null ? '–' : formatINR(week)}
+                line={`${t('Earnings')} ›`}
+              />
             ) : null}
-          </>
-        )}
-      </View>
+            <HubTile
+              label={t('Avg rating')}
+              icon={IconStar}
+              accessibilityLabel={
+                reviews === null
+                  ? t('Average rating: not loaded. See reviews')
+                  : reviewCount === 0
+                    ? t('Average rating: no reviews yet. See reviews')
+                    : newGarage
+                      ? t('Average rating: {label}, {reviews}. See reviews', {
+                          label: t(NEW_GARAGE_LABEL),
+                          reviews: reviewCountLabel(reviewCount),
+                        })
+                      : t('Average rating {rating} from {reviews}. See reviews', {
+                          rating: formatRating(avgRating),
+                          reviews: reviewCountLabel(reviewCount),
+                        })
+              }
+              onPress={() => go('/reviews')}
+              value={
+                reviews === null ? (
+                  '–'
+                ) : reviewCount > 0 && newGarage ? (
+                  <T size={20} weight={400} lh={26}>
+                    {t(NEW_GARAGE_LABEL)}
+                  </T>
+                ) : (
+                  <View style={styles.rating}>
+                    <BigFigure>{formatRating(avgRating)}</BigFigure>
+                    {reviewCount > 0 ? <Stars rating={avgRating} size={12} /> : null}
+                  </View>
+                )
+              }
+              line={reviewsFailed ? t("Couldn't load") : reviews === null ? undefined : `${reviewCountLabel(reviewCount)} ›`}
+            />
+          </TileRow>
 
-      <RequestsHomeCard />
-
-      <View style={styles.tiles}>
-        <PressRow
-          style={styles.tileCell}
-          accessibilityLabel={
-            jobsUnknown
-              ? t("Today's jobs: unknown. Open Today")
-              : t("Today's jobs: {count}. Open Today", { count: today.working.length + today.next.length })
-          }
-          onPress={() => go('/bookings?tab=today')}
-        >
-          <StatTile
-            label={t("Today's jobs")}
-            value={jobsUnknown ? '–' : today.working.length + today.next.length}
-            hint={today.working.length > 0 ? t('{count} under way', { count: today.working.length }) : undefined}
-          />
-        </PressRow>
-        {isVendorAdmin ? (
-          <PressRow
-            style={styles.tileCell}
-            accessibilityLabel={t('This week: {value}. Open Earnings', {
-              value: week === null ? t('not loaded') : formatINR(week),
-            })}
-            onPress={() => go('/earnings')}
-          >
-            {/* A dash, never ₹0, until the figure arrives (or when it fails). */}
-            <StatTile label={t('This week')} value={week === null ? '–' : formatINR(week)} />
-          </PressRow>
-        ) : null}
-        <PressRow
-          style={styles.tileCell}
-          accessibilityLabel={
-            reviews === null
-              ? t('Average rating: not loaded. See reviews')
-              : reviewCount === 0
-                ? t('Average rating: no reviews yet. See reviews')
-                : newGarage
-                  ? t('Average rating: {label}, {reviews}. See reviews', {
-                      label: t(NEW_GARAGE_LABEL),
-                      reviews: reviewCountLabel(reviewCount),
-                    })
-                  : t('Average rating {rating} from {reviews}. See reviews', {
-                      rating: formatRating(avgRating),
-                      reviews: reviewCountLabel(reviewCount),
-                    })
-          }
-          onPress={() => go('/reviews')}
-        >
-          <StatTile
-            label={t('Avg rating')}
-            value={
-              reviews === null ? (
-                '–'
-              ) : reviewCount > 0 && newGarage ? (
-                <TileFigure size={15}>{t(NEW_GARAGE_LABEL)}</TileFigure>
-              ) : (
-                <View style={styles.rating}>
-                  <TileFigure>{formatRating(avgRating)}</TileFigure>
-                  {reviewCount > 0 ? <Stars rating={avgRating} size={12} /> : null}
-                </View>
-              )
-            }
-            hint={reviewsFailed ? t("Couldn't load") : reviews === null ? undefined : reviewCountLabel(reviewCount)}
-          />
-        </PressRow>
-        {/* An odd tile keeps its half, as the web's two-column grid does. */}
-        {isVendorAdmin ? <View style={styles.tileCell} /> : null}
-      </View>
+          <HomeList isVendorAdmin={isVendorAdmin} />
         </>
       )}
 
-      {isVendorAdmin ? <GuaranteeHomeCard /> : null}
       {isVendorAdmin ? <TierCard vendorId={vendor?.id} /> : null}
-
-      <PressRow onPress={() => go('/account')} style={styles.account}>
-        <T size={15}>{t('Your account')}</T>
-        <IconChevronRight size={18} color={colors.textMuted} />
-      </PressRow>
 
       <T size={13} color={colors.textSecondary} style={styles.reminder}>
         {t(GARAGE_NON_SOLICITATION_LINE)}
@@ -314,69 +284,61 @@ function AgreementBanner({ vendorId }: { vendorId: string | undefined }) {
   );
 }
 
-function RequestsHomeCard() {
+/**
+ * Requests (while any wait), Free redo claims (while the guarantee is on, owner seat) and
+ * Your account, in one list card (mockup garage-hub 1).
+ */
+function HomeList({ isVendorAdmin }: { isVendorAdmin: boolean }) {
   const t = useT();
   const tn = useTn();
-  const colors = useColors();
-  const styles = useStyles();
   const count = useGarageRequestCount();
   // Repair quotes (0075) wait in the same list, so they count here too (as the website).
   const repairOn = repairQuotesOn(useRepairQuotesConfig().data);
   const repairCount = useGarageRepairQuoteCount(repairOn);
   const repairs = repairOn ? (repairCount.data?.waiting ?? 0) : 0;
   const waiting = (count.data?.waiting ?? 0) + repairs;
-  if (waiting <= 0) return null;
-  return (
-    <PressRow onPress={() => go('/requests')} style={styles.requests}>
-      <View style={styles.flex}>
-        <View style={styles.titleRow}>
-          <T size={15} weight={600}>
-            {t('Requests')}
-          </T>
-          <CountBadge count={waiting} />
-        </View>
-        <T size={13} color={colors.textSecondary}>
-          {repairs > 0
-            ? tn(waiting, '{count} request waiting', '{count} requests waiting')
-            : tn(waiting, '{count} request waiting · answer within {hours} h', '{count} requests waiting · answer within {hours} h', {
-                hours: REQUEST_RULES.respondMinutes / 60,
-              })}
-        </T>
-      </View>
-      <IconChevronRight size={18} />
-    </PressRow>
-  );
-}
-
-function GuaranteeHomeCard() {
-  const t = useT();
-  const colors = useColors();
-  const styles = useStyles();
   const config = useGuaranteeConfig();
-  const on = config.data?.enabled === true;
-  const claims = useGarageClaims(on);
-  if (!on || !claims.data) return null;
-  const toAnswer = claims.data.items.filter((claim) => claim.canAnswer).length;
+  const guaranteeOn = isVendorAdmin && config.data?.enabled === true;
+  const claims = useGarageClaims(guaranteeOn);
+  const toAnswer = claims.data ? claims.data.items.filter((claim) => claim.canAnswer).length : 0;
+  const showClaims = guaranteeOn && Boolean(claims.data);
+
   return (
-    <PressRow onPress={() => go('/guarantee')}>
-      <ScCard style={styles.guarantee}>
-        <IconShieldCheck size={22} />
-        <View style={styles.flex}>
-          <T accessibilityRole="header" size={14} weight={600}>
-            {t('Free redo claims')}
-          </T>
-          <T size={12} color={colors.textSecondary}>
-            {toAnswer > 0
+    <HubList>
+      {waiting > 0 ? (
+        <HubRow
+          first
+          icon={IconMessage}
+          label={t('Requests')}
+          onPress={() => go('/requests')}
+          sub={
+            repairs > 0
+              ? tn(waiting, '{count} request waiting', '{count} requests waiting')
+              : tn(waiting, '{count} request waiting · answer within {hours} h', '{count} requests waiting · answer within {hours} h', {
+                  hours: REQUEST_RULES.respondMinutes / 60,
+                })
+          }
+          value={<CountBadge count={waiting} small />}
+        />
+      ) : null}
+      {showClaims && claims.data ? (
+        <HubRow
+          first={waiting <= 0}
+          icon={IconShieldCheck}
+          label={t('Free redo claims')}
+          onPress={() => go('/guarantee')}
+          sub={
+            toAnswer > 0
               ? t('{count} to answer within {hours} hours of opening — no answer approves the redo.', {
                   count: toAnswer,
                   hours: claims.data.reviewHours,
                 })
-              : t('Before and after photos on every job are your defence if a customer claims.')}
-          </T>
-        </View>
-        <IconChevronRight size={18} color={colors.textSecondary} />
-      </ScCard>
-    </PressRow>
+              : t('Before and after photos on every job are your defence if a customer claims.')
+          }
+        />
+      ) : null}
+      <HubRow first={waiting <= 0 && !showClaims} icon={IconUser} label={t('Your account')} onPress={() => go('/account')} />
+    </HubList>
   );
 }
 
@@ -385,54 +347,16 @@ export default garageScreen(HomeScreen);
 const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
   section: { gap: 12 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
-  seeAll: { minHeight: 48, marginVertical: -8, flexDirection: 'row', alignItems: 'center', gap: 2 },
-  noBookings: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    padding: 16,
-  },
+  noBookings: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 18 },
   seeAllRow: {
     minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.outlineSoft,
+    borderColor: colors.line,
+    backgroundColor: colors.disc,
   },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tileCell: { width: '48.8%', flexGrow: 1, flexBasis: '45%' },
-  rating: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  requests: {
-    minHeight: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.warningBorder,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  guarantee: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  account: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  reminder: { paddingHorizontal: 4 },
+  rating: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reminder: { paddingHorizontal: 4, marginTop: 8 },
 }));

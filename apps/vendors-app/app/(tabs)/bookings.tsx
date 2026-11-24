@@ -17,7 +17,8 @@ import {
 import { JobRow } from '@/components/job-row';
 import { NewBookingCard } from '@/components/new-booking-card';
 import { GraphiteSwitch } from '@repo/native-ui/finish';
-import { EmptyState, LoadError, SkeletonList } from '@repo/native-ui/primitives';
+import { EmptyState, HubCard, LoadError, SkeletonList } from '@repo/native-ui/primitives';
+import { HubTitle } from '@/components/hub/parts';
 import { PushBanner } from '@/components/push-banner';
 import { T } from '@repo/native-ui/text';
 import {
@@ -151,8 +152,10 @@ function BookingsScreen() {
           : counts.done === 0;
 
   return (
-    <AppShell showBrand brandRight={<GarageStatus />} gap={16} scrollRef={scroll}>
+    <AppShell showBrand brandRight={<GarageStatus />} gap={12} scrollRef={scroll}>
       <PushBanner />
+
+      <HubTitle>{t('Bookings')}</HubTitle>
 
       <GraphiteSwitch<BookingsTab>
         accessibilityLabel={t('Bookings')}
@@ -178,15 +181,15 @@ function BookingsScreen() {
 
       {tab !== 'new' && waiting.count > 0 ? (
         <Pressable accessibilityRole="button" onPress={() => pickTab('new')} style={styles.strip}>
-          <IconAlarm size={22} color={colors.red} />
-          <T size={16} lh={22} style={styles.flex}>
+          <IconAlarm size={18} stroke={1.6} color={colors.red} />
+          <T size={14} lh={20} style={styles.flex}>
             {tn(waiting.count, '{count} booking to answer', '{count} bookings to answer')}
             {waiting.soonestMs !== null ? (
               <>
                 {' · '}
                 {fill(waiting.count > 1 ? t('{time} left on one') : t('{time} left'), {
                   time: (
-                    <T num size={16} weight={600} lh={22} color={colors.warning}>
+                    <T num size={14} weight={500} lh={20} color={colors.warning}>
                       {`${Math.max(1, Math.ceil(waiting.soonestMs / 60_000))} min`}
                     </T>
                   ),
@@ -194,7 +197,7 @@ function BookingsScreen() {
               </>
             ) : null}
           </T>
-          <IconChevronRight size={20} color={colors.textSecondary} />
+          <IconChevronRight size={16} color={colors.textMuted} />
         </Pressable>
       ) : null}
 
@@ -226,10 +229,10 @@ function BookingsScreen() {
             {today.working.length > 0 ? (
               <View style={styles.list}>
                 <View style={styles.nowHead}>
-                  <T accessibilityRole="header" size={17} weight={600}>
+                  <T accessibilityRole="header" size={16} weight={500}>
                     {t('Now')}
                   </T>
-                  <T num size={14} color={colors.textSecondary}>
+                  <T num size={13} color={colors.dim}>
                     {calendarDate(now)}
                   </T>
                 </View>
@@ -240,7 +243,7 @@ function BookingsScreen() {
             ) : null}
             {today.next.length > 0 ? (
               <View style={styles.list}>
-                <T accessibilityRole="header" size={17} weight={600}>
+                <T accessibilityRole="header" size={16} weight={500} style={styles.head}>
                   {t('Next')}
                 </T>
                 {today.next.map((b) => (
@@ -266,7 +269,7 @@ function BookingsScreen() {
         ) : tab === 'later' ? (
           later.map((group) => (
             <View key={group.day} accessibilityLabel={t(group.day)} style={styles.list}>
-              <T accessibilityRole="header" size={17} weight={600}>
+              <T accessibilityRole="header" size={16} weight={500} style={styles.head}>
                 {t(group.day)}
               </T>
               {group.jobs.map((b) => (
@@ -288,17 +291,19 @@ function TomorrowRow({ count, onOpen }: { count: number; onOpen: () => void }) {
   const colors = useColors();
   const styles = useStyles();
   return (
-    <Pressable accessibilityRole="button" onPress={onOpen} style={styles.tomorrow}>
-      <T size={17}>
-        {fill(tn(count, 'Tomorrow · {num} job', 'Tomorrow · {num} jobs'), {
-          num: (
-            <T num size={17}>
-              {count}
-            </T>
-          ),
-        })}
-      </T>
-      <IconChevronRight size={20} color={colors.textSecondary} />
+    <Pressable accessibilityRole="button" onPress={onOpen}>
+      <HubCard style={styles.tomorrow}>
+        <T size={15}>
+          {fill(tn(count, 'Tomorrow · {num} job', 'Tomorrow · {num} jobs'), {
+            num: (
+              <T num size={15}>
+                {count}
+              </T>
+            ),
+          })}
+        </T>
+        <IconChevronRight size={16} color={colors.textMuted} />
+      </HubCard>
     </Pressable>
   );
 }
@@ -307,30 +312,28 @@ export default garageScreen(BookingsScreen);
 
 const useStyles = createStyles((colors) => ({
   flex: { flex: 1, minWidth: 0 },
+  // The answer-needed banner as a red-tinted hub card (mockup garage-hub 2).
   strip: {
-    minHeight: 56,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
+    gap: 10,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.redBorder,
     backgroundColor: colors.redWash,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
   },
   list: { gap: 12 },
-  nowHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  head: { paddingHorizontal: 2, paddingTop: 4 },
+  nowHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 2, paddingTop: 4 },
   tomorrow: {
     minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
   },
 }));

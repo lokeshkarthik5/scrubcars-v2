@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { IconGift } from '@tabler/icons-react'
+import { IconArrowUpRight, IconGift } from '@tabler/icons-react'
 import { ScButton } from '@repo/ui/sc/button'
 import { bringGarageCardWords, bringGarageRowLabel, referralAmountLabel } from '@repo/core/bring-garage'
-import { fill } from '@repo/core/i18n'
+import { fill, useT } from '@repo/core/i18n'
 import { RecommendSheet, useCustomerZone } from '@/components/reach/free-wash'
 import { ScCard } from '@/components/ui/card'
 
@@ -62,6 +62,45 @@ export function BringGarageRow() {
     <>
       <button type="button" onClick={() => setOpen(true)} data-bring-garage-row="" className="block w-full text-left">
         <ScCard className="text-t4 text-text-primary">{bringGarageRowLabel()}</ScCard>
+      </button>
+      <RecommendSheet open={open} onClose={() => setOpen(false)} zoneSlug={zone?.slug ?? null} />
+    </>
+  )
+}
+
+/**
+ * Profile's "Bring your garage" in the Home look (22 Nov 2026): the one red
+ * card on Profile, opening the same Recommend sheet. Named as the old row
+ * ("Bring your garage · Get ₹500") so a screen reader hears the same thing.
+ */
+export function BringGarageHubCard() {
+  const t = useT()
+  const zone = useCustomerZone()
+  const [open, setOpen] = useState(false)
+  const amount = referralAmountLabel()
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-bring-garage-row=""
+        aria-label={bringGarageRowLabel()}
+        className="hub-card press profile-bring relative flex w-full flex-col overflow-hidden py-[18px] pr-[84px] pl-5 text-left"
+      >
+        <span aria-hidden className="profile-bring__glow" />
+        <span className="relative text-t4 text-[#FDA4B4]">{t('Bring your garage')}</span>
+        <span className="relative mt-1.5 text-[22px] leading-tight font-normal tracking-[-0.01em] text-text-primary">
+          {t('Get {amount} credit', { amount })}
+        </span>
+        <span className="relative mt-1 text-t4 leading-snug text-dim">
+          {t('Know a good garage? Bring it to Detlio. You get it when they join and you book them.')}
+        </span>
+        <span
+          aria-hidden
+          className="cta-hero absolute right-[18px] bottom-[18px] grid size-[52px] place-items-center rounded-full"
+        >
+          <IconArrowUpRight size={22} stroke={1.75} />
+        </span>
       </button>
       <RecommendSheet open={open} onClose={() => setOpen(false)} zoneSlug={zone?.slug ?? null} />
     </>

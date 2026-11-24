@@ -1,10 +1,12 @@
 import {
+  Inter_300Light,
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import {
+  SpaceGrotesk_300Light,
   SpaceGrotesk_400Regular,
   SpaceGrotesk_500Medium,
   SpaceGrotesk_600SemiBold,
@@ -146,10 +148,13 @@ function AppLang({ children }: { children: ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
+    // The light weights: the hub screens' large figures (mockup garage-hub, 22 Nov 2026).
+    Inter_300Light,
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    SpaceGrotesk_300Light,
     SpaceGrotesk_400Regular,
     SpaceGrotesk_500Medium,
     SpaceGrotesk_600SemiBold,

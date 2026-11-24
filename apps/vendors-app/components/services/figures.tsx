@@ -10,12 +10,12 @@ import { font } from '@repo/native-ui/text';
  * in the brand's numeric face while its words stay in Inter. Goes inside a `T`, which
  * gives the size and colour.
  */
-export function Figures({ text }: { text: string }) {
+export function Figures({ text, weight = 400 }: { text: string; weight?: 300 | 400 | 500 | 600 | 700 }) {
   return (
     <>
       {splitFigures(text).map((part, index) =>
         part.figure ? (
-          <Text key={index} style={{ fontFamily: font(400, true) }}>
+          <Text key={index} style={{ fontFamily: font(weight, true) }}>
             {part.text}
           </Text>
         ) : (

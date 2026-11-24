@@ -38,7 +38,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
     return (
       <div
         role="status"
-        className="rounded-t-[20px] border-b border-border bg-surface-elevated px-5 py-3 text-[15px] font-medium text-text-secondary"
+        className="rounded-t-[27px] border-b border-line bg-white/[0.03] px-5 py-3 text-[15px] font-medium text-text-secondary"
       >
         {text}
       </div>
@@ -51,7 +51,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
       // A screen reader hears it when it turns urgent, not every tick.
       aria-live={urgent ? 'polite' : 'off'}
       className={cn(
-        'relative overflow-hidden rounded-t-[20px] border-b border-border',
+        'relative overflow-hidden rounded-t-[27px] border-b border-line',
         urgent && 'bg-warning/15'
       )}
     >
@@ -64,17 +64,17 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
         >
           {state.kind === 'closed' ? (
             <>
-              <span className="font-numeric text-[28px] font-bold leading-none tracking-tight">
+              <span className="font-numeric text-[28px] font-light leading-none tracking-[-0.03em]">
                 {state.label}
               </span>
-              <span className="text-[16px] font-medium">{t('to answer')}</span>
+              <span className="text-[14px] text-text-secondary">{t('to answer')}</span>
             </>
           ) : (
             <>
-              <span className="font-numeric text-[40px] font-bold leading-none tracking-tight">
+              <span className="font-numeric text-[34px] font-light leading-none tracking-[-0.03em]">
                 {state.label}
               </span>
-              <span className="text-[16px] font-medium">{t('left to answer')}</span>
+              <span className="text-[14px] text-text-secondary">{t('left to answer')}</span>
             </>
           )}
         </p>
@@ -85,7 +85,7 @@ export function AnswerDeadline({ deadline }: { deadline: ResponseDeadline }) {
         />
       </div>
       {state.kind !== 'closed' && (
-        <div aria-hidden="true" className="h-1.5 w-full bg-border">
+        <div aria-hidden="true" className="h-1 w-full bg-white/[0.08]">
           <div
             className={cn(
               'h-full rounded-r-full transition-[width] duration-1000',

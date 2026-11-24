@@ -20,7 +20,8 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { AnswerDeadline } from './answer-deadline';
 import { Label, ScButton } from '@repo/native-ui/button';
 import { IconCar, IconCheck, IconHome, IconMapPin, IconPhoneOff, IconRefresh } from '@repo/native-ui/icons';
-import { PressRow } from '@repo/native-ui/primitives';
+import { HubCard, PressRow } from '@repo/native-ui/primitives';
+import { CarLine } from './hub/parts';
 import { JobAddOnLines } from './job-add-on-lines';
 import { serviceOnlyLine } from '@/lib/add-on-lines';
 import { RejectBookingSheet } from './reject-booking';
@@ -86,7 +87,7 @@ export function NewBookingCard({
   );
 
   return (
-    <View accessibilityLabel={t('New booking from {who}', { who })} onLayout={onLayout} style={styles.card}>
+    <HubCard accessibilityLabel={t('New booking from {who}', { who })} onLayout={onLayout} style={styles.card}>
       {b.responseDeadline && !waitingOnCustomer && (!passed || lost) ? (
         <AnswerDeadline deadline={b.responseDeadline} />
       ) : null}
@@ -98,23 +99,16 @@ export function NewBookingCard({
             onPress={() => router.push(`/bookings/${b.id}` as Href)}
             style={styles.details}
           >
-            <T num size={24} weight={700} lh={30} tracking={-0.025}>
+            <T num size={20} weight={400} lh={26} tracking={-0.01}>
               {formatWhen(b.scheduledAtIso, now)}
             </T>
-            <T size={17} weight={500}>
+            <T size={15} lh={21}>
               {serviceOnlyLine(b)}
             </T>
-            <JobAddOnLines items={b.items} size={15} />
-            {b.vehicle ? (
-              <T size={16} color={colors.textSecondary}>
-                {`${b.vehicle.make} ${b.vehicle.model} · `}
-                <T num size={16} tracking={0.025}>
-                  {b.vehicle.plate}
-                </T>
-              </T>
-            ) : null}
+            <JobAddOnLines items={b.items} size={14} />
+            {b.vehicle ? <CarLine vehicle={b.vehicle} /> : null}
             <View style={styles.nameRow}>
-              <T size={16} color={colors.textSecondary} numberOfLines={1} style={styles.shrink}>
+              <T size={13} lh={18} color={colors.textSecondary} numberOfLines={1} style={styles.shrink}>
                 {who}
               </T>
               {b.customerBadge ? (
@@ -140,13 +134,13 @@ export function NewBookingCard({
         <View style={[styles.where, !onPage && styles.whereRule]}>
           <View style={styles.whereText}>
             <View style={styles.whereIcon}>
-              <TypeIcon size={18} color={colors.textSecondary} />
+              <TypeIcon size={16} stroke={1.5} color={colors.dim} />
             </View>
-            <T size={15} lh={22} color={colors.textSecondary} style={styles.shrink}>
+            <T size={13} lh={19} color={colors.dim} style={styles.shrink}>
               {t(BOOKING_TYPE_LABELS[b.bookingType])}
               {b.jobLocation && !onPage ? ` · ${b.jobLocation.address}` : ''}
               {km !== null ? (
-                <T num size={15} lh={22} color={colors.textSecondary}>
+                <T num size={13} lh={19} color={colors.dim}>
                   {` · ${km} km`}
                 </T>
               ) : null}
@@ -159,7 +153,7 @@ export function NewBookingCard({
                 {price.text}
               </T>
             ) : (
-              <T num size={24} weight={700} lh={24} tracking={-0.025}>
+              <T num size={26} weight={300} lh={28} tracking={-0.02}>
                 {price.text}
               </T>
             )
@@ -208,14 +202,14 @@ export function NewBookingCard({
       </View>
 
       <RejectBookingSheet booking={b} open={rejecting} onClose={() => setRejecting(false)} onDone={onChanged} />
-    </View>
+    </HubCard>
   );
 }
 
 const useStyles = createStyles((colors) => ({
   shrink: { flexShrink: 1, minWidth: 0 },
-  card: { borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  inner: { padding: 20, gap: 16 },
+  card: { overflow: 'hidden' },
+  inner: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, gap: 14 },
   details: { margin: -8, padding: 8, borderRadius: 14, gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   badge: {
@@ -238,9 +232,9 @@ const useStyles = createStyles((colors) => ({
     paddingVertical: 4,
   },
   where: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
-  whereRule: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16 },
+  whereRule: { borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 14 },
   whereText: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  whereIcon: { marginTop: 2 },
+  whereIcon: { marginTop: 1 },
   accepting: { minHeight: 56, alignItems: 'center', justifyContent: 'center' },
   passed: { gap: 12 },
   actions: { gap: 8 },

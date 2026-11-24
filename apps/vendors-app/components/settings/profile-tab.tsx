@@ -21,13 +21,19 @@ import { IconFileCertificate, IconFileText, IconPhoto, IconSteeringWheel } from 
 import { useSaving } from './use-saving';
 import { useT } from '@repo/core/i18n';
 
-/** Settings > Profile (apps/vendors/app/settings/page.tsx), with its link rows. */
+/**
+ * Settings > Profile (apps/vendors/app/settings/page.tsx), with its link rows. The Settings
+ * menu (mockup garage-hub 5) has those rows itself, so it asks for the form alone
+ * (`links={false}`).
+ */
 export function ProfileTab({
   vendor,
   onSaved,
+  links = true,
 }: {
   vendor: ApiVendorProfile | null;
   onSaved: (vendor: ApiVendorProfile) => void;
+  links?: boolean;
 }) {
   const t = useT();
   const [form, setForm] = useState<ProfileForm>(
@@ -38,7 +44,7 @@ export function ProfileTab({
   // Documents shows only once the server has its private bucket for them.
   const [documentsOn, setDocumentsOn] = useState(false);
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin || !links) return;
     let cancelled = false;
     getGarageDocumentsConfig()
       .then((config) => {
@@ -50,7 +56,7 @@ export function ProfileTab({
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isAdmin, links]);
 
   const save = () =>
     vendor &&
@@ -106,28 +112,32 @@ export function ProfileTab({
         </ScCard>
       </View>
 
-      <LinkRow
-        icon={<IconPhoto size={18} />}
-        title={t('Garage photos')}
-        description={t('Add photos customers see on your listing')}
-        onPress={() => router.push('/photos' as Href)}
-      />
-      {documentsOn ? (
-        <LinkRow
-          icon={<IconFileCertificate size={18} />}
-          title={t('Documents')}
-          // A doorstep-only garage (no pickup either) has no shop, so no shop photo is asked for.
-          description={t(documentsRowDescription(vendor))}
-          onPress={() => router.push('/settings/documents' as Href)}
-        />
+      {links ? (
+        <>
+          <LinkRow
+            icon={<IconPhoto size={18} />}
+            title={t('Garage photos')}
+            description={t('Add photos customers see on your listing')}
+            onPress={() => router.push('/photos' as Href)}
+          />
+          {documentsOn ? (
+            <LinkRow
+              icon={<IconFileCertificate size={18} />}
+              title={t('Documents')}
+              // A doorstep-only garage (no pickup either) has no shop, so no shop photo is asked for.
+              description={t(documentsRowDescription(vendor))}
+              onPress={() => router.push('/settings/documents' as Href)}
+            />
+          ) : null}
+          <LinkRow
+            icon={<IconFileText size={18} />}
+            title={t('Garage agreement')}
+            description={t('Read and accept the Detlio garage agreement, for Bronze')}
+            onPress={() => router.push('/agreement' as Href)}
+          />
+          {isAdmin ? <LuxuryRow /> : null}
+        </>
       ) : null}
-      <LinkRow
-        icon={<IconFileText size={18} />}
-        title={t('Garage agreement')}
-        description={t('Read and accept the Detlio garage agreement, for Bronze')}
-        onPress={() => router.push('/agreement' as Href)}
-      />
-      {isAdmin ? <LuxuryRow /> : null}
     </>
   );
 }

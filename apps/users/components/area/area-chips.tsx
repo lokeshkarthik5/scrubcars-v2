@@ -33,11 +33,14 @@ export function AreaChips({ mode }: { mode: BookingType }) {
 
   const priority = zones.filter((zone) => zone.priority)
   const chosenSlug = location?.source === 'area' ? location.zone : undefined
-  // An area picked from More, outside the chips: named on the More chip.
+  // An area picked from More, outside the chips, or any place found by its
+  // search (an area with no zone): named on the More chip.
   const chosenElsewhere =
-    chosenSlug && !priority.some((zone) => zone.slug === chosenSlug)
-      ? (zones.find((zone) => zone.slug === chosenSlug)?.name ?? location?.label)
-      : null
+    location?.source === 'area' && !chosenSlug
+      ? location.label
+      : chosenSlug && !priority.some((zone) => zone.slug === chosenSlug)
+        ? (zones.find((zone) => zone.slug === chosenSlug)?.name ?? location?.label)
+        : null
   const nearMeOn = location?.source === 'gps'
 
   return (
@@ -101,7 +104,8 @@ export function AreaChips({ mode }: { mode: BookingType }) {
               : 'border-line bg-white/[0.03] text-text-primary'
           )}
         >
-          {chosenElsewhere ?? t('More')}
+          {/* A searched place can be a long name: kept to one short line. */}
+          <span className="max-w-[11rem] truncate">{chosenElsewhere ?? t('More')}</span>
           <IconChevronDown size={14} aria-hidden className="shrink-0" />
         </button>
       </div>

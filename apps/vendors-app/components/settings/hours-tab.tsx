@@ -27,22 +27,32 @@ import { PickupSection } from './pickup-section';
 import { useSaving } from './use-saving';
 import { msg, useT } from '@repo/core/i18n';
 
+/** One part of the old Hours tab, opened on its own from the Settings menu (mockup garage-hub 5). */
+export type HoursPart = 'hours' | 'capacity' | 'job-types' | 'pickup';
+
 /**
  * Settings > Hours (apps/vendors/app/settings/page.tsx): weekly hours, slot interval,
  * capacity, job types, and Pickup & drop. `vendor` is null when the shell could not load
- * the garage; the sections that edit it are then left out, as on the web.
+ * the garage; the sections that edit it are then left out, as on the web. With `part`, only
+ * that part (Hours is the weekly hours and the slot interval); without, all of them.
  */
 export function HoursTab({
   vendor,
   hours,
   onVendorChange,
   onOpenLocation,
+  part,
+  onHoursChange,
 }: {
   vendor: ApiVendorProfile | null;
   hours: ApiWorkingHours[];
   onVendorChange: (vendor: ApiVendorProfile) => void;
   onOpenLocation: () => void;
+  part?: HoursPart;
+  /** The hours as saved, for the Settings menu's Hours row and the next visit. */
+  onHoursChange?: (hours: ApiWorkingHours[]) => void;
 }) {
+  const shows = (which: HoursPart) => part === undefined || part === which;
   const t = useT();
   const colors = useColors();
   const styles = useStyles();
@@ -59,6 +69,7 @@ export function HoursTab({
     run('working-hours', async () => {
       const updated = await setVendorWorkingHours(workingHoursPayload(workingHours));
       setWorkingHours(mapWorkingHours(updated));
+      onHoursChange?.(updated);
     });
 
   const saveSlotInterval = (slotIntervalMins: 30 | 45 | 60) =>
@@ -82,56 +93,58 @@ export function HoursTab({
 
   return (
     <>
-      <View style={styles.section}>
-        <SectionHeader title={t('Working hours')} />
-        <View style={styles.rows}>
-          {workingHours.map((day) => (
-            <ScCard key={day.dayOfWeek} style={styles.dayCard}>
-              <T size={13} weight={500} color={day.isClosed ? colors.textMuted : colors.textPrimary} style={styles.dayName}>
-                {DAYS[day.dayOfWeek]}
-              </T>
-              <View style={styles.time}>
-                <TimeField
-                  value={day.openTime}
-                  disabled={day.isClosed}
-                  onChange={(openTime) => setDay(day.dayOfWeek, { openTime })}
-                />
-              </View>
-              <View style={styles.time}>
-                <TimeField
-                  value={day.closeTime}
-                  disabled={day.isClosed}
-                  onChange={(closeTime) => setDay(day.dayOfWeek, { closeTime })}
-                />
-              </View>
-              {/* Says what the day is, and is pressed when it is closed. */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('{day} closed all day', { day: DAYS[day.dayOfWeek]! })}
-                accessibilityState={{ selected: day.isClosed }}
-                onPress={() => setDay(day.dayOfWeek, { isClosed: !day.isClosed })}
-                style={[styles.toggle, day.isClosed && styles.toggleOn]}
-              >
-                <T
-                  size={14}
-                  weight={500}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                  color={day.isClosed ? colors.textPrimary : colors.textSecondary}
-                >
-                  {day.isClosed ? t('Closed') : t('Open')}
+      {shows('hours') ? (
+        <View style={styles.section}>
+          <SectionHeader title={t('Working hours')} />
+          <View style={styles.rows}>
+            {workingHours.map((day) => (
+              <ScCard key={day.dayOfWeek} style={styles.dayCard}>
+                <T size={13} weight={500} color={day.isClosed ? colors.textMuted : colors.textPrimary} style={styles.dayName}>
+                  {DAYS[day.dayOfWeek]}
                 </T>
-              </Pressable>
-            </ScCard>
-          ))}
-          <ScButton variant="main" size="lg" disabled={saving === 'working-hours'} onPress={() => void saveWorkingHours()}>
-            {saving === 'working-hours' ? t('Saving...') : t('Save working hours')}
-          </ScButton>
+                <View style={styles.time}>
+                  <TimeField
+                    value={day.openTime}
+                    disabled={day.isClosed}
+                    onChange={(openTime) => setDay(day.dayOfWeek, { openTime })}
+                  />
+                </View>
+                <View style={styles.time}>
+                  <TimeField
+                    value={day.closeTime}
+                    disabled={day.isClosed}
+                    onChange={(closeTime) => setDay(day.dayOfWeek, { closeTime })}
+                  />
+                </View>
+                {/* Says what the day is, and is pressed when it is closed. */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('{day} closed all day', { day: DAYS[day.dayOfWeek]! })}
+                  accessibilityState={{ selected: day.isClosed }}
+                  onPress={() => setDay(day.dayOfWeek, { isClosed: !day.isClosed })}
+                  style={[styles.toggle, day.isClosed && styles.toggleOn]}
+                >
+                  <T
+                    size={14}
+                    weight={500}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                    color={day.isClosed ? colors.textPrimary : colors.textSecondary}
+                  >
+                    {day.isClosed ? t('Closed') : t('Open')}
+                  </T>
+                </Pressable>
+              </ScCard>
+            ))}
+            <ScButton variant="main" size="lg" disabled={saving === 'working-hours'} onPress={() => void saveWorkingHours()}>
+              {saving === 'working-hours' ? t('Saving...') : t('Save working hours')}
+            </ScButton>
+          </View>
         </View>
-      </View>
+      ) : null}
 
-      {vendor ? (
+      {vendor && shows('hours') ? (
         <View style={styles.section}>
           <View>
             <SectionHeader title={t('Slot interval')} />
@@ -155,7 +168,7 @@ export function HoursTab({
         </View>
       ) : null}
 
-      {vendor ? (
+      {vendor && shows('capacity') ? (
         <View style={styles.section}>
           <SectionHeader title={t('Capacity')} />
           <ScCard style={styles.section}>
@@ -185,15 +198,15 @@ export function HoursTab({
                 {capacityError}
               </T>
             ) : null}
-            {/* Secondary: "Save working hours" above is this tab's main action. */}
-            <ScButton variant="outline" disabled={!!capacityError || saving === 'capacity'} onPress={() => void saveCapacity()}>
+            {/* Secondary: "Save working hours" above is this tab's main action; alone, it is the page's. */}
+            <ScButton variant={part === 'capacity' ? 'main' : 'outline'} size={part === 'capacity' ? 'lg' : 'md'} disabled={!!capacityError || saving === 'capacity'} onPress={() => void saveCapacity()}>
               {saving === 'capacity' ? t('Saving...') : t('Save capacity')}
             </ScButton>
           </ScCard>
         </View>
       ) : null}
 
-      {vendor ? (
+      {vendor && shows('job-types') ? (
         <View style={styles.section}>
           <SectionHeader title={t('Job types')} />
           <ScCard style={styles.section}>
@@ -244,7 +257,7 @@ export function HoursTab({
         </View>
       ) : null}
 
-      {vendor ? <PickupSection key={vendor.id} vendor={vendor} onChange={onVendorChange} /> : null}
+      {vendor && shows('pickup') ? <PickupSection key={vendor.id} vendor={vendor} onChange={onVendorChange} /> : null}
     </>
   );
 }

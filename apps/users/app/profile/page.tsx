@@ -3,11 +3,15 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import {
+  IconAward,
+  IconBell,
   IconCamera,
-  IconCar,
   IconChevronRight,
+  IconCookie,
+  IconFileText,
+  IconGift,
+  IconHelpCircle,
   IconLogout,
-  IconMapPin,
   IconPencil,
   IconPlus,
   IconTrash,
@@ -19,14 +23,25 @@ import {
 } from '@/components/profile/edit-sheets'
 import { DeleteAccountSheet } from '@/components/profile/delete-account-sheet'
 import { LanguageRow } from '@/components/profile/language-row'
-import { BringGarageRow } from '@/components/reach/bring-garage'
+import { BringGarageHubCard } from '@/components/reach/bring-garage'
+import {
+  AddressMapBand,
+  CarCards,
+  HubList,
+  HubPill,
+  HubRow,
+  HubSectionHead,
+  ProfileStats,
+  ProfileTiles,
+  RowIcon,
+  bookingFigures,
+} from '@/components/profile/profile-hub'
+import { useSavedGarages } from '@repo/core/api/hooks/use-favourites'
+import { useBookingsStore } from '@repo/core/stores/bookings-store'
 import { MyComplaints } from '@/components/complaints/my-complaints'
 import { CustomerShell } from '@/components/customer-shell'
 import { isHomeHubEnabled } from '@/lib/home-hub'
-import { ScBadge } from '@repo/ui/sc/badge'
 import { ScButton } from '@repo/ui/sc/button'
-import { ScCard } from '@/components/ui/card'
-import { NumberPlate } from '@/components/moments/number-plate'
 import { ScInput } from '@repo/ui/sc/input'
 import { TopBar } from '@repo/ui/sc/top-bar'
 import { Chip } from '@repo/ui/sc/chip'
@@ -68,7 +83,6 @@ import { useSlotAlerts } from '@repo/core/api/hooks/use-slot-alerts'
 import { useMyCoupons } from '@repo/core/api/hooks/use-coupons'
 import { couponsForCheckout } from '@/lib/coupons'
 import { useQueryClient } from '@tanstack/react-query'
-import Link from 'next/link'
 import {
   NO_PIN_TEXT,
   refillFromPin,
@@ -155,6 +169,20 @@ export default function ProfilePage() {
   const readyCoupons = couponsForCheckout(useMyCoupons(!!authUser).data).length
 
   const user = profile ?? authUser
+
+  // The top card's figures and the bookings tile (22 Nov 2026): read once
+  // here, as My bookings reads them. Null until they arrive, so no "0".
+  const customerBookings = useBookingsStore((s) => s.customerBookings)
+  const fetchCustomerBookings = useBookingsStore((s) => s.fetchCustomerBookings)
+  const [bookingsRead, setBookingsRead] = useState(false)
+  useEffect(() => {
+    if (!authUser) return
+    void fetchCustomerBookings()
+      .then(() => setBookingsRead(true))
+      .catch(() => undefined)
+  }, [authUser, fetchCustomerBookings])
+  const figures = bookingsRead ? bookingFigures(customerBookings) : null
+  const savedGarages = useSavedGarages({ enabled: !!authUser })
 
   useEffect(() => {
     if (!authUser) return
@@ -388,10 +416,12 @@ export default function ProfilePage() {
   }
 
   return (
-    <CustomerShell showNav className="gap-4 py-4">
+    <CustomerShell showNav className="gap-3 py-4">
       <TopBar title={t('Profile')} large={isHomeHubEnabled()} />
 
-      <ScCard className="flex items-center gap-3">
+      {/* You (22 Nov 2026, the Home look): the photo with its thin red ring,
+          the name large, then three quiet figures. */}
+      <section className="hub-card relative flex flex-col items-center px-5 pt-6 pb-5 text-center">
         <input
           ref={avatarInputRef}
           type="file"
@@ -399,193 +429,95 @@ export default function ProfilePage() {
           hidden
           onChange={handleAvatarPick}
         />
+        {/* Name and email (0066); the phone is the sign-in. */}
+        <button
+          type="button"
+          aria-label={t('Edit name and email')}
+          onClick={() => setEditingProfile(true)}
+          className="absolute top-3 right-3 grid size-11 place-items-center rounded-full text-text-primary"
+        >
+          <span className="grid size-10 place-items-center rounded-full border border-line">
+            <IconPencil size={16} aria-hidden="true" />
+          </span>
+        </button>
         <button
           type="button"
           onClick={() => avatarInputRef.current?.click()}
           disabled={avatarBusy}
           aria-label={t('Change profile photo')}
-          className="relative h-12 w-12 shrink-0 disabled:opacity-60"
+          className="relative size-[88px] shrink-0 disabled:opacity-60"
         >
           {user?.avatarUrl ? (
             <Image
               src={user.avatarUrl}
               // The button around it is named; the picture adds nothing.
               alt=""
-              width={48}
-              height={48}
-              className="h-12 w-12 rounded-full object-cover"
+              width={88}
+              height={88}
+              className="profile-avatar size-[88px] rounded-full object-cover"
             />
           ) : (
-            // Graphite and white, like the icon tiles below. Red on this
-            // screen is kept for the Add actions.
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-elevated text-lg font-semibold text-text-primary">
+            <span className="profile-avatar flex size-[88px] items-center justify-center rounded-full bg-surface-elevated text-[32px] font-light text-text-primary">
               {user?.name?.slice(0, 1) ?? '?'}
             </span>
           )}
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-surface bg-brand-white text-brand-black">
-            <IconCamera size={11} />
+          <span className="absolute -right-0.5 -bottom-0.5 flex size-7 items-center justify-center rounded-full border-2 border-[#17171a] bg-brand-white text-brand-black">
+            <IconCamera size={14} />
           </span>
         </button>
-        <div className="flex-1 min-w-0" data-clarity-mask="true">
-          <p className="text-t3 font-semibold text-text-primary">
-            {user?.name}
-          </p>
-          <p className="text-t5 text-text-secondary">+91 {user?.phone}</p>
-          {user?.area && (
-            <p className="text-t5 text-text-muted">
-              {user.area} – {user.pincode}
-            </p>
-          )}
-          {user?.avatarUrl && (
-            <button
-              type="button"
-              onClick={handleAvatarRemove}
-              disabled={avatarBusy}
-              className="tap-target mt-1 text-t5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
-            >
-              {t('Remove photo')}
-            </button>
-          )}
-        </div>
-        {/* Name and email (0066); the phone is the sign-in. */}
-        <button
-          type="button"
-          aria-label={t('Edit name and email')}
-          onClick={() => setEditingProfile(true)}
-          className="-my-2 -mr-2 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-        >
-          <IconPencil size={16} aria-hidden="true" />
-        </button>
-      </ScCard>
-
-      <Link href="/bookings">
-        <ScCard className="text-t4 text-text-primary">{t('My bookings')}</ScCard>
-      </Link>
-
-      {/* The garages saved with the heart. A plain link, like My bookings. */}
-      <Link href="/profile/saved-garages">
-        <ScCard className="text-t4 text-text-primary">{t('Saved garages')}</ScCard>
-      </Link>
-
-      {/* The days waited on with "Notify me if a slot opens" (0047), while
-          there are any. */}
-      {slotAlertCount > 0 && (
-        <Link href="/profile/slot-alerts">
-          <ScCard className="flex items-center justify-between text-t4 text-text-primary">
-            {t('Slot alerts')}
-            <span className="font-numeric text-t5 text-text-secondary">
-              {slotAlertCount}
-            </span>
-          </ScCard>
-        </Link>
-      )}
-
-      {/* Printed coupons (0056): type or scan a coupon's code, and the
-          coupons added. Always there: a coupon works with or without
-          Rewards. */}
-      <Link href="/profile/coupons">
-        <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
-          <span className="min-w-0">
-            {t('Coupons')}
-            <span className="block text-t5 text-text-secondary">
-              {t('Have a coupon? Add it here')}
-            </span>
-          </span>
-          {readyCoupons > 0 && (
-            <span className="font-numeric text-t5 text-text-secondary">
-              {readyCoupons}
-            </span>
-          )}
-        </ScCard>
-      </Link>
-
-      {/* Detlio Rewards (0050): the level badge and how far the Shine Card is. */}
-      {rewardsOn && (
-        <Link href="/profile/rewards">
-          <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
-            <span className="min-w-0">
-              {t('Detlio Rewards')}
-              {rewardsSummary.data && (
-                <span className="block text-t5 text-text-secondary">
-                  <Figures
-                    text={stampsToGoLine(rewardsSummary.data.card.toGo)}
-                  />
-                  {/* 0054: the badge count. */}
-                  {rewardsSummary.data.extras &&
-                    rewardsSummary.data.extras.badgesEarned > 0 && (
-                      <Figures
-                        text={` · ${tn(rewardsSummary.data.extras.badgesEarned, '{count} badge', '{count} badges')}`}
-                      />
-                    )}
-                </span>
-              )}
-            </span>
-            {rewardsSummary.data && (
-              <LevelBadge
-                level={rewardsSummary.data.level.level}
-                label={rewardsSummary.data.level.label}
-              />
+        <div className="mt-3.5 min-w-0 max-w-full" data-clarity-mask="true">
+          <p className="profile-name truncate">{user?.name}</p>
+          <p className="mt-1 text-t4 text-dim">
+            +91 {user?.phone}
+            {user?.area && (
+              <>
+                {' · '}
+                {user.area} {user.pincode}
+              </>
             )}
-          </ScCard>
-        </Link>
-      )}
-
-      {/* Detlio credit, with the balance once it is known, and the gifts
-          bought (0049). Plain links, like the rows above. */}
-      {giftsOn && (
-        <>
-          <Link href="/profile/credit">
-            <ScCard className="flex items-center justify-between gap-3 text-t4 text-text-primary">
-              {t('Detlio credit')}
-              {credit.data && (
-                <span className="font-numeric text-t4 text-text-secondary">
-                  {giftRupees(credit.data.balance)}
-                </span>
-              )}
-            </ScCard>
-          </Link>
-          <Link href="/profile/gifts">
-            <ScCard className="text-t4 text-text-primary">
-              {t('Gift a wash')}
-            </ScCard>
-          </Link>
-        </>
-      )}
-
-      {/* Bring your garage (21 Nov 2026): always, under Gift a wash. */}
-      <BringGarageRow />
-
-      {/* Browser notifications on this device, and what to send (0044). */}
-      {pushOn && (
-        <Link href="/profile/notifications">
-          <ScCard className="text-t4 text-text-primary">
-            {t('Notifications')}
-          </ScCard>
-        </Link>
-      )}
-
-      {/* English or தமிழ் (Tamil), on this browser. */}
-      <LanguageRow />
-
-      {/* #vehicles: Home's pencil on the car opens here. */}
-      <section id="vehicles" className="scroll-mt-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">{t('Vehicles')}</h2>
+          </p>
+        </div>
+        {user?.avatarUrl && (
           <button
             type="button"
-            onClick={() => setShowVehicleForm((v) => !v)}
-            // Both section headers render a button reading "Add", which on its
-            // own tells a screen reader nothing about what is being added.
-            aria-label={t('Add vehicle')}
-            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-t4 text-text-primary"
+            onClick={handleAvatarRemove}
+            disabled={avatarBusy}
+            className="tap-target mt-1 text-t5 text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
           >
-            <IconPlus size={14} aria-hidden="true" />
-            {t('Add')}
+            {t('Remove photo')}
           </button>
-        </div>
+        )}
+        {figures && (
+          <ProfileStats
+            items={[
+              { value: figures.count, label: tn(figures.count, 'Booking', 'Bookings') },
+              { value: figures.garagesTried, label: t('Garages tried') },
+              { value: vehicles.length, label: tn(vehicles.length, 'Car', 'Cars') },
+            ]}
+          />
+        )}
+      </section>
 
-        {showVehicleForm && (
-          <ScCard className="mb-2 flex flex-col gap-3">
+      {/* #vehicles: Home's pencil on the car opens here. */}
+      <section id="vehicles" aria-label={t('Vehicles')} className="flex scroll-mt-4 flex-col gap-3">
+        {vehicles.length === 0 && !showVehicleForm ? (
+          <div className="hub-card p-5">
+            <p className="text-t4 text-dim">{t('Your garage')}</p>
+            <p className="mt-1 text-t3 text-text-secondary">{t('No vehicles added yet.')}</p>
+          </div>
+        ) : (
+          <CarCards
+            vehicles={vehicles}
+            promoting={promoting}
+            deleting={deleting}
+            onEdit={setEditingVehicle}
+            onRemove={removeVehicle}
+            onMakeDefault={makeVehicleDefault}
+          />
+        )}
+
+        {showVehicleForm ? (
+          <div className="hub-card flex flex-col gap-3 p-5">
             <div className="grid grid-cols-2 gap-2">
               <ScInput
                 data-clarity-mask="true"
@@ -654,103 +586,141 @@ export default function ProfilePage() {
                 {t('Cancel')}
               </ScButton>
             </div>
-          </ScCard>
+          </div>
+        ) : (
+          <div className="flex">
+            {/* Named "Add vehicle": "Add a car" alone is clear on screen, and
+                a screen reader hears the same name as before. */}
+            <HubPill onClick={() => setShowVehicleForm(true)} ariaLabel={t('Add vehicle')}>
+              <IconPlus size={15} aria-hidden="true" />
+              {t('Add a car')}
+            </HubPill>
+          </div>
         )}
-
-        <div className="flex flex-col gap-2">
-          {vehicles.length === 0 && !showVehicleForm ? (
-            <ScCard>
-              <p className="text-t5 text-text-secondary">
-                {t('No vehicles added yet.')}
-              </p>
-            </ScCard>
-          ) : (
-            vehicles.map((v) => (
-              <ScCard key={v.id} className="flex items-center gap-3">
-                {/* The car opens its history: every job, receipts, photos
-                    and its next coating or detailing reminder. */}
-                <Link
-                  href={`/profile/cars/${v.id}`}
-                  aria-label={t('{make} {model}: history', { make: v.make, model: v.model })}
-                  className="flex min-h-11 min-w-0 flex-1 items-center gap-3"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
-                    <IconCar
-                      size={18}
-                      className="text-text-primary"
-                      aria-hidden="true"
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-0.5 text-t4 font-medium text-text-primary">
-                      <span className="truncate">
-                        {v.make} {v.model}
-                      </span>
-                      <IconChevronRight
-                        size={14}
-                        className="shrink-0 text-text-muted"
-                        aria-hidden="true"
-                      />
-                    </span>
-                    {/* The plate as it looks on the car (moment 8). */}
-                    {v.plate && <NumberPlate plate={v.plate} className="mt-1.5" />}
-                    <span className="mt-1 block text-t5 text-text-secondary">{t('History')}</span>
-                  </span>
-                </Link>
-                {v.isDefault ? (
-                  <ScBadge variant="success">{t('Default')}</ScBadge>
-                ) : (
-                  <button
-                    type="button"
-                    aria-label={t('Make {make} {model} the default vehicle', { make: v.make, model: v.model })}
-                    onClick={() => makeVehicleDefault(v.id)}
-                    disabled={promoting === v.id}
-                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
-                  >
-                    {promoting === v.id ? t('Setting...') : t('Set default')}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  aria-label={t('Edit {make} {model}', { make: v.make, model: v.model })}
-                  onClick={() => setEditingVehicle(v.id)}
-                  className="-my-2 -ml-1 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-                >
-                  <IconPencil size={16} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('Remove {make} {model}', { make: v.make, model: v.model })}
-                  onClick={() => removeVehicle(v.id)}
-                  disabled={deleting === v.id}
-                  // 44px around the 16px bin, mostly out into the card's
-                  // own padding so the row barely widens.
-                  className="-my-2 -ml-1 -mr-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
-                >
-                  <IconTrash size={16} aria-hidden="true" />
-                </button>
-              </ScCard>
-            ))
-          )}
-        </div>
       </section>
 
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-text-primary">{t('Addresses')}</h2>
-          <button
-            type="button"
-            onClick={() => setShowAddressForm((a) => !a)}
-            aria-label={t('Add address')}
-            className="-my-2.5 -mr-2 flex min-h-11 items-center gap-1 px-2 text-t4 text-text-primary"
-          >
-            <IconPlus size={14} aria-hidden="true" />
-            {t('Add')}
-          </button>
-        </div>
+      <ProfileTiles
+        bookings={{ count: figures?.count ?? null, next: figures?.next ?? null }}
+        saved={{
+          count: savedGarages.data?.vendors.length ?? null,
+          photos: (savedGarages.data?.vendors ?? [])
+            .map((v) => v.photos?.[0])
+            .filter((src): src is string => !!src),
+        }}
+        credit={giftsOn ? { label: credit.data ? giftRupees(credit.data.balance) : null } : null}
+        coupons={readyCoupons}
+      />
 
-        {showAddressForm && (
-          <ScCard className="mb-2 flex flex-col gap-3">
+      {/* Bring your garage (21 Nov 2026): the one red card on Profile. */}
+      <BringGarageHubCard />
+
+      {/* The smaller things, in one card: Gift a wash (while gifts are on),
+          Slot alerts (while any wait, 0047) and Detlio Rewards (0050). */}
+      {(giftsOn || slotAlertCount > 0 || rewardsOn) && (
+        <HubList>
+          {giftsOn && <HubRow href="/profile/gifts" icon={IconGift} label={t('Gift a wash')} />}
+          {slotAlertCount > 0 && (
+            <HubRow
+              href="/profile/slot-alerts"
+              icon={IconBell}
+              label={t('Slot alerts')}
+              value={<span className="font-numeric">{slotAlertCount}</span>}
+            />
+          )}
+          {rewardsOn && (
+            <HubRow
+              href="/profile/rewards"
+              icon={IconAward}
+              label={t('Detlio Rewards')}
+              sub={
+                rewardsSummary.data && (
+                  <>
+                    <Figures text={stampsToGoLine(rewardsSummary.data.card.toGo)} />
+                    {/* 0054: the badge count. */}
+                    {rewardsSummary.data.extras &&
+                      rewardsSummary.data.extras.badgesEarned > 0 && (
+                        <Figures
+                          text={` · ${tn(rewardsSummary.data.extras.badgesEarned, '{count} badge', '{count} badges')}`}
+                        />
+                      )}
+                  </>
+                )
+              }
+              value={
+                rewardsSummary.data && (
+                  <LevelBadge
+                    level={rewardsSummary.data.level.level}
+                    label={rewardsSummary.data.level.label}
+                  />
+                )
+              }
+            />
+          )}
+        </HubList>
+      )}
+
+      <section aria-labelledby="profile-addresses" className="flex flex-col gap-3">
+        <HubSectionHead id="profile-addresses" title={t('Addresses')} />
+
+        {addresses.length === 0 && !showAddressForm ? (
+          <div className="hub-card p-5">
+            <p className="text-t3 text-text-secondary">{t('No addresses added yet.')}</p>
+          </div>
+        ) : (
+          addresses.length > 0 && (
+            <div className="hub-card p-5">
+              <AddressMapBand />
+              <ul className="flex flex-col divide-y divide-line">
+                {addresses.map((a) => (
+                  <li key={a.id} className="flex items-center gap-2 py-2 first:pt-0 last:pb-0">
+                    <div className="min-w-0 flex-1" data-clarity-mask="true">
+                      <p className="text-t3 text-text-primary">{a.label}</p>
+                      <p className="truncate text-t5 text-dim">
+                        {a.address}
+                        {a.pincode ? ` · ${a.pincode}` : ''}
+                      </p>
+                    </div>
+                    {a.isDefault ? (
+                      <span className="shrink-0 rounded-full border border-[rgba(74,222,128,.3)] px-2 py-0.5 text-t5 text-[#4ade80]">
+                        {t('Default')}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-label={t('Make {label} the default address', { label: a.label })}
+                        onClick={() => makeAddressDefault(a.id)}
+                        disabled={promoting === a.id}
+                        className="-my-1 min-h-11 shrink-0 px-1 text-t5 text-dim transition-colors hover:text-text-primary disabled:opacity-40"
+                      >
+                        {promoting === a.id ? t('Setting...') : t('Set default')}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={t('Edit {label} address', { label: a.label })}
+                      onClick={() => setEditingAddress(a.id)}
+                      className="-my-2 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
+                    >
+                      <IconPencil size={16} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={t('Remove {label} address', { label: a.label })}
+                      onClick={() => removeAddress(a.id)}
+                      disabled={deleting === a.id}
+                      className="-my-2 -mr-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
+                    >
+                      <IconTrash size={16} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        )}
+
+        {showAddressForm ? (
+          <div className="hub-card flex flex-col gap-3 p-5">
             <ScInput
               data-clarity-mask="true"
               label={t('Label')}
@@ -851,137 +821,58 @@ export default function ProfilePage() {
                 {t('Cancel')}
               </ScButton>
             </div>
-          </ScCard>
+          </div>
+        ) : (
+          <div className="flex">
+            <HubPill onClick={() => setShowAddressForm(true)} ariaLabel={t('Add address')}>
+              <IconPlus size={15} aria-hidden="true" />
+              {t('Add address')}
+            </HubPill>
+          </div>
         )}
-
-        <div className="flex flex-col gap-2">
-          {addresses.length === 0 && !showAddressForm ? (
-            <ScCard>
-              <p className="text-t5 text-text-secondary">
-                {t('No addresses added yet.')}
-              </p>
-            </ScCard>
-          ) : (
-            addresses.map((a) => (
-              <ScCard key={a.id} className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-surface-elevated">
-                  <IconMapPin size={18} className="text-text-primary" />
-                </div>
-                <div className="flex-1 min-w-0" data-clarity-mask="true">
-                  <p className="text-t4 font-medium text-text-primary">
-                    {a.label}
-                  </p>
-                  <p className="text-t5 text-text-secondary truncate">
-                    {a.address}
-                  </p>
-                  {a.pincode && (
-                    <p className="text-t5 text-text-muted">{a.pincode}</p>
-                  )}
-                </div>
-                {a.isDefault ? (
-                  <ScBadge variant="success">{t('Default')}</ScBadge>
-                ) : (
-                  <button
-                    type="button"
-                    aria-label={t('Make {label} the default address', { label: a.label })}
-                    onClick={() => makeAddressDefault(a.id)}
-                    disabled={promoting === a.id}
-                    className="-my-1 min-h-11 shrink-0 rounded-[6px] px-2 py-1 text-t5 font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-40"
-                  >
-                    {promoting === a.id ? t('Setting...') : t('Set default')}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  aria-label={t('Edit {label} address', { label: a.label })}
-                  onClick={() => setEditingAddress(a.id)}
-                  className="-my-2 -ml-1 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-                >
-                  <IconPencil size={16} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('Remove {label} address', { label: a.label })}
-                  onClick={() => removeAddress(a.id)}
-                  disabled={deleting === a.id}
-                  // 44px around the 16px bin, mostly out into the card's
-                  // own padding so the row barely widens.
-                  className="-my-2 -ml-1 -mr-3 flex size-11 shrink-0 items-center justify-center text-text-muted transition-colors hover:text-text-primary disabled:opacity-40"
-                >
-                  <IconTrash size={16} aria-hidden="true" />
-                </button>
-              </ScCard>
-            ))
-          )}
-        </div>
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">{t('Support')}</h2>
-        {/* The answers first: most questions do not need a call. */}
-        <ScCard className="px-0 py-1">
-          <Link
-            href="/help"
-            className="flex items-center justify-between px-3.5 py-2.5 text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
-          >
-            {t('Help centre')}
-            <IconChevronRight
-              size={16}
-              className="text-text-muted"
-              aria-hidden="true"
-            />
-          </Link>
-        </ScCard>
+      <section aria-labelledby="profile-settings" className="flex flex-col gap-3">
+        <HubSectionHead id="profile-settings" title={t('Settings & help')} />
+        <HubList>
+          {/* Browser notifications on this device, and what to send (0044). */}
+          {pushOn && <HubRow href="/profile/notifications" icon={IconBell} label={t('Notifications')} />}
+          {/* English or தமிழ் (Tamil), on this browser. */}
+          <LanguageRow variant="row" />
+          {/* The answers first: most questions do not need a call. */}
+          <HubRow href="/help" icon={IconHelpCircle} label={t('Help centre')} />
+        </HubList>
         <SupportCard />
       </section>
 
       <MyComplaints />
 
-      {/* The five legal pages, one tap from the account they govern. Plain
-          links in one card, like My bookings above: nothing here is an
-          action, so nothing is red. */}
-      <section aria-labelledby="profile-legal">
-        <h2 id="profile-legal" className="mb-2 text-sm font-semibold">
-          {t('Legal')}
-        </h2>
-        <ScCard className="px-0 py-1">
-          <ul className="divide-y divide-border">
-            {LEGAL_LINKS.map((link) => (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className="flex items-center justify-between px-3.5 py-2.5 text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white"
-                >
-                  {link.label}
-                  <IconChevronRight
-                    size={16}
-                    className="text-text-muted"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            ))}
-            <li>
-              {/* Changes the choice the cookie bar asked for. */}
-              <CookieSettingsButton className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-t4 text-text-primary transition-colors hover:text-brand-white focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-white">
-                {t('Cookie settings')}
-                <IconChevronRight
-                  size={16}
-                  className="text-text-muted"
-                  aria-hidden="true"
-                />
-              </CookieSettingsButton>
-            </li>
-          </ul>
-        </ScCard>
+      {/* The five legal pages, one tap from the account they govern, and the
+          cookie choice. Plain links: nothing here is an action, so nothing
+          is red. */}
+      <section aria-labelledby="profile-legal" className="flex flex-col gap-3">
+        <HubSectionHead id="profile-legal" title={t('Legal')} />
+        <HubList>
+          {LEGAL_LINKS.map((link) => (
+            <HubRow key={link.href} href={link.href} icon={IconFileText} label={link.label} />
+          ))}
+          {/* Changes the choice the cookie bar asked for. */}
+          <CookieSettingsButton className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left text-t3 text-text-primary">
+            <RowIcon icon={IconCookie} />
+            <span className="min-w-0 flex-1">{t('Cookie settings')}</span>
+            <IconChevronRight size={16} className="shrink-0 text-text-muted" aria-hidden="true" />
+          </CookieSettingsButton>
+        </HubList>
       </section>
 
-      <ScButton variant="secondary" onClick={handleLogout}>
-        <span className="flex items-center justify-center gap-2">
-          <IconLogout size={18} />
-          {t('Log out')}
-        </span>
-      </ScButton>
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="press mt-1 flex min-h-12 items-center justify-center gap-2 rounded-full border border-line bg-white/[0.03] text-t3 text-text-primary"
+      >
+        <IconLogout size={18} aria-hidden="true" />
+        {t('Log out')}
+      </button>
 
       {/* Apple 5.1.1(v) (0066): deleting the account in the app. Quiet, last
           on the page; the sheet says what goes, what stays and why. */}

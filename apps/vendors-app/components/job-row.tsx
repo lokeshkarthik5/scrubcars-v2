@@ -10,15 +10,18 @@ import { cancelledLabel, nextStep, nextStepLabel, shortName, statusLabel } from 
 import { createStyles, useColors } from '@repo/native-ui/theme';
 
 import { Label, ScButton } from '@repo/native-ui/button';
-import { IconCamera, IconCar, IconChevronRight } from '@repo/native-ui/icons';
-import { StatusChip } from '@repo/native-ui/primitives';
+import { IconCamera, IconCar } from '@repo/native-ui/icons';
+import { HubCard } from '@repo/native-ui/primitives';
+import { CarLine, HubTag, type TagTone } from './hub/parts';
 import { listServicesLine } from '@/lib/add-on-lines';
 import { T } from '@repo/native-ui/text';
 import { msg, useT } from '@repo/core/i18n';
 
 /**
- * JobRow (apps/vendors/components/job-row.tsx): one short row per job, the time big
- * down the left edge. On Today it also carries the job's one next step.
+ * JobRow (apps/vendors/components/job-row.tsx), in the Home look (mockup garage-hub 2):
+ * one hub card per job, the time large and light with am/pm small, its status tag, the
+ * customer, the car with its plate, what and where, and on Today the job's one next step.
+ * The job under way keeps its blue edge and the red button.
  */
 export function JobRow({
   booking: b,
@@ -44,84 +47,80 @@ export function JobRow({
   const stepTint = emphasis ? colors.white : colors.textPrimary;
 
   return (
-    <Pressable
-      accessibilityLabel={t('Job for {who}', { who })}
-      onPress={open}
-      style={[styles.row, emphasis ? styles.emphasis : styles.plain]}
-    >
-      {emphasis ? <View style={styles.edge} /> : null}
-      <View style={styles.top}>
-        <View style={styles.clock}>
-          <T num size={24} weight={700} lh={24} tracking={-0.025}>
-            {clock}
-          </T>
-          <T num size={14} lh={14} color={colors.textSecondary} style={styles.meridiem}>
-            {meridiem}
-          </T>
-        </View>
-        <View style={styles.flex}>
-          <View style={styles.titleRow}>
-            <T size={17} weight={600} numberOfLines={1} style={styles.shrink}>
-              {shortName(b.customerName)}
+    <Pressable accessibilityLabel={t('Job for {who}', { who })} onPress={open}>
+      <HubCard style={styles.card}>
+        {emphasis ? <View style={styles.edge} /> : null}
+        <View style={styles.top}>
+          <View style={styles.clock}>
+            <T num size={showStep ? 38 : 30} weight={300} lh={showStep ? 40 : 32} tracking={-0.035}>
+              {clock}
             </T>
-            <RowChip booking={b} now={now} startsIn={startsIn} deferred={deferred} />
+            <T num size={14} lh={18} color={colors.dim}>
+              {meridiem}
+            </T>
           </View>
-          {b.vehicle ? (
-            <T size={15} color={colors.textSecondary} numberOfLines={1}>
-              {`${b.vehicle.make} ${b.vehicle.model} · `}
-              <T num size={15} tracking={0.025} color={colors.textSecondary}>
-                {b.vehicle.plate}
-              </T>
-            </T>
-          ) : null}
-          <T size={15} color={colors.textSecondary} numberOfLines={1}>
-            {`${listServicesLine(b)} · ${t(BOOKING_TYPE_LABELS[b.bookingType])}`}
-          </T>
-          {dayOff && b.status !== 'completed' ? (
-            <T size={14} color={colors.textSecondary} style={styles.label}>
-              {t(cancelledLabel(b))}
-            </T>
-          ) : null}
+          <RowChip booking={b} now={now} startsIn={startsIn} deferred={deferred} />
         </View>
-        {!step ? (
-          <View style={styles.chevron}>
-            <IconChevronRight size={20} color={colors.textMuted} />
+        <T size={18} lh={24} numberOfLines={1} style={styles.name}>
+          {shortName(b.customerName)}
+        </T>
+        {b.vehicle ? (
+          <View style={styles.line}>
+            <CarLine vehicle={b.vehicle} />
           </View>
         ) : null}
-      </View>
+        <T size={13} lh={18} color={colors.dim} numberOfLines={1} style={styles.line}>
+          {`${listServicesLine(b)} · ${t(BOOKING_TYPE_LABELS[b.bookingType])}`}
+        </T>
+        {dayOff && b.status !== 'completed' ? (
+          <T size={13} lh={18} color={colors.textSecondary} style={styles.line}>
+            {t(cancelledLabel(b))}
+          </T>
+        ) : null}
 
-      {step ? (
-        <View style={styles.step}>
-          {step.kind === 'start' || step.kind === 'complete' ? (
-            <ScButton
-              variant={emphasis ? 'main' : 'outline'}
-              size={emphasis ? 'lg' : 'md'}
-              accessibilityLabel={t('{step} for {who}', { step: t(nextStepLabel(step)), who })}
-              onPress={() => changeStatusWithUndo(b.id, step.kind === 'start' ? 'in_progress' : 'completed')}
-            >
-              {t(nextStepLabel(step))}
-            </ScButton>
-          ) : step.kind === 'wait' ? (
-            <T size={14} color={colors.textSecondary}>
-              {t(step.text)}
-            </T>
-          ) : (
-            <ScButton
-              variant={emphasis ? 'main' : 'outline'}
-              size={emphasis ? 'lg' : 'md'}
-              accessibilityLabel={t('{step} for {who}', { step: t(nextStepLabel(step)), who })}
-              onPress={open}
-            >
-              {step.kind === 'photos' ? <IconCamera size={20} color={stepTint} /> : null}
-              {step.kind === 'pickup' ? <IconCar size={20} color={stepTint} /> : null}
-              <Label color={stepTint}>{t(nextStepLabel(step))}</Label>
-            </ScButton>
-          )}
-        </View>
-      ) : null}
+        {step ? (
+          <View style={styles.step}>
+            {step.kind === 'start' || step.kind === 'complete' ? (
+              <ScButton
+                variant={emphasis ? 'main' : 'quiet'}
+                size={emphasis ? 'lg' : 'md'}
+                accessibilityLabel={t('{step} for {who}', { step: t(nextStepLabel(step)), who })}
+                onPress={() => changeStatusWithUndo(b.id, step.kind === 'start' ? 'in_progress' : 'completed')}
+              >
+                {t(nextStepLabel(step))}
+              </ScButton>
+            ) : step.kind === 'wait' ? (
+              <T size={14} color={colors.textSecondary}>
+                {t(step.text)}
+              </T>
+            ) : (
+              <ScButton
+                variant={emphasis ? 'main' : 'quiet'}
+                size={emphasis ? 'lg' : 'md'}
+                accessibilityLabel={t('{step} for {who}', { step: t(nextStepLabel(step)), who })}
+                onPress={open}
+              >
+                {step.kind === 'photos' ? <IconCamera size={20} color={stepTint} /> : null}
+                {step.kind === 'pickup' ? <IconCar size={20} color={stepTint} /> : null}
+                <Label color={stepTint}>{t(nextStepLabel(step))}</Label>
+              </ScButton>
+            )}
+          </View>
+        ) : null}
+      </HubCard>
     </Pressable>
   );
 }
+
+/** The status chip's tone as the hub's outline tag: blue under way, green accepted or done. */
+const TAG_TONE: Record<ReturnType<typeof bookingStatusTone>, TagTone> = {
+  new: 'red',
+  progress: 'blue',
+  done: 'green',
+  attention: 'amber',
+  late: 'red',
+  closed: 'quiet',
+};
 
 const DEFERRED_CHIP: Record<NonNullable<ReturnType<typeof useDeferredStatus>>, string> = {
   confirmed: msg('Accepted'),
@@ -144,49 +143,33 @@ function RowChip({
   deferred: ReturnType<typeof useDeferredStatus>;
 }) {
   const t = useT();
-  const styles = useStyles();
   if (deferred) {
-    return <StatusChip tone={deferred === 'completed' ? 'done' : 'progress'}>{t(DEFERRED_CHIP[deferred])}</StatusChip>;
+    return (
+      <HubTag dot tone={deferred === 'completed' ? 'green' : 'blue'}>
+        {t(DEFERRED_CHIP[deferred])}
+      </HubTag>
+    );
   }
   // An accepted job about to start says when, the way a garage plans its next hour.
   if (startsIn !== null && startsIn > 0 && startsIn <= 3 * 60 * 60 * 1000) {
-    return (
-      <View style={styles.relative}>
-        <T num size={13} weight={500} lh={18}>
-          {formatRelative(b.scheduledAtIso, now)}
-        </T>
-      </View>
-    );
+    return <HubTag>{formatRelative(b.scheduledAtIso, now)}</HubTag>;
   }
-  return <StatusChip tone={bookingStatusTone(b.status)}>{t(statusLabel(b))}</StatusChip>;
+  // Accepted reads green as on the mockup; the job under way is the blue one.
+  const tone = b.status === 'confirmed' ? 'green' : TAG_TONE[bookingStatusTone(b.status)];
+  return (
+    <HubTag tone={tone} dot={tone === 'blue'}>
+      {t(statusLabel(b))}
+    </HubTag>
+  );
 }
 
 const useStyles = createStyles((colors) => ({
-  flex: { flex: 1, minWidth: 0 },
-  shrink: { flexShrink: 1, minWidth: 0 },
-  row: {
-    borderRadius: 20,
-    borderWidth: 1,
-    backgroundColor: colors.surface,
-    padding: 16,
-    overflow: 'hidden',
-  },
-  plain: { borderColor: colors.border },
-  emphasis: { borderColor: colors.progressBorder },
-  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.tones.progress.dot },
-  top: { flexDirection: 'row', gap: 16 },
-  clock: { width: 64 },
-  meridiem: { marginTop: 4 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  label: { marginTop: 4 },
-  chevron: { alignSelf: 'center', marginTop: 4 },
-  step: { marginTop: 12 },
-  relative: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.outlineChip,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    flexShrink: 0,
-  },
+  card: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 18, overflow: 'hidden' },
+  // The job under way keeps its blue edge (mockup garage-hub 2).
+  edge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: colors.tones.progress.dot },
+  top: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  clock: { flexDirection: 'row', alignItems: 'baseline', gap: 4, flexShrink: 1 },
+  name: { marginTop: 10 },
+  line: { marginTop: 4 },
+  step: { marginTop: 14 },
 }));
