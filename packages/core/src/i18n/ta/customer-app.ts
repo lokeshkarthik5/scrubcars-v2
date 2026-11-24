@@ -601,6 +601,28 @@ export const customerApp: Readonly<Record<string, string>> = {
   '{name} accepted this booking, then had to cancel it. Sorry about that.':
     '{name} இந்த புக்கிங்கை ஏற்று, பிறகு ரத்து செய்ய வேண்டியதாயிற்று. அதற்கு வருந்துகிறோம்.',
   // ─── The area sheet, per city (0070) ───
-  'No area called “{trim}” yet. Try a nearby one, or All of {city}.':
-    '“{trim}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  'Nothing called “{query}” in {city}. Try a nearby area, or All of {city}.':
+    '{city}-இல் “{query}” என்ற இடம் இல்லை. அருகில் உள்ள பகுதியை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  'Other places in {city}': '{city}-இல் மற்ற இடங்கள்',
+  'Searching {city}…': '{city}-இல் தேடுகிறது…',
+  // ─── Profile in the Home look (22 Nov 2026) ───
+  'Garages tried': 'முயன்ற கேரேஜ்கள்',
+  'Booking': 'புக்கிங்',
+  'Bookings': 'புக்கிங்குகள்',
+  'Car': 'கார்',
+  'Cars': 'கார்கள்',
+  'Your garage': 'உங்கள் கேரேஜ்',
+  'Add number plate': 'நம்பர் பிளேட்டைச் சேர்க்கவும்',
+  'Edit car': 'காரைத் திருத்து',
+  'Next: {when}': 'அடுத்தது: {when}',
+  'None coming up': 'வரவிருப்பது எதுவும் இல்லை',
+  '{count} saved': '{count} சேமிக்கப்பட்டது',
+  'Tap to see them': 'பார்க்கத் தட்டவும்',
+  'Tap ♡ on a garage to save it': 'ஒரு கேரேஜைச் சேமிக்க ♡ தட்டவும்',
+  'Used on your next booking': 'உங்கள் அடுத்த புக்கிங்கில் பயன்படுத்தப்படும்',
+  'Settings & help': 'அமைப்புகள் & உதவி',
+  'Your cars': 'உங்கள் கார்கள்',
+  'Bring your garage': 'உங்கள் கேரேஜைக் கொண்டு வாருங்கள்',
+  'Get {amount} credit': '{amount} கிரெடிட் பெறுங்கள்',
+  'Know a good garage? Bring it to Detlio. You get it when they join and you book them.': 'நல்ல கேரேஜ் தெரியுமா? அதை Detlio-க்குக் கொண்டு வாருங்கள். அவர்கள் சேர்ந்து, நீங்கள் அவர்களிடம் புக் செய்ததும் இது கிடைக்கும்.',
 }

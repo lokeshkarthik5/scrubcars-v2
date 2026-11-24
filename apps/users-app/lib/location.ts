@@ -1,5 +1,5 @@
 import { msg } from '@repo/core/i18n/translate';
-import { cityLocation, type ActiveLocation, type PermissionState } from '@repo/core/stores/location-store';
+import { cityLocation, placeLocation, type ActiveLocation, type PermissionState } from '@repo/core/stores/location-store';
 import * as Location from 'expo-location';
 import { create } from 'zustand';
 
@@ -45,6 +45,8 @@ interface LocationState extends Stored {
   locating: boolean;
   dismissPrompt: () => void;
   setArea: (zone: { slug: string; name: string; lat: number; lng: number }) => void;
+  /** Any place in the city found by the sheet's search: an area with no zone (placeLocation). */
+  setPlace: (place: { name: string; lat: number; lng: number }) => void;
   /** A whole city picked in the sheet (0070): its centre, named for it, with its id. */
   selectCity: (city: { id: string; name: string; centre: { lat: number; lng: number } }) => void;
   refreshPermission: () => Promise<void>;
@@ -79,6 +81,7 @@ export const useLocationStore = create<LocationState>()((set, get) => {
         zone: zone.slug,
         updatedAt: Date.now(),
       }),
+    setPlace: (place) => setLocation(placeLocation(place)),
     selectCity: (city) => setLocation(cityLocation(city)),
     reset: () => {
       set({ location: null, promptDismissedAt: null, locating: false });
