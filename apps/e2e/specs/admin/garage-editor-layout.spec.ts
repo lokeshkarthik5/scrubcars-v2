@@ -171,10 +171,11 @@ test.describe('admin garage editor layout', () => {
     await who.selectOption({ label: 'Not set' })
     await save.click()
     await expect.poll(onboardedBy).toBeNull()
-    // The save has finished (the bar is gone) before the next change: when it
-    // lands it reloads the saved value, which would wipe a choice made
-    // while it was still on its way.
+    // The bar goes as soon as the save is sent, and the page then reloads
+    // the saved value. A choice made during that reload is wiped, so wait
+    // for the reload before the next change.
     await expect(save).toHaveCount(0)
+    await page.reload()
     await expect(who).toHaveValue('')
 
     // And back to a login.
