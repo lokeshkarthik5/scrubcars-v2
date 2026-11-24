@@ -1534,8 +1534,10 @@ export const customerWeb: Readonly<Record<string, string>> = {
   // ─── lib/price.ts ──────────────────────────────────────────────────────────
   '{price} inspection': '{price} இன்ஸ்பெக்ஷன்',
   // ─── The area sheet, per city (0070) ───
-  'No area called “{query}” yet. Try a nearby one, or All of {city}.':
-    '“{query}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  'Nothing called “{query}” in {city}. Try a nearby area, or All of {city}.':
+    '{city}-இல் “{query}” என்ற இடம் இல்லை. அருகில் உள்ள பகுதியை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  'Other places in {city}': '{city}-இல் மற்ற இடங்கள்',
+  'Searching {city}…': '{city}-இல் தேடுகிறது…',
   // ─── On inspection with no fee (0073); the native app says the same ───
   'Pay after inspection': 'பரிசோதனைக்குப் பிறகு செலுத்துங்கள்',
   'No inspection fee. After seeing your car the garage sends the price in the app, and you pay it there.':

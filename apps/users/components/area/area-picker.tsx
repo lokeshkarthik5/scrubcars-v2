@@ -12,6 +12,9 @@ import { GraphiteSwitch } from '@repo/ui/finish/graphite-switch'
 import { ScSheet } from '@repo/ui/sc/modal'
 import { track } from '@repo/core/analytics'
 import { useZones } from '@repo/core/api/hooks/use-zones'
+import { useAreaPlaces } from '@repo/core/api/hooks/use-area-places'
+import { createGeoSessionToken } from '@repo/core/api/geo'
+import type { AreaPlace } from '@repo/core/area-place'
 import { useCustomerPlace } from '@repo/core/hooks/use-customer-place'
 import {
   CITY_SWITCH_MAX,
@@ -41,6 +44,19 @@ export function useAreaPick(mode?: BookingType) {
   return (zone: Pick<Zone, 'slug' | 'name' | 'lat' | 'lng'>) => {
     setArea(zone)
     track('area_pick', mode ? { area: zone.slug, mode } : { area: zone.slug })
+  }
+}
+
+/**
+ * Picks a place found by the sheet's search (22 Nov 2026): kept like an area
+ * with no zone, and recorded as "picked an area" with `area: 'place'`, so
+ * the event's other values stay the zones' slugs.
+ */
+export function usePlacePick(mode?: BookingType) {
+  const setPlace = useLocationStore((s) => s.setPlace)
+  return (place: Pick<AreaPlace, 'name' | 'lat' | 'lng'>) => {
+    setPlace(place)
+    track('area_pick', mode ? { area: 'place', mode } : { area: 'place' })
   }
 }
 
@@ -115,6 +131,7 @@ export function AreaPicker({
   const viewed = cities.find((c) => c.id === viewedId) ?? customerCity
   const manyCities = cities.length > 1
   const pickArea = useAreaPick(mode)
+  const pickPlace = usePlacePick(mode)
   const nearMe = useNearMe(mode)
   const [query, setQuery] = useState('')
   // Open again by itself after "Near me" was refused at the browser's
@@ -134,6 +151,11 @@ export function AreaPicker({
 
   const choose = (zone: Zone) => {
     pickArea(zone)
+    close()
+  }
+
+  const choosePlace = (place: AreaPlace) => {
+    pickPlace(place)
     close()
   }
 
@@ -205,6 +227,7 @@ export function AreaPicker({
             cities={cities}
             chosen={location?.source === 'area' ? location.zone : undefined}
             onChoose={choose}
+            onChoosePlace={choosePlace}
           />
 
           <button
@@ -287,9 +310,11 @@ function CityChoice({
 }
 
 /**
- * The city's zones, filtered by the search. Its own component so the zones
- * are only read (useZones) while the sheet is open: ScSheet renders nothing
- * when closed.
+ * The city's zones, filtered by the search, and under them any place in the
+ * city that matches (useAreaPlaces, 22 Nov 2026): "Other places in Chennai".
+ * Its own component so the zones and places are only read while the sheet is
+ * open (ScSheet renders nothing when closed), with one search session per
+ * opening.
  */
 function AreaList({
   query,
@@ -297,50 +322,95 @@ function AreaList({
   cities,
   chosen,
   onChoose,
+  onChoosePlace,
 }: {
   query: string
   city: CustomerCity
   cities: readonly CustomerCity[]
   chosen: string | undefined
   onChoose: (zone: Zone) => void
+  onChoosePlace: (place: AreaPlace) => void
 }) {
   const t = useT()
+  const [sessionToken] = useState(createGeoSessionToken)
   const inCity = useZones().filter((zone) => zoneInCity(zone, city, cities))
   const found = searchZones(inCity, query)
-  // A city with no areas drawn yet lists none: "All of <City>" right below
-  // is the choice there, and "No area called …" with nothing typed would be
-  // nonsense.
-  if (inCity.length === 0) return null
+  const { places, searching } = useAreaPlaces({
+    query,
+    city,
+    cities,
+    zoneNames: found.map((zone) => zone.name),
+    sessionToken,
+  })
+  const typed = query.trim()
+  const nothing = typed.length > 0 && found.length === 0 && places.length === 0 && !searching
   return (
-    <ul aria-label={t('Areas')} className="flex flex-col">
-      {found.map((zone) => {
-        const on = chosen === zone.slug
-        return (
-          <li key={zone.slug}>
-            <button
-              type="button"
-              aria-pressed={on}
-              onClick={() => onChoose(zone)}
-              className={cn(
-                'flex min-h-12 w-full items-center gap-3 border-b border-line px-1 text-left text-t3 text-text-primary',
-                on && 'font-medium'
-              )}
-            >
-              <IconMapPin size={16} aria-hidden className="shrink-0 text-text-secondary" />
-              <span className="min-w-0 flex-1">{zone.name}</span>
-              {on && <IconCheck size={16} aria-hidden className="shrink-0" />}
-            </button>
-          </li>
-        )
-      })}
-      {found.length === 0 && (
-        <li className="py-4 text-t4 text-text-secondary">
-          {t('No area called “{query}” yet. Try a nearby one, or All of {city}.', {
-            query: query.trim(),
+    <div className="flex flex-col gap-2">
+      {/* A city with no areas drawn yet lists none: its places still come
+          up when typed, and "All of <City>" right below is the choice. */}
+      {found.length > 0 && (
+        <ul aria-label={t('Areas')} className="flex flex-col">
+          {found.map((zone) => {
+            const on = chosen === zone.slug
+            return (
+              <li key={zone.slug}>
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onChoose(zone)}
+                  className={cn(
+                    'flex min-h-12 w-full items-center gap-3 border-b border-line px-1 text-left text-t3 text-text-primary',
+                    on && 'font-medium'
+                  )}
+                >
+                  <IconMapPin size={16} aria-hidden className="shrink-0 text-text-secondary" />
+                  <span className="min-w-0 flex-1">{zone.name}</span>
+                  {on && <IconCheck size={16} aria-hidden className="shrink-0" />}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {places.length > 0 && (
+        <section aria-label={t('Other places in {city}', { city: city.name })} className="flex flex-col">
+          <h3 className="px-1 pt-2 pb-1 text-t5 text-text-secondary">
+            {t('Other places in {city}', { city: city.name })}
+          </h3>
+          <ul className="flex flex-col">
+            {places.map((place) => (
+              <li key={place.id}>
+                <button
+                  type="button"
+                  onClick={() => onChoosePlace(place)}
+                  className="flex min-h-12 w-full items-center gap-3 border-b border-line px-1 py-2 text-left text-text-primary"
+                >
+                  <IconSearch size={16} aria-hidden className="shrink-0 text-text-secondary" />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-t3">{place.name}</span>
+                    {place.detail && (
+                      <span className="truncate text-t5 text-text-secondary">{place.detail}</span>
+                    )}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {searching && found.length === 0 && places.length === 0 && (
+        <p role="status" className="py-4 text-t4 text-text-secondary">
+          {t('Searching {city}…', { city: city.name })}
+        </p>
+      )}
+      {nothing && (
+        <p className="py-4 text-t4 text-text-secondary">
+          {t('Nothing called “{query}” in {city}. Try a nearby area, or All of {city}.', {
+            query: typed,
             city: city.name,
           })}
-        </li>
+        </p>
       )}
-    </ul>
+    </div>
   )
 }
