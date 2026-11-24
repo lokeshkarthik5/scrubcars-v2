@@ -3239,3 +3239,52 @@ html:has(.legal-doc) {
 .page-enter:has([data-app-landing]) {
   animation: none;
 }
+
+/* ─── Profile in the Home look (22 Nov 2026) ─────────────────────────────── */
+.profile-name {
+  font-size: 30px;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: #f5f5f6;
+}
+/* The photo's thin red ring, the one touch of red at the top. */
+.profile-avatar {
+  box-shadow:
+    0 0 0 3px #17171a,
+    0 0 0 4.5px rgba(228, 0, 43, 0.75),
+    0 10px 36px -6px rgba(228, 0, 43, 0.28);
+}
+.profile-car-title {
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: #f5f5f6;
+}
+/* The car cards: one per car, swiped sideways, each snapping into place. */
+.profile-cars {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.profile-cars::-webkit-scrollbar {
+  display: none;
+}
+.profile-cars > * {
+  scroll-snap-align: center;
+}
+.profile-bring {
+  background: linear-gradient(135deg, #2a0710 0%, #160609 55%, #141416 100%);
+  border-color: rgba(228, 0, 43, 0.35);
+}
+.profile-bring__glow {
+  position: absolute;
+  top: -34px;
+  right: -28px;
+  width: 150px;
+  height: 150px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(228, 0, 43, 0.22), transparent 70%);
+  pointer-events: none;
+}

@@ -6,6 +6,6 @@ import { PlateDrawing } from '@repo/native-ui/number-plate';
  * components/moments/number-plate.tsx), laid out by core's formatIndianPlate. The
  * drawing is shared with the garage app's Garage Book (packages/native-ui/src/number-plate.tsx).
  */
-export function NumberPlate({ plate, size = 'md' }: { plate: string; size?: 'sm' | 'md' }) {
+export function NumberPlate({ plate, size = 'md' }: { plate: string; size?: 'sm' | 'md' | 'lg' }) {
   return <PlateDrawing text={formatIndianPlate(plate)} size={size} />;
 }
