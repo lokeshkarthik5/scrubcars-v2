@@ -182,6 +182,20 @@ export default function HomeScreen() {
           {mustAct?.kind === 'extra_work_due' ? <ExtraWorkHomeCard card={mustAct} now={now} /> : null}
           {mustAct?.kind === 'bill_due' ? <BillDueCard card={mustAct} now={now} /> : null}
           {mustAct?.kind === 'garage_closed' ? <GarageClosedCard card={mustAct} /> : null}
+          {/* Offers first, white (owner, 24 Nov 2026): after anything to act on, above the softer cards and the car, as on the web. */}
+          {offers.length > 0 ? (
+            <HomeOffers
+              offers={offers}
+              userId={authUser.id}
+              vehicleId={car?.id ?? null}
+              hasCar={cars.length > 0}
+              muted={billDue}
+              onNeedCar={(go) => {
+                afterAdding.current = go;
+                setAddCarOpen(true);
+              }}
+            />
+          ) : null}
           {soft?.kind === 'rate' ? (
             <RateWashCard card={soft} dismissing={dismissRate.isPending} onDismiss={() => dismissRate.mutate(soft.bookingId)} />
           ) : null}
@@ -231,20 +245,6 @@ export default function HomeScreen() {
               {repairOn ? <RepairQuotesTile /> : null}
               {shine && repairOn ? null : <View style={styles.flex} />}
             </View>
-          ) : null}
-
-          {offers.length > 0 ? (
-            <HomeOffers
-              offers={offers}
-              userId={authUser.id}
-              vehicleId={car?.id ?? null}
-              hasCar={cars.length > 0}
-              muted={billDue}
-              onNeedCar={(go) => {
-                afterAdding.current = go;
-                setAddCarOpen(true);
-              }}
-            />
           ) : null}
 
           {rewards.data ? (

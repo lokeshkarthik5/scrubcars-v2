@@ -89,7 +89,7 @@ test.describe('Home hub @p0', () => {
   test.describe('an offer that is live', () => {
     test.use({ storageState: asRole('customer-homeOffer') })
 
-    test('sits below the car as a dark ticket; Book a wash is the one red button', async ({ page }) => {
+    test('sits above the car as a white ticket; Book a wash is the one red button', async ({ page }) => {
       await page.goto('/home?welcome=1')
 
       await expect(page.getByText('Welcome, Hub! Find your first car wash.')).toBeVisible()
@@ -97,10 +97,10 @@ test.describe('Home hub @p0', () => {
       await expect(offer).toBeVisible()
       await expect(offer).toHaveAccessibleName(new RegExp(DISCOUNTS.homeBooked.homeTitle))
       await expect(carHero(page)).toBeVisible()
-      // The approved Home (F2): the car first, the offer one card down, so
-      // the ticket never outshines the screen's red button.
-      expect(await comesBefore(carHero(page), offer)).toBe(true)
-      await expect(page.locator('.offer-coupon').filter({ has: offer })).toHaveClass(/offer-coupon--dark/)
+      // The offer is the first thing on Home, above the car (owner, 24 Nov
+      // 2026), as the white ticket the admin's preview shows.
+      expect(await comesBefore(offer, carHero(page))).toBe(true)
+      await expect(page.locator('.offer-coupon').filter({ has: offer })).not.toHaveClass(/offer-coupon--dark/)
 
       // One red action on the screen, and it is Book a wash.
       await expect(page.locator('.cta-hero')).toHaveCount(1)

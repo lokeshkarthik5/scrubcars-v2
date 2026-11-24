@@ -14,6 +14,12 @@ import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { usePendingCheckout } from '@/lib/pending-checkout';
 
 const GAP = 8;
+/**
+ * The white ticket's own ink (packages/ui/styles/globals.css, .offer-coupon): a light surface in
+ * either appearance, so it doesn't take the theme's text colours. Contrast on #F1F1EE: ink 17:1,
+ * meta 7.8:1, eyebrow 5.3:1, red on the stub 5.2:1.
+ */
+const INK = { ink: '#0B0B0D', ink2: '#4A4A52', ink3: '#62626A', red: '#C4002A' };
 /** packages/ui/styles/globals.css, offer-coupon__figure[data-size]. */
 const FIGURE_SIZE: Record<OfferFigureSize, number> = { percent: 40, amount: 34, 'amount-sm': 26, 'amount-xs': 20, free: 26 };
 
@@ -26,7 +32,6 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
   width: number;
 }) {
   const t = useT();
-  const colors = useColors();
   const styles = useStyles();
   const fig = formatOfferFigure(offerFigureOf(offer));
   const code = offer.code.trim();
@@ -34,7 +39,8 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
   const Eyebrow = offer.vendorId ? IconBuildingStore : IconSparkles;
   const label = offer.vendorId ? (offer.vendorName ?? t('Garage')) : 'Detlio';
   return (
-    <View style={[styles.ticket, { width, opacity: muted ? 0.72 : 1 }]}>
+    <View style={[styles.lift, { width, opacity: muted ? 0.72 : 1 }]}>
+      <View style={styles.ticket}>
       <PressRow
         accessibilityLabel={[t('{title} at {name}', { title: offer.title, name: label }), code && t('code {code}', { code }), ...meta, t('use offer')].filter(Boolean).join(', ')}
         onPress={onSelect}
@@ -42,45 +48,47 @@ function Coupon({ offer, hasCar, muted, onSelect, onDismiss, width }: {
       >
         <View style={styles.main}>
           <View style={styles.eyebrow}>
-            <Eyebrow size={15} stroke={1.5} color={colors.dim} />
-            <T size={13} numberOfLines={1} color={colors.dim} style={styles.shrink}>
+            <Eyebrow size={15} stroke={1.5} color={INK.ink3} />
+            <T size={13} numberOfLines={1} color={INK.ink3} style={styles.shrink}>
               {t('{label} · Offer', { label })}
             </T>
           </View>
-          <T size={20} lh={24} tracking={-0.022} numberOfLines={2} style={styles.title}>
+          <T size={20} lh={24} tracking={-0.022} numberOfLines={2} color={INK.ink} style={styles.title}>
             {offer.title}
           </T>
           {meta.map((line, i) => (
-            <T key={i} size={13} lh={17} numberOfLines={1} color={colors.textSoft} style={i === 0 ? styles.meta : undefined}>
+            <T key={i} size={13} lh={17} numberOfLines={1} color={INK.ink2} style={i === 0 ? styles.meta : undefined}>
               {line}
             </T>
           ))}
         </View>
         <View style={styles.stub}>
-          <T num size={FIGURE_SIZE[fig.size]} weight={500} lh={FIGURE_SIZE[fig.size] + 4} tracking={-0.03}>
-            {fig.prefix ? <T num size={Math.min(20, FIGURE_SIZE[fig.size])} weight={500}>{fig.prefix}</T> : null}
+          <T num size={FIGURE_SIZE[fig.size]} weight={500} lh={FIGURE_SIZE[fig.size] + 4} tracking={-0.03} color={INK.red}>
+            {fig.prefix ? <T num size={Math.min(20, FIGURE_SIZE[fig.size])} weight={500} color={INK.red}>{fig.prefix}</T> : null}
             {fig.value}
-            {fig.suffix ? <T num size={18} weight={500}>{fig.suffix}</T> : null}
+            {fig.suffix ? <T num size={18} weight={500} color={INK.red}>{fig.suffix}</T> : null}
           </T>
           {code ? (
             <View style={styles.code}>
-              <T num size={11} weight={500} lh={14} tracking={0.04} numberOfLines={1} color={colors.redText} style={styles.shrink}>
+              <T num size={11} weight={500} lh={14} tracking={0.04} numberOfLines={1} color={INK.ink} style={styles.shrink}>
                 {code}
               </T>
-              <IconArrowUpRight size={14} stroke={1.8} color={colors.redText} />
+              <IconArrowUpRight size={14} stroke={1.8} color={INK.ink} />
             </View>
           ) : null}
         </View>
       </PressRow>
       <Pressable accessibilityRole="button" accessibilityLabel={t('Hide offer')} onPress={onDismiss} style={styles.dismiss}>
-        <IconX size={18} stroke={1.5} color={colors.dim} />
+        <IconX size={18} stroke={1.5} color={INK.ink3} />
       </Pressable>
+      </View>
     </View>
   );
 }
 
 /**
- * HomeOffers + OfferCoupon/OfferCarousel: up to three tickets in Home's one swipe row. A tap
+ * HomeOffers + OfferCoupon/OfferCarousel: up to three white tickets at the top of Home (owner,
+ * 24 Nov 2026), in Home's one swipe row. A tap
  * remembers the code and goes where it can be used; × hides the offer for good.
  */
 export function HomeOffers({
@@ -153,9 +161,12 @@ export function HomeOffers({
 }
 
 const useStyles = createStyles((c) => ({
-  track: { marginHorizontal: -16 },
-  trackInner: { gap: GAP, paddingHorizontal: 16 },
-  ticket: { borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: c.scheme === 'light' ? c.border : c.line, backgroundColor: c.scheme === 'light' ? c.surface : c.cardBottom },
+  // Room under the tickets for their shadow, which the row would otherwise clip.
+  track: { marginHorizontal: -16, marginBottom: -20 },
+  trackInner: { gap: GAP, paddingHorizontal: 16, paddingBottom: 20 },
+  // White in either appearance: a drop shadow lifts it off a dark Home, a hairline off a light one.
+  lift: { borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 14 }, shadowOpacity: c.scheme === 'light' ? 0.12 : 0.55, shadowRadius: 18, elevation: 8 },
+  ticket: { borderRadius: 28, overflow: 'hidden', borderWidth: c.scheme === 'light' ? 1 : 0, borderColor: c.border, backgroundColor: '#F7F7F5' },
   hit: { flexDirection: 'row', minHeight: 120 },
   main: { flex: 1, minWidth: 0, paddingTop: 16, paddingRight: 12, paddingBottom: 16, paddingLeft: 20 },
   eyebrow: { height: 20, flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -170,11 +181,11 @@ const useStyles = createStyles((c) => ({
     paddingHorizontal: 6,
     borderLeftWidth: 1,
     borderStyle: 'dashed',
-    borderColor: c.scheme === 'light' ? c.stroke : '#3A3A42',
-    backgroundColor: c.scheme === 'light' ? c.canvas : '#121215',
+    borderColor: '#C9C8C2',
+    backgroundColor: '#EEEDE8',
   },
   code: { flexDirection: 'row', alignItems: 'center', gap: 2, maxWidth: '100%' },
   dismiss: { position: 'absolute', right: 2, top: 2, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  dots: { marginTop: 8, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  dots: { marginTop: 28, flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3 },
 }));
