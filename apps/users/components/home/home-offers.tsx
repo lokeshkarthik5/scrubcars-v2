@@ -30,8 +30,10 @@ export function offerPath(offer: Pick<HomeOffer, 'vendorId' | 'code'>): string {
 }
 
 /**
- * Up to three offers, below the car as dark tickets (F2: the approved Home
- * mockup), in Home's one swipe row. It never moves on its own.
+ * Up to three offers, at the top of Home above the car, as the white
+ * tickets the admin's "Preview on Home" shows (owner, 24 Nov 2026; F2 had
+ * put them below the car, drawn dark), in Home's one swipe row. It never
+ * moves on its own.
  *
  * A tap remembers the code (pending-checkout store) and goes where it can be
  * used: a garage's own offer to that garage's page, carrying the code, and a
@@ -93,7 +95,6 @@ export function HomeOffers({
             figure={offerFigureOf(offer)}
             code={offer.code}
             muted={muted}
-            className="offer-coupon--dark"
             onSelect={() => select(offer)}
             onDismiss={() => dismiss.mutate(offer.id)}
           />

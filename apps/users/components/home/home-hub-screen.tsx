@@ -52,7 +52,10 @@ import { HomeHeader } from './home-header'
 import { HomeOffers } from './home-offers'
 import { NearbyCard } from './nearby-card'
 import { RightTile } from './right-tile'
-import { RepairQuotesTile, ToolTilesRow } from '@/components/repair-quotes/repair-quotes-tile'
+import {
+  RepairQuotesTile,
+  ToolTilesRow,
+} from '@/components/repair-quotes/repair-quotes-tile'
 
 // Sheets closed on arrival are loaded after the page, not with it: they are
 // out of the first load's JavaScript, and on the page well before anyone can
@@ -177,7 +180,9 @@ function HomeHubContent() {
         <Toast
           message={
             firstName
-              ? t('Welcome, {name}! Find your first car wash.', { name: firstName })
+              ? t('Welcome, {name}! Find your first car wash.', {
+                  name: firstName,
+                })
               : t('Welcome! Find your first car wash.')
           }
           visible={showToast}
@@ -226,6 +231,19 @@ function HomeHubContent() {
             )}
             {mustAct?.kind === 'garage_closed' && (
               <GarageClosedCard card={mustAct} />
+            )}
+
+            {/* Offers first, as white tickets (owner, 24 Nov 2026): the first
+                thing a customer sees after anything they must act on, above
+                the softer cards and the car. Home's one swipe row. */}
+            {offers.length > 0 && (
+              <HomeOffers
+                offers={offers}
+                userId={authUser.id}
+                vehicleId={car?.id ?? null}
+                hasCar={cars.length > 0}
+                muted={billDue}
+              />
             )}
 
             {rateCard && (
@@ -318,17 +336,6 @@ function HomeHubContent() {
               <RepairQuotesTile />
             </ToolTilesRow>
 
-            {/* Offers below the car, dark, in Home's one swipe row (F2). */}
-            {offers.length > 0 && (
-              <HomeOffers
-                offers={offers}
-                userId={authUser.id}
-                vehicleId={car?.id ?? null}
-                hasCar={cars.length > 0}
-                muted={billDue}
-              />
-            )}
-
             {rewards.data && <RewardsStrip summary={rewards.data} />}
             {/* 0054: a live challenge as a line (not a card), under the car's tiles. */}
             {rewards.data?.extras?.challenge && (
@@ -356,8 +363,10 @@ function HomeHubContent() {
 
 /**
  * The customer's Home hub (behind NEXT_PUBLIC_HOME_HUB): what needs the
- * customer first, then the car and Book a wash, what is next and its wash
- * bar, the offers, Updates, nearby garages and a tip (the approved F2 Home). One read, GET /users/me/home; each part the server
+ * customer first, then the offers, the car and Book a wash, what is next and
+ * its wash bar, Updates, nearby garages and a tip (the approved F2 Home, with
+ * the offers moved to the top on 24 Nov 2026). One read, GET /users/me/home;
+ * each part the server
  * could not load comes back empty and the rest still shows.
  *
  * Suspense because the welcome toast reads the URL (?welcome=1), as the

@@ -15,6 +15,13 @@ reconstructing every change in them.
 
 ## [Unreleased]
 
+- **Offers come first on Home, in white.** Up to three offers now sit at the
+  top of Home, after anything the customer must act on (a bill, extra work)
+  and above the rate card, the car and Book a wash, as the white tickets the
+  admin's "Preview on Home" already showed (owner, 24 Nov 2026; F2 had them
+  below the car, dark). Same in the customer app, where the ticket is white
+  in both Light and Dark.
+
 - **Delete your account, on the web** (`/delete-account`). A public, static,
   indexable page the app stores link to: how a customer deletes their
   account in the app, what is deleted and kept, what to finish first, how to
