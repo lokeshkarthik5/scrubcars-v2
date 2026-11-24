@@ -601,8 +601,10 @@ export const customerApp: Readonly<Record<string, string>> = {
   '{name} accepted this booking, then had to cancel it. Sorry about that.':
     '{name} இந்த புக்கிங்கை ஏற்று, பிறகு ரத்து செய்ய வேண்டியதாயிற்று. அதற்கு வருந்துகிறோம்.',
   // ─── The area sheet, per city (0070) ───
-  'No area called “{trim}” yet. Try a nearby one, or All of {city}.':
-    '“{trim}” என்ற பகுதி இன்னும் இல்லை. அருகில் உள்ள ஒன்றை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  'Nothing called “{query}” in {city}. Try a nearby area, or All of {city}.':
+    '{city}-இல் “{query}” என்ற இடம் இல்லை. அருகில் உள்ள பகுதியை முயற்சிக்கவும், அல்லது {city} முழுவதும்.',
+  'Other places in {city}': '{city}-இல் மற்ற இடங்கள்',
+  'Searching {city}…': '{city}-இல் தேடுகிறது…',
   // ─── Profile in the Home look (22 Nov 2026) ───
   'Garages tried': 'முயன்ற கேரேஜ்கள்',
   'Booking': 'புக்கிங்',
