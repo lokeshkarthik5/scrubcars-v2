@@ -124,7 +124,7 @@ test.describe('the sign-in code boxes @p0', () => {
     await page.waitForURL(/\/verify-otp/)
 
     const group = page.getByRole('group', { name: 'Verification code' })
-    const boxes = group.locator('input[maxlength="1"][inputmode="numeric"]')
+    const boxes = group.locator('input[inputmode="numeric"]')
     await expect(boxes).toHaveCount(6)
     const code = await latestOtp(PHONE)
 
@@ -144,5 +144,32 @@ test.describe('the sign-in code boxes @p0', () => {
     await page.keyboard.press('Backspace')
     await expect(group).not.toHaveAttribute('data-joined', '')
     await expect(group.locator('[data-lit]')).toHaveCount(5)
+  })
+
+  // Friends' report (25 Nov 2026): pasting the texted code put in only its
+  // first number. A paste into any box now fills all six, from box 1, with
+  // the words and spaces of the SMS dropped.
+  test('a pasted code fills all six boxes, whichever box was tapped', async ({ page }) => {
+    await page.goto('/login')
+    await page.locator('#sc-phone').fill(PHONE)
+    await page.getByRole('button', { name: /Send OTP/i }).click()
+    await page.waitForURL(/\/verify-otp/)
+
+    const group = page.getByRole('group', { name: 'Verification code' })
+    const boxes = group.locator('input[inputmode="numeric"]')
+    await expect(boxes).toHaveCount(6)
+    const code = await latestOtp(PHONE)
+
+    await boxes.nth(2).click()
+    // A real paste event with the SMS's own words around the code.
+    await boxes.nth(2).evaluate((box, text) => {
+      const data = new DataTransfer()
+      data.setData('text/plain', text)
+      box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    }, `Your Detlio code is ${code.slice(0, 3)} ${code.slice(3)}`)
+
+    for (let i = 0; i < 6; i++) await expect(boxes.nth(i)).toHaveValue(code[i]!)
+    await expect(group).toHaveAttribute('data-joined', '')
+    await expect(page.getByRole('button', { name: /^Verify/i })).toBeEnabled()
   })
 })
