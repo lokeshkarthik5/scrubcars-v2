@@ -469,9 +469,15 @@ function MapBrowseContent() {
 
   return (
     // Below the cookie bar while it is up (--consent-bar, app/globals.css).
+    //
+    // A size container, so the cards can ask how tall the screen left for
+    // them is (MAP_SHORT / MAP_TINY below). A short phone, an in-app browser
+    // or the cookie bar on a first visit used to push the chosen card under
+    // the floating nav, cutting off its name and price (friends' report,
+    // 25 Nov 2026). A media query would miss the cookie bar; this does not.
     <div
       ref={rootRef}
-      className="fixed inset-x-0 top-(--consent-bar) bottom-0 bg-surface"
+      className="fixed inset-x-0 top-(--consent-bar) bottom-0 bg-surface [container-type:size]"
     >
       {/* Chrome column: phone-width, centred, transparent to pointer events
           except where a control actually sits. First in the DOM, and kept on
@@ -573,7 +579,7 @@ function MapBrowseContent() {
             <>
               {/* Above the strip: the pull-up list, and where in the strip
                   the chosen card is ("1 of 6"), with a step either way. */}
-              <div className="flex items-center justify-between gap-2 px-4">
+              <div className={cn('flex items-center justify-between gap-2 px-4', MAP_TINY_HIDE)}>
                 <button
                   type="button"
                   onClick={() => setListOpen(true)}
@@ -772,6 +778,19 @@ function MapBrowseContent() {
   )
 }
 
+/*
+ * How the map's cards fit a short screen, asked of the page's own height (the
+ * size container on its root), so the cookie bar counts too. Everything fits
+ * from about 500px tall. Below 560px the photo steps down; below 470px it
+ * becomes a thin strip that still carries Open/Closed, and the "14 garages
+ * here · 1 of 14" row goes (List at the top and the arrows at the strip's
+ * edges do the same jobs). The card's name and price always stay above the
+ * nav.
+ */
+const MAP_PHOTO_FIT =
+  '[@container(min-height:471px)_and_(max-height:560px)]:h-[84px] [@container(max-height:470px)]:h-[48px]'
+const MAP_TINY_HIDE = '[@container(max-height:470px)]:hidden'
+
 function RoundButton({
   label,
   onClick,
@@ -951,7 +970,7 @@ function MapVendorCard({
         selected ? 'border-white/34 opacity-100' : 'scale-[0.93] opacity-[0.66]'
       )}
     >
-      <div className="relative h-[124px] w-full overflow-hidden rounded-[18px] bg-surface">
+      <div className={cn('relative h-[124px] w-full overflow-hidden rounded-[18px] bg-surface', MAP_PHOTO_FIT)}>
         {vendor.photos[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -984,7 +1003,7 @@ function MapVendorCard({
             {badge}
           </span>
         )}
-        <span aria-hidden="true" className="fx-pearl absolute bottom-2 right-2 grid size-9 place-items-center rounded-full">
+        <span aria-hidden="true" className={cn('fx-pearl absolute bottom-2 right-2 grid size-9 place-items-center rounded-full', MAP_TINY_HIDE)}>
           <IconArrowUpRight size={18} />
         </span>
       </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@repo/core/utils'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { useT } from '@repo/core/i18n'
 
 interface OtpInputProps {
@@ -35,20 +35,62 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: Ot
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values])
 
-  const handleChange = (index: number, value: string) => {
-    if (!/^\d?$/.test(value)) return
-
+  // Puts several digits in from one box onward and moves to the box after
+  // the last one filled (the last box once the code is complete).
+  const fillFrom = (index: number, digits: string) => {
+    const take = digits.slice(0, length - index)
     // Functional update: consecutive changes must each build on the previous
     // one, not on whatever `values` was when this handler was created.
     setValues((current) => {
       const next = [...current]
-      next[index] = value
+      take.split('').forEach((digit, k) => {
+        next[index + k] = digit
+      })
+      return next
+    })
+    refs.current[Math.min(index + take.length, length - 1)]?.focus()
+  }
+
+  const handleChange = (index: number, raw: string) => {
+    const digits = raw.replace(/\D/g, '')
+    if (raw && !digits) return
+
+    // More than one digit at once: the phone's code suggestion above the
+    // keyboard (iOS and Android put the whole code into the box in focus) or
+    // a paste the paste handler did not catch. Each box used to hold one
+    // character, so only the first number of the code went in (friends'
+    // report, 25 Nov 2026).
+    if (digits.length > 1) {
+      // Typing into a box that already has a digit gives old + new; keep the
+      // new one. A whole code (the length of it) always starts at box 1.
+      const old = values[index]
+      if (digits.length === 2 && old && digits.includes(old)) {
+        fillFrom(index, digits.replace(old, ''))
+      } else {
+        fillFrom(digits.length >= length ? 0 : index, digits)
+      }
+      return
+    }
+
+    setValues((current) => {
+      const next = [...current]
+      next[index] = digits
       return next
     })
 
-    if (value && index < length - 1) {
+    if (digits && index < length - 1) {
       refs.current[index + 1]?.focus()
     }
+  }
+
+  // A pasted code fills every box, whichever box was tapped: a whole code
+  // from box 1, a part of one from the box tapped. Spaces and dashes in it
+  // ("123 456", "Your code is 123456") are dropped.
+  const handlePaste = (index: number, e: ClipboardEvent<HTMLInputElement>) => {
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '')
+    if (!digits) return
+    e.preventDefault()
+    fillFrom(digits.length >= length ? 0 : index, digits.slice(0, length))
   }
 
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
@@ -90,10 +132,18 @@ export function OtpInput({ length = 6, onComplete, tone = 'solid', errorId }: Ot
             ref={(el) => { refs.current[i] = el }}
             type="text"
             inputMode="numeric"
-            maxLength={1}
+            // The phone offers the texted code on the first box; room for the
+            // whole code in every box, so a suggestion or paste is never cut
+            // to one digit before handleChange can spread it out.
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            maxLength={length}
             value={val}
             onChange={(e) => handleChange(i, e.target.value)}
+            onPaste={(e) => handlePaste(i, e)}
             onKeyDown={(e) => handleKeyDown(i, e)}
+            // Tapping a filled box selects its digit, so the next one typed
+            // replaces it rather than landing beside it.
+            onFocus={(e) => e.currentTarget.select()}
             // Figures in the brand's numeric face. A filled box steps up to a
             // grey edge and the focused one to white — six red outlines here
             // used to outshout the red Verify button they lead to.
