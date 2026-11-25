@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { IconBell, IconSearch } from '@tabler/icons-react'
 import { useBookCustomers } from '@repo/core/api/hooks/use-garage-book'
 import type { BookCustomerRow } from '@repo/core/api/garage-book'
@@ -12,16 +13,17 @@ import { cn } from '@repo/core/utils'
 import { NumberPlate } from '@repo/ui/finish/number-plate'
 import { SkeletonList } from '@repo/ui/sc/skeleton'
 import { FILTERS } from '@/components/book/day-list'
-import { BookScreen, Disc, Footnote, IconWell, LoadFailed, Seg, Tag, raised } from '@/components/book/parts'
+import { AddButton, BookScreen, Disc, Footnote, IconWell, LoadFailed, Seg, Tag, raised } from '@/components/book/parts'
 
 /**
- * Customers (B2): search; All / Detlio / My own; a "N customers are due"
+ * Customers (B2): "+ Add" a customer; search; All / Detlio / My own; a "N customers are due"
  * card with Remind; rows with their plate. Detlio customers say "Via
  * Detlio" and never show a phone number.
  */
 export default function CustomersPage() {
   const t = useT()
   const tn = useTn()
+  const router = useRouter()
   const [filter, setFilter] = useState<BookFilter>('all')
   const [q, setQ] = useState('')
   const search = useDebounced(q.trim(), 250)
@@ -30,10 +32,15 @@ export default function CustomersPage() {
 
   return (
     <BookScreen>
-      <h1 className="flex items-baseline gap-2 text-title font-semibold text-text-primary">
-        {t('Customers')}
-        {data && <span className="font-numeric text-[16px] font-semibold text-[#A8A8B2]">{data.counts.all}</span>}
-      </h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="flex min-w-0 items-baseline gap-2 text-title font-semibold text-text-primary">
+          {t('Customers')}
+          {data && <span className="font-numeric text-[16px] font-semibold text-[#A8A8B2]">{data.counts.all}</span>}
+        </h1>
+        {/* Adds a customer with no job yet (owner, 25 Nov 2026). Grey like Remind, and
+            says "Add" so it is never taken for the bar's +, which adds a walk-in job. */}
+        <AddButton label={t('Add')} onClick={() => router.push('/book/customers/new')} />
+      </div>
       <label className="fx-recessed flex h-12 items-center gap-2.5 rounded-control px-3.5">
         <IconSearch size={20} className="text-[#8E8E98]" aria-hidden />
         <span className="sr-only">{t('Search customers')}</span>
@@ -71,7 +78,7 @@ export default function CustomersPage() {
               ? t('No one matches that.')
               : filter === 'detlio'
                 ? t('No Detlio customers yet.')
-                : t('No customers yet. Add a walk-in with + and they’re here.')}
+                : t('No customers yet. Tap Add, or add a walk-in with +, and they’re here.')}
           </p>
         ) : (
           <ul className="flex flex-col">

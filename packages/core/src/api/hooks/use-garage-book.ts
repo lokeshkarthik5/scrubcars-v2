@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { BookFilter } from '../../garage-book'
 import {
   addWalkIn,
+  createBookCustomer,
+  type NewBookCustomer,
   getAdminBook,
   getBookCustomer,
   getBookCustomers,
@@ -135,6 +137,11 @@ export function useUpdateWalkIn() {
     mutationFn: ({ id, patch }: { id: string; patch: Parameters<typeof updateWalkIn>[1] }) => updateWalkIn(id, patch),
     onSuccess: refresh,
   })
+}
+
+export function useCreateBookCustomer() {
+  const refresh = useRefreshBook()
+  return useMutation({ mutationFn: (input: NewBookCustomer) => createBookCustomer(input), onSuccess: refresh })
 }
 
 export function useUpdateBookCustomer() {

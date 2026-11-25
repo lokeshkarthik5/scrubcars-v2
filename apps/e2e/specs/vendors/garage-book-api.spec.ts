@@ -171,6 +171,40 @@ test.describe('Garage Book on the database @p0', () => {
     expect((await xlsx.body()).subarray(0, 2).toString()).toBe('PK')
   })
 
+  test('a customer is added with no job (Customers → + Add), and a number already saved is refused', async () => {
+    const s = stamp()
+    const body = {
+      name: `Added Anand ${s}`,
+      phone: phoneFor(s),
+      note: 'Likes tyre shine',
+      cars: [{ plate: 'TN 09 ZZ 4321', make: 'Hyundai', model: 'Creta' }],
+    }
+    const res = await owner.post(`${BOOK}/customers`, { data: body, headers: AT_MAIN })
+    expect(res.status()).toBe(201)
+    const created = await data(res)
+    expect(created).toMatchObject({ name: body.name, phone: body.phone, note: body.note, visits: 0 })
+    expect(created.cars[0]).toMatchObject({ plate: 'TN 09 ZZ 4321', make: 'Hyundai', model: 'Creta' })
+
+    // On Customers, as one of the garage's own, with no visit yet. Staff can add one too.
+    const list = await data(
+      await owner.get(`${BOOK}/customers`, { params: { filter: 'own', q: s }, headers: AT_MAIN })
+    )
+    expect(list.customers.map((c: { id: string }) => c.id)).toEqual([created.id])
+    expect(list.customers[0]).toMatchObject({ source: 'own', viaDetlio: false, visits: 0 })
+
+    // The same number again, typed another way, is the customer the garage already has.
+    const again = await operator.post(`${BOOK}/customers`, {
+      data: { name: `Again ${s}`, phone: `+91 ${body.phone}` },
+      headers: AT_MAIN,
+    })
+    expect(again.status()).toBe(409)
+    expect((await again.json()).code).toBe('CUSTOMER_PHONE_TAKEN')
+
+    // Only the name is needed.
+    const bare = await operator.post(`${BOOK}/customers`, { data: { name: `Bare Bala ${s}` }, headers: AT_MAIN })
+    expect(bare.status()).toBe(201)
+  })
+
   test('staff add walk-ins but see no money', async () => {
     const s = stamp()
     const { res } = await walkIn(operator, s)
