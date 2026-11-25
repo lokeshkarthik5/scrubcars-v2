@@ -15,9 +15,9 @@ import { createStyles, useColors } from '@repo/native-ui/theme';
 import { garageScreen } from '@/components/app-shell';
 import { BookScreen } from '@/components/book/book-screen';
 import { FILTERS } from '@/components/book/day-list';
-import { BookInput, Disc, Empty, Footnote, go, IconWell, Plate, RaisedButton, Seg, Tag } from '@/components/book/parts';
+import { AddButton, BookInput, Disc, Empty, Footnote, go, IconWell, Plate, RaisedButton, Seg, Tag } from '@/components/book/parts';
 
-/** Customers (B2; the web's app/book/customers/page.tsx). Detlio customers never show a phone. */
+/** Customers (B2; the web's app/book/customers/page.tsx): "+ Add" a customer, search, filters. Detlio customers never show a phone. */
 function CustomersScreen() {
   const t = useT();
   const tn = useTn();
@@ -30,15 +30,20 @@ function CustomersScreen() {
   const data = list.data;
   return (
     <BookScreen>
-      <View style={styles.title}>
-        <T accessibilityRole="header" variant="title">
-          {t('Customers')}
-        </T>
-        {data ? (
-          <T num size={16} weight={600} color={colors.textSecondary}>
-            {String(data.counts.all)}
+      <View style={styles.titleRow}>
+        <View style={styles.title}>
+          <T accessibilityRole="header" variant="title">
+            {t('Customers')}
           </T>
-        ) : null}
+          {data ? (
+            <T num size={16} weight={600} color={colors.textSecondary}>
+              {String(data.counts.all)}
+            </T>
+          ) : null}
+        </View>
+        {/* Adds a customer with no job yet (owner, 25 Nov 2026). Says "Add" so it is never
+            taken for the bar's +, which adds a walk-in job. */}
+        <AddButton label={t('Add')} accessibilityLabel={t('Add a customer')} onPress={() => go('/book/customers/new')} />
       </View>
       <BookInput
         value={q}
@@ -69,7 +74,7 @@ function CustomersScreen() {
               ? t('No one matches that.')
               : filter === 'detlio'
                 ? t('No Detlio customers yet.')
-                : t('No customers yet. Add a walk-in with + and they’re here.')}
+                : t('No customers yet. Tap Add, or add a walk-in with +, and they’re here.')}
           </Empty>
         ) : (
           <View>
@@ -129,7 +134,8 @@ export default garageScreen(CustomersScreen);
 const useStyles = createStyles(() => ({
   flex: { flex: 1, minWidth: 0 },
   shrink: { flexShrink: 1 },
-  title: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  title: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexShrink: 1 },
   due: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1D1D23' },
   rowText: { flex: 1, minWidth: 0, gap: 4 },

@@ -251,6 +251,19 @@ export function getBookCustomer(id: string): Promise<BookCustomer> {
   return apiClient(`${BASE}/customers/${encodeURIComponent(id)}`)
 }
 
+/** What a garage types to add a customer of its own (POST /customers): a name, the rest optional. */
+export interface NewBookCustomer {
+  name: string
+  phone?: string
+  note?: string
+  cars?: Array<{ plate?: string; make?: string; model?: string }>
+}
+
+/** Adds a customer with no job yet (the Customers tab's "+ Add"). 409 CUSTOMER_PHONE_TAKEN for a number already saved. */
+export function createBookCustomer(input: NewBookCustomer): Promise<BookCustomer> {
+  return apiClient(`${BASE}/customers`, { method: 'POST', ...json(input) })
+}
+
 export function updateBookCustomer(
   id: string,
   patch: Partial<{ name: string; phone: string | null; note: string | null; cars: Array<BookCar & { washIntervalDays?: number | null }> }>
