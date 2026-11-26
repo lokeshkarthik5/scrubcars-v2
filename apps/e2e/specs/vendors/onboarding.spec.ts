@@ -24,7 +24,7 @@ test('a new owner signs up and is taken through all four steps @p0', async ({ pa
   await page.getByRole('button', { name: /Send OTP/i }).click()
 
   await page.waitForURL(/\/verify-otp/)
-  const boxes = page.locator('input[maxlength="1"][inputmode="numeric"]')
+  const boxes = page.getByRole('group', { name: 'Verification code' }).locator('input[inputmode="numeric"]')
   await boxes.first().click()
   await page.keyboard.type(await latestOtp(phone), { delay: 50 })
   await page.getByRole('button', { name: /^Verify/i }).click()

@@ -28,9 +28,10 @@ async function enterOtp(page: import('@playwright/test').Page, code: string) {
   // digits.
   await page.waitForURL(/\/verify-otp/)
 
-  // maxlength="1" is what actually distinguishes an OTP box from any other
-  // numeric field on the page.
-  const boxes = page.locator('input[maxlength="1"][inputmode="numeric"]')
+  // The code boxes' own group tells them from any other numeric field on the
+  // page. (Each box used to be maxlength="1"; it now has room for a whole
+  // code, so a paste or the phone's suggestion can fill all six.)
+  const boxes = page.getByRole('group', { name: 'Verification code' }).locator('input[inputmode="numeric"]')
   await expect(boxes).toHaveCount(6)
 
   await boxes.first().click()
