@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.detlio.app"
+      "bundleIdentifier": "com.detlio.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -46,10 +49,20 @@
       ],
       "expo-notifications",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Detlio uses your camera to photograph your car, check how it shines, record a repair, and scan a coupon.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
         "expo-image-picker",
         {
-          "photosPermission": "Detlio uses your photos so you can add one of your car to a booking.",
-          "cameraPermission": "Detlio uses your camera so you can add a photo of your car to a booking."
+          "photosPermission": "Detlio uses your photos so you can add a profile picture, a photo of your car, a shine check, or a repair.",
+          "cameraPermission": "Detlio uses your camera to photograph your car, check how it shines, record a repair, and scan a coupon.",
+          "microphonePermission": "Detlio uses the microphone while you record a repair video."
         }
       ],
       "expo-sharing",
